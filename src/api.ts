@@ -59,8 +59,7 @@ export const DEVICE_APPROVAL_EVENT = 'zeroleak:device-approval-needed';
  * repoint the frontend without touching code.
  */
 export const API_BASE: string =
-  ((import.meta.env.VITE_API_URL as string | undefined) || '').trim() ||
-  (import.meta.env.PROD ? 'https://backed-repeated-aerobics.ngrok-free.dev' : '');
+  ((import.meta.env.VITE_API_URL as string | undefined) || '').trim();
 
 function getStoredToken(): string | null {
   return localStorage.getItem('zeroleak_jwt_token');

@@ -40,6 +40,18 @@ const DEMO_USERS = [
     passwords: ['Password123!'],
   },
   {
+    id: 'usr-dev-exam-manager',
+    email: 'zeroleak.demo@dev.local',
+    username: 'zeroleak.demo@dev.local',
+    full_name: 'Development Test Examination Manager',
+    role: 'EXAM_MANAGER',
+    org_id: 'ORG-ZEROLEAK-NATIONAL',
+    centre_id: null,
+    authorization_status: 'AUTHORIZED',
+    account_type: 'DEVELOPMENT_ONLY',
+    passwords: ['ZeroLeak@Demo2026', 'Password123!'],
+  },
+  {
     id: 'usr-owner-easy',
     email: 'owner@test.com',
     username: 'owner',
