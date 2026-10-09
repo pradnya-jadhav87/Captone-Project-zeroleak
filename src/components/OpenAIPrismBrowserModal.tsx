@@ -675,17 +675,17 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
 
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px]">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>ZeroLeak AI Studio Active</span>
+              <span>Real OpenAI Prism</span>
             </div>
 
             <button
               type="button"
               onClick={() => handleOpenExternal('https://prism.openai.com/')}
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-              title="Open official OpenAI Prism in a new browser tab (supported sign-in flow)"
+              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              title="Open real OpenAI Prism in a new browser tab"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>Open Official OpenAI Prism ↗</span>
+              <span>Open in New Tab ↗</span>
             </button>
 
             <button
