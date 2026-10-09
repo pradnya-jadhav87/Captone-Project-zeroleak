@@ -734,15 +734,26 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
               <span className="text-[10px] text-emerald-400 font-medium">Encrypted Session</span>
             </div>
 
-            {/* Fullscreen Expand Button (In-app, no external popup) */}
-            <button
-              type="button"
-              onClick={() => setIsMaximized(!isMaximized)}
-              className="px-3 py-1 rounded-md bg-[#35363a] hover:bg-[#404246] border border-[#484b50] text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs"
-              title={isMaximized ? "Restore window size" : "Expand to full screen"}
-            >
-              <span>{isMaximized ? "Restore ❐" : "Full Screen ⛶"}</span>
-            </button>
+            {/* Action Buttons: Pop-out Window & Full Screen */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => window.open('/prism.html', 'ZeroLeakPrismEnclave', 'popup=1,width=1280,height=850,menubar=no,toolbar=no,status=no,location=no')}
+                className="px-3 py-1 rounded-md bg-[#35363a] hover:bg-[#404246] border border-[#484b50] text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs"
+                title="Open real Prism popup window without browser URL"
+              >
+                <span>Pop-out Window ↗</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsMaximized(!isMaximized)}
+                className="px-3 py-1 rounded-md bg-[#35363a] hover:bg-[#404246] border border-[#484b50] text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs"
+                title={isMaximized ? "Restore window size" : "Expand to full screen"}
+              >
+                <span>{isMaximized ? "Restore ❐" : "Full Screen ⛶"}</span>
+              </button>
+            </div>
           </div>
         </div>
 
