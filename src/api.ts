@@ -1119,6 +1119,29 @@ export const api = {
     centreName: string;
     transferredAt: string;
   }>('/api/delivery/transfer-to-printing-manager', { method: 'POST', body: JSON.stringify(payload) }),
+  fetchAndTransferLocalDocument: (payload: {
+    targetFilename?: string;
+    candidateNames?: string[];
+    subject?: string;
+    courseCode?: string;
+    title?: string;
+    fileData?: string;
+    fileMime?: string;
+    latexSource?: string;
+    transferredBy?: string;
+  }) => request<{
+    success: boolean;
+    foundOnPc?: boolean;
+    localFilePath?: string;
+    filename?: string;
+    sizeBytes?: number;
+    jobId: string;
+    custodyHash: string;
+    assignedPrintingManager: string;
+    centreName: string;
+    transferredAt: string;
+    message: string;
+  }>('/api/delivery/fetch-local-document', { method: 'POST', body: JSON.stringify(payload) }),
   getTransferredPrintJobs: () => request<{ jobs: any[] }>('/api/delivery/print-jobs'),
   getReleasedExams: () => request<{ examinations: Examination[] }>('/api/delivery/released-exams'),
   openSecureViewer: (exam_id: string) => request<{ message: string; paperContent: any; watermark: DynamicWatermarkData; paperVersionId: string }>('/api/delivery/open-viewer', { method: 'POST', body: JSON.stringify({ exam_id }) }),

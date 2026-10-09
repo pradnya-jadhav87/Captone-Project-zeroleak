@@ -114,3 +114,15 @@ test('ChromeLikeBrowser and prism.html contain universal compiler with cleanLate
   assert.ok(PRISM_HTML.includes('putCount >= 2'), 'Must detect picture mode via putCount >= 2 in prism.html');
   assert.ok(PRISM_HTML.includes('topOffset = minVisualTop > 35'), 'Auto-framing must be present in prism.html');
 });
+
+test('Download button pipeline fetches exact document and sends to Printing Manager', () => {
+  const SERVER_SOURCE = read('server.ts');
+  const MODAL_SOURCE = read('src/components/printing/TransferToPrintingManagerModal.tsx');
+
+  assert.ok(SERVER_SOURCE.includes('/api/delivery/fetch-local-document'), 'Server must have fetch-local-document endpoint');
+  assert.ok(MODAL_SOURCE.includes('fetchAndTransferLocalDocument'), 'Modal must call fetchAndTransferLocalDocument');
+  assert.ok(BROWSER_SOURCE.includes('targetFilename'), 'Browser must pass targetFilename to TransferToPrintingManagerModal');
+  assert.ok(BROWSER_SOURCE.includes('Download'), 'Browser toolbar must feature Download button');
+  assert.ok(PRISM_HTML.includes('doTransferToPrintingManager'), 'prism.html must implement doTransferToPrintingManager');
+});
+

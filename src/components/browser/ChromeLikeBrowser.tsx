@@ -1543,11 +1543,11 @@ const PrismChromeWebAuthPane: React.FC<{
           <button
             type="button"
             onClick={() => setIsTransferModalOpen(true)}
-            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-            title="Transfer Generated Paper Directly to Printing Manager (Local PC Download Blocked)"
+            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+            title="Download: Automatically fetches exact document from your PC and transfers to Printing Manager (Zero-Leak Anti-Extraction)"
           >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Transfer to Printing Manager</span>
+            <Download className="w-3.5 h-3.5" />
+            <span>Download</span>
           </button>
 
           <button
@@ -1742,12 +1742,14 @@ const PrismChromeWebAuthPane: React.FC<{
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
         paperTitle={activeProject.replace(/\.tex$/i, '')}
-        subject={activeProject.includes('Operating') ? 'OPERATING SYSTEMS' : 'APPLIED CRYPTOGRAPHY'}
-        courseCode={activeProject.includes('Operating') ? 'BTN04605' : 'SLR-VB-602'}
+        subject={activeProject.includes('Operating') || activeProject.includes('OS') ? 'OPERATING SYSTEMS' : 'APPLIED CRYPTOGRAPHY'}
+        courseCode={activeProject.includes('Operating') || activeProject.includes('OS') ? 'BTN04605' : 'SLR-VB-602'}
+        targetFilename={activeProject.includes('OS') || activeProject.includes('Operating') ? 'OS-1.pdf' : 'SLR-VB-602.pdf'}
+        candidateNames={['OS-1.pdf', 'OS-1.tex', 'OS (1).zip', 'OS-1-1.pdf', 'Operating_Systems_BTN04605.pdf']}
         totalMarks={70}
         durationHours={3}
         latexSource={latexDoc}
-        transferredBy="Pradnya Jadhav (Personal Workspace)"
+        transferredBy="Pradnya Jadhav (Paper Authority)"
       />
     </div>
   );
