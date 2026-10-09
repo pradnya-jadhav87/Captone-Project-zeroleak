@@ -22,6 +22,7 @@ import {
   Layers,
   Wand2,
   Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { api, ollamaChatStream } from '../../api';
 import { LaTeXText } from '../common/LaTeXText';
@@ -581,7 +582,7 @@ You can use the **Insert into Editor** button below to paste this into your pape
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
-                ZeroLeak AI — Prism LaTeX Studio
+                ZeroLeak — Prism AI & LaTeX Studio
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -589,7 +590,7 @@ You can use the **Insert into Editor** button below to paste this into your pape
               </span>
             </div>
             <p className="text-[11px] text-slate-500 hidden sm:block">
-              Solapur University 70-Mark Pattern • 14 MCQs • Section I & II • Real-Time AI Generation
+              Prism AI Question Synthesizer • Solapur University 70M Pattern • 14 MCQs • Sections I & II
             </p>
           </div>
         </div>
@@ -633,8 +634,8 @@ You can use the **Insert into Editor** button below to paste this into your pape
               viewMode === 'assistant' ? 'bg-white text-slate-900 shadow-2xs font-bold' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Wand2 className="w-3.5 h-3.5 text-amber-500" />
-            <span className="hidden md:inline">AI Copilot</span>
+            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden md:inline">Prism AI Copilot</span>
           </button>
         </div>
 
@@ -680,6 +681,17 @@ You can use the **Insert into Editor** button below to paste this into your pape
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
             <span className="hidden lg:inline">Apply to Synthesizer</span>
           </button>
+
+          <a
+            href="https://prism.openai.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition-all border border-slate-200"
+            title="Open official OpenAI Prism in external tab"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+            <span className="hidden xl:inline">OpenAI Prism Web</span>
+          </a>
         </div>
       </div>
 
@@ -723,7 +735,7 @@ You can use the **Insert into Editor** button below to paste this into your pape
                   <Sparkles className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900">ZeroLeak AI Copilot</h3>
+                  <h3 className="text-xs font-bold text-slate-900">Prism AI Copilot</h3>
                   <p className="text-[10px] text-slate-500">Autonomous Question & LaTeX Synthesizer</p>
                 </div>
               </div>
@@ -1076,3 +1088,4 @@ You can use the **Insert into Editor** button below to paste this into your pape
     </div>
   );
 };
+
