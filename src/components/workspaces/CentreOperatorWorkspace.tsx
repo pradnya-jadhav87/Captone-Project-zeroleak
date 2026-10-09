@@ -234,7 +234,7 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
           isTimeUnlocked: true,
           centre_name: job.centreName || 'Apex National Engineering Examination Centre 101',
           centre_code: job.centreId || 'CTR-101',
-          max_copies: 500,
+          max_copies: job.maxCopies || 500,
           current_paper_version_id: `VER-${job.courseCode || 'BTN04605'}-01`,
           version_code: 'SET-A-FINAL',
           transferred_from: job.transferredBy || 'Pradnya Jadhav (Paper Authority)',
@@ -242,6 +242,8 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
           subject_code: job.courseCode || 'BTN04605',
           exam_code: job.courseCode || 'BTN04605',
           job_id: job.id,
+          security_key: job.securityKey || 'SEC-CTR101-OPERATOR',
+          securityKey: job.securityKey || 'SEC-CTR101-OPERATOR',
         }));
 
       setReleasedExams([...formattedLocal, ...relExams]);
@@ -735,7 +737,14 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
     setStatusMessage(null);
     try {
       const res = await api.openSecureViewer(exam.id);
-      setViewerPaper(res.paperContent);
+      const localJobs = getLocalTransferredJobs();
+      const match = localJobs.find(j => j.id === exam.id || j.paperId === exam.id || j.courseCode === (exam as any).subject_code) || localJobs[0];
+      const examName = exam.name || (exam as any).title || match?.title || res.paperContent?.exam_name || 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)';
+      setViewerPaper({
+        ...res.paperContent,
+        exam_name: examName,
+        examinationName: examName,
+      });
       setViewerWatermark(res.watermark);
       setSelectedExamId(exam.id);
       setSelectedPaperVersionId(res.paperVersionId);
@@ -1375,11 +1384,13 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
               isTimeUnlocked: true,
               centre_name: 'Apex National Engineering Examination Centre 101',
               centre_code: 'CTR-101',
-              max_copies: 500,
+              max_copies: localJobs[0].maxCopies || 500,
               current_paper_version_id: 'VER-BTN04605-01',
               version_code: 'SET-A-FINAL',
               transferred_from: localJobs[0].transferredBy || 'Pradnya Jadhav (Paper Authority)',
               custody_hash: localJobs[0].custodyHash,
+              security_key: localJobs[0].securityKey || 'SEC-CTR101-OPERATOR',
+              securityKey: localJobs[0].securityKey || 'SEC-CTR101-OPERATOR',
             } as any) : null);
 
             if (!primaryExam) return null;
@@ -1400,6 +1411,11 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
                         <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/10 text-slate-300 font-bold">
                           {primaryExam.subject_code || primaryExam.exam_code || 'BTN04605'}
                         </span>
+                        {(primaryExam.security_key || (primaryExam as any).securityKey) && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+                            PIN: {primaryExam.security_key || (primaryExam as any).securityKey}
+                          </span>
+                        )}
                       </div>
                       <h2 className="text-base sm:text-lg font-black text-white mt-1 leading-snug">
                         {primaryExam.name}
@@ -1432,23 +1448,29 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
                 </div>
 
                 {/* Custody telemetry grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-black/30 p-3.5 rounded-xl border border-white/5 font-mono">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs bg-black/30 p-3.5 rounded-xl border border-white/5 font-mono">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">Schedule & Slot:</span>
+                    <span className="text-white font-semibold">
+                      {primaryExam.exam_date} &bull; {primaryExam.exam_time}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">Unlock / Quota:</span>
+                    <span className="text-emerald-300 font-semibold">
+                      {primaryExam.unlock_time} &bull; Max {primaryExam.max_copies || 500} Copies
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">Security Key:</span>
+                    <span className="text-amber-300 font-mono font-bold truncate block">
+                      {(primaryExam as any).security_key || (primaryExam as any).securityKey || 'SEC-CTR101-OPERATOR'}
+                    </span>
+                  </div>
                   <div>
                     <span className="text-slate-400 block text-[10px] uppercase">Custody Hash:</span>
                     <span className="text-emerald-400 font-bold truncate block">
                       {primaryExam.custody_hash || '0x8f2d3a1b4c9e7852a36b10de4f8a920c571348be7190ca345df19c028be934aa'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Transferred From:</span>
-                    <span className="text-white font-semibold">
-                      {primaryExam.transferred_from || 'Pradnya Jadhav (Paper Authority)'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px] uppercase">Enclave Terminal:</span>
-                    <span className="text-white font-semibold">
-                      Apex Centre 101 (CTR-101) &bull; Air-Gapped
                     </span>
                   </div>
                 </div>
@@ -1483,9 +1505,14 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
                                 <span>Zero-Leak Direct Transfer ({ex.transferred_from})</span>
                               </span>
                             )}
+                            {(ex.security_key || (ex as any).securityKey) && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-100 text-amber-900 border border-amber-300 font-bold">
+                                Key: {ex.security_key || (ex as any).securityKey}
+                              </span>
+                            )}
                           </div>
                           <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex flex-wrap items-center gap-2">
-                            <span>Schedule Date: {ex.exam_date} {ex.exam_time} • Unlock Minute: {ex.unlock_time}</span>
+                            <span>Schedule: {ex.exam_date} &bull; {ex.exam_time} &bull; Unlock: {ex.unlock_time} &bull; Max Quota: {ex.max_copies || 500} copies</span>
                             {ex.custody_hash && (
                               <span className="text-emerald-700 font-mono bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
                                 SHA-256 Custody: {ex.custody_hash.slice(0, 18)}...

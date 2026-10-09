@@ -1450,6 +1450,12 @@ export const api = {
     subject?: string;
     courseCode?: string;
     title?: string;
+    examDate?: string;
+    examTime?: string;
+    unlockTime?: string;
+    maxCopies?: number;
+    securityKey?: string;
+    paperContent?: any;
     fileData?: string;
     fileMime?: string;
     latexSource?: string;
@@ -1476,6 +1482,12 @@ export const api = {
           title: payload.title || `T.Y. B.Tech. Examination — ${payload.subject || 'OPERATING SYSTEMS'} (${payload.courseCode || 'BTN04605'})`,
           subject: payload.subject || 'OPERATING SYSTEMS',
           courseCode: payload.courseCode || 'BTN04605',
+          examDate: payload.examDate,
+          examTime: payload.examTime,
+          unlockTime: payload.unlockTime,
+          maxCopies: payload.maxCopies,
+          securityKey: payload.securityKey,
+          paperContent: payload.paperContent,
           custodyHash: res.custodyHash,
           transferredBy: payload.transferredBy || 'Pradnya Jadhav (Paper Authority)',
           filename: res.filename || payload.targetFilename || 'OS-1.pdf',
@@ -1510,6 +1522,12 @@ export const api = {
         title: cleanTitle,
         subject: payload.subject || 'OPERATING SYSTEMS',
         courseCode: payload.courseCode || 'BTN04605',
+        examDate: payload.examDate,
+        examTime: payload.examTime,
+        unlockTime: payload.unlockTime,
+        maxCopies: payload.maxCopies,
+        securityKey: payload.securityKey,
+        paperContent: payload.paperContent,
         custodyHash: fallbackHash,
         transferredBy: payload.transferredBy || 'Pradnya Jadhav (Paper Authority)',
         filename: targetName,
@@ -1554,7 +1572,26 @@ export const api = {
       backendExams = res?.examinations || [];
     } catch {}
 
-    const backendIds = new Set(backendExams.map(e => e.id));
+    const localMap = new Map(localJobs.map(j => [j.paperId || j.id, j]));
+    const updatedBackendExams = backendExams.map(be => {
+      const match = localMap.get(be.id) || (be.job_id ? localMap.get(be.job_id) : undefined);
+      if (match) {
+        return {
+          ...be,
+          name: match.title || be.name,
+          title: match.title || be.title,
+          exam_date: match.examDate || be.exam_date,
+          exam_time: match.examTime || be.exam_time,
+          unlock_time: match.unlockTime || be.unlock_time,
+          max_copies: match.maxCopies || be.max_copies || 500,
+          security_key: match.securityKey || (be as any).security_key || 'SEC-CTR101-OPERATOR',
+          securityKey: match.securityKey || (be as any).securityKey || 'SEC-CTR101-OPERATOR',
+        };
+      }
+      return be;
+    });
+
+    const backendIds = new Set(updatedBackendExams.map(e => e.id));
     const formattedLocal: any[] = localJobs
       .filter(j => !backendIds.has(j.id) && !backendIds.has(j.paperId))
       .map(job => ({
@@ -1578,7 +1615,7 @@ export const api = {
         isTimeUnlocked: true,
         centre_name: job.centreName || 'Apex National Engineering Examination Centre 101',
         centre_code: job.centreId || 'CTR-101',
-        max_copies: 500,
+        max_copies: job.maxCopies || 500,
         current_paper_version_id: `VER-${job.courseCode || 'BTN04605'}-01`,
         version_code: 'SET-A-FINAL',
         transferred_from: job.transferredBy || 'Pradnya Jadhav (Paper Authority)',
@@ -1586,9 +1623,11 @@ export const api = {
         subject_code: job.courseCode || 'BTN04605',
         exam_code: job.courseCode || 'BTN04605',
         job_id: job.id,
+        security_key: job.securityKey || 'SEC-CTR101-OPERATOR',
+        securityKey: job.securityKey || 'SEC-CTR101-OPERATOR',
       }));
 
-    return { examinations: [...formattedLocal, ...backendExams] };
+    return { examinations: [...formattedLocal, ...updatedBackendExams] };
   },
   openSecureViewer: (exam_id: string) => request<{ message: string; paperContent: any; watermark: DynamicWatermarkData; paperVersionId: string }>('/api/delivery/open-viewer', { method: 'POST', body: JSON.stringify({ exam_id }) }),
 

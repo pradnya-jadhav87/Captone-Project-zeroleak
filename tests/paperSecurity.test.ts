@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleDownloadCompetitivePaperPdf, handleDownloadCompetitivePaper, logCompetitivePaperAudit } from '../server/competitiveExam.ts';
+import { handleDownloadCompetitivePaperPdf, handleDownloadCompetitivePaper, logCompetitivePaperAudit, initializeCompetitiveSchema } from '../server/competitiveExam.ts';
 import { handleDownloadUniversityPaper, logUniversityPaperAudit } from '../server/universityFinalPipeline.ts';
 import { getDb, executeQuery, executeRun } from '../server/db.ts';
 
@@ -30,6 +30,7 @@ function createMockResponse() {
 
 test('1. Competitive Exam PDF download route returns HTTP 403 and logs DOWNLOAD_BLOCKED', async () => {
   const db = await getDb();
+  await initializeCompetitiveSchema(db);
   const testPaperId = `paper-test-pdf-${Date.now()}`;
   const testExamId = `exam-test-${Date.now()}`;
 
@@ -97,6 +98,7 @@ test('1. Competitive Exam PDF download route returns HTTP 403 and logs DOWNLOAD_
 
 test('2. Competitive Exam paper package download route returns HTTP 403 and logs DOWNLOAD_BLOCKED', async () => {
   const db = await getDb();
+  await initializeCompetitiveSchema(db);
   const testPaperId = `paper-test-pkg-${Date.now()}`;
   const testExamId = `exam-test-pkg-${Date.now()}`;
 

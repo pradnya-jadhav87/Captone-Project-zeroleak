@@ -650,11 +650,245 @@ app.get(['/api/centres', '/api/print/centres'], (req, res) => {
 // ZEROLEAK SECURE PRINTING MANAGER TRANSFER & ENCLAVE DISPATCH SUITE
 // =========================================================================
 
+const getCanonicalOsExamContent = () => ({
+  exam_name: 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)',
+  examinationName: 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)',
+  subject: 'OPERATING SYSTEMS',
+  paper_code: 'BTN04605',
+  total_marks: 70,
+  totalMarks: 70,
+  duration_minutes: 180,
+  durationMinutes: 180,
+  instructions: [
+    '1) Q. No. 1 is compulsory. It should be solved in the first 30 minutes in Answer Book Page no 03 (Starting page of the Answer Book). Each question carries one mark.',
+    "2) Don't forget to Mention question paper set (P/Q/R/S) on top of page.",
+    '3) In Questions 2 to 5, follow the choice specified for each question.',
+    '4) Figures to the right indicate full marks. Assume suitable data if necessary.',
+    '5) Draw neat, labeled diagrams wherever required.'
+  ],
+  questions: [
+    {
+      id: 'Q-MCQ-1',
+      questionNumber: '1.1',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'In the Many to One model, if a thread makes a blocking system call ______.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) the entire process will be blocked (Correct)' },
+        { key: 'B', text: '(b) a part of the process will stay blocked, with the rest running' },
+        { key: 'C', text: '(c) the entire process will run' },
+        { key: 'D', text: '(d) None of these' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-2',
+      questionNumber: '1.2',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'What is the primary purpose of cooperating processes in an operating system?',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) To enhance CPU scheduling algorithms' },
+        { key: 'B', text: '(b) To share system resources and data among multiple processes (Correct)' },
+        { key: 'C', text: '(c) To reduce the number of system calls' },
+        { key: 'D', text: '(d) To improve disk access speed' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-3',
+      questionNumber: '1.3',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'A parent process calling ______ system call will be suspended until children processes terminate.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) fork' },
+        { key: 'B', text: '(b) wait (Correct)' },
+        { key: 'C', text: '(c) exit' },
+        { key: 'D', text: '(d) exec' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-4',
+      questionNumber: '1.4',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'To ensure difficulties do not arise in the readers - writers problem, ______ are given exclusive access to the shared object.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) readers' },
+        { key: 'B', text: '(b) writers (Correct)' },
+        { key: 'C', text: '(c) both a) and b)' },
+        { key: 'D', text: '(d) None of these' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-5',
+      questionNumber: '1.5',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'Round robin scheduling falls under the category of : ______.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) Non preemptive scheduling' },
+        { key: 'B', text: '(b) Preemptive scheduling (Correct)' },
+        { key: 'C', text: '(c) both a) and b)' },
+        { key: 'D', text: '(d) None of these' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-6',
+      questionNumber: '1.6',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'The entry of all the PCBs of the current processes is in: ______.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) Process Register' },
+        { key: 'B', text: '(b) Program Counter' },
+        { key: 'C', text: '(c) Process Table (Correct)' },
+        { key: 'D', text: '(d) Process Unit' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-7',
+      questionNumber: '1.7',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'In a batch processing environment, what is a job queue?',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) A queue that stores processes waiting for CPU time' },
+        { key: 'B', text: '(b) A queue that stores user input for processing' },
+        { key: 'C', text: '(c) A queue that stores jobs awaiting execution (Correct)' },
+        { key: 'D', text: '(d) A queue that stores output data from completed processes' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-8',
+      questionNumber: '1.8',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'The circular wait condition can be prevented by ______.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) defining a linear ordering of resource types (Correct)' },
+        { key: 'B', text: '(b) using thread' },
+        { key: 'C', text: '(c) using pipes' },
+        { key: 'D', text: '(d) All of the mentioned' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-9',
+      questionNumber: '1.9',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'A problem encountered in multitasking when a process is permanently denied necessary resources is called ______.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) deadlock' },
+        { key: 'B', text: '(b) starvation (Correct)' },
+        { key: 'C', text: '(c) inversion' },
+        { key: 'D', text: '(d) aging' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-10',
+      questionNumber: '1.10',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'The ______ is used as an index into the page table.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) frame bit' },
+        { key: 'B', text: '(b) page number (Correct)' },
+        { key: 'C', text: '(c) page offset' },
+        { key: 'D', text: '(d) frame offset' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-11',
+      questionNumber: '1.11',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'Paging increases the ______ time.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) waiting' },
+        { key: 'B', text: '(b) execution' },
+        { key: 'C', text: '(c) context - switch (Correct)' },
+        { key: 'D', text: '(d) All of the mentioned' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-12',
+      questionNumber: '1.12',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: '______ is generally faster than ______ and ______.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) first fit, best fit, worst fit (Correct)' },
+        { key: 'B', text: '(b) best fit, first fit, worst fit' },
+        { key: 'C', text: '(c) worst fit, best fit, first fit' },
+        { key: 'D', text: '(d) None of the mentioned' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-13',
+      questionNumber: '1.13',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'File attributes consist of ______.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) name' },
+        { key: 'B', text: '(b) type' },
+        { key: 'C', text: '(c) identifier' },
+        { key: 'D', text: '(d) All of the mentioned (Correct)' }
+      ]
+    },
+    {
+      id: 'Q-MCQ-14',
+      questionNumber: '1.14',
+      sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
+      content_text: 'Which process is busy swapping pages in and out.',
+      marks: 1,
+      options: [
+        { key: 'A', text: '(a) Division' },
+        { key: 'B', text: '(b) External Fragmentation' },
+        { key: 'C', text: '(c) Thrashing (Correct)' },
+        { key: 'D', text: '(d) Compaction' }
+      ]
+    },
+    {
+      id: 'Q-SEC1-2',
+      questionNumber: '2',
+      sectionName: 'SECTION — I (Max. Marks: 56)',
+      content_text: 'Attempt the following (Any Four): [16 Marks]\n\na) Analyze bounded buffer problem as classical problems of synchronization. [4 Marks]\nb) Write a short note on multiprogramming operating systems. [4 Marks]\nc) Explain the shared memory systems of interprocess communication. [4 Marks]\nd) Discuss the role of the process control block (PCB) in process management. Explain the information typically stored in a PCB. [4 Marks]\ne) Explain the difference between non-preemptive and preemptive scheduling algorithms. Discuss the advantages and disadvantages of each approach in terms of system responsiveness and fairness. [4 Marks]',
+      marks: 16,
+      options: []
+    },
+    {
+      id: 'Q-SEC1-3',
+      questionNumber: '3',
+      sectionName: 'SECTION — I (Max. Marks: 56)',
+      content_text: 'Attempt the following (Any Two): [12 Marks]\n\na) Explain process creation and termination operations in detail. [6 Marks]\nb) Define thread. Describe the three multithreading models with suitable diagram. [6 Marks]\nc) Consider four processes P1, P2, P3, and P4 with their priority and CPU burst in milliseconds:\n\n• Process P1 | CPU Burst: 10 ms | Priority: 4\n• Process P2 | CPU Burst: 5 ms  | Priority: 3\n• Process P3 | CPU Burst: 2 ms  | Priority: 1\n• Process P4 | CPU Burst: 3 ms  | Priority: 2\n\nHow these processes will be scheduled according to priority scheduling algorithm? Compute the average waiting time and average turnaround time. [6 Marks]',
+      marks: 12,
+      options: []
+    },
+    {
+      id: 'Q-SEC2-4',
+      questionNumber: '4',
+      sectionName: 'SECTION — II',
+      content_text: 'Answer the following (Any Four): [16 Marks]\n\na) Elaborate terms swapping and paging. Compare swapping and paging. [4 Marks]\nb) Explain various methods for recovery from deadlock. [4 Marks]\nc) What is page fault? How is it handled by OS? [4 Marks]\nd) What is resource allocation graph in OS? What are the different elements of RAG? How is RAG utilized to decide about presence of deadlock? [4 Marks]\ne) What are the drawbacks of paging? Describe segmentation mechanism in OS. [4 Marks]',
+      marks: 16,
+      options: []
+    },
+    {
+      id: 'Q-SEC2-5',
+      questionNumber: '5',
+      sectionName: 'SECTION — II',
+      content_text: 'Answer the following (Any Two): [12 Marks]\n\na) Explain FIFO and optimal page replacement algorithm in detail. [6 Marks]\nb) Explain various free space management approaches in OS. [6 Marks]\nc) What is internal and external fragmentation in OS? Differentiate between internal and external fragmentation. [6 Marks]',
+      marks: 12,
+      options: []
+    }
+  ]
+});
+
 const transferredPrintingJobs = [
   {
     id: 'JOB-PRINT-OS-BTN04605',
-    paperId: 'EXAM-OS-BTN04605',
-    title: 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS',
+    paperId: 'EXAM-BTN04605-OS',
+    title: 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)',
     subject: 'OPERATING SYSTEMS',
     courseCode: 'BTN04605',
     examDate: new Date().toISOString().split('T')[0],
@@ -664,250 +898,13 @@ const transferredPrintingJobs = [
     durationHours: 3,
     status: 'READY_FOR_PRINT',
     assignedPrintingManager: 'operator@centre101.edu.in',
-    printingManagerName: 'Manoj Kumar (Centre Superintendent)',
+    printingManagerName: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
     centreId: 'CTR-101',
     centreName: 'Apex National Engineering Examination Centre 101',
     transferredBy: 'Pradnya Jadhav (Paper Authority)',
     transferredAt: new Date().toISOString(),
     custodyHash: '0x8f2d3a1b4c9e7852a36b10de4f8a920c571348be7190ca345df19c028be934aa',
-    paperContent: {
-      universityName: 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR',
-      faculty: 'FACULTY OF SCIENCE & TECHNOLOGY',
-      course: 'T.Y. B.Tech. (Semester II) Examination',
-      subject: 'OPERATING SYSTEMS',
-      courseCode: 'BTN04605',
-      time: '10:00 a.m. to 1:00 p.m.',
-      maxMarks: 70,
-      instructions: [
-        '1) Question 1 is compulsory and should be completed in the first 30 minutes.',
-        '2) In Questions 2 to 5, follow the choice specified for each question.',
-        '3) Figures to the right indicate full marks. Assume suitable data if necessary.',
-        '4) Draw neat, labeled diagrams wherever required.'
-      ],
-      sections: [
-        {
-          name: 'Section I - Objective Type Questions (MCQs)',
-          questions: [
-            {
-              number: '1',
-              text: 'In the many-to-one threading model, if a thread makes a blocking system call, what occurs?',
-              marks: 1,
-              options: [
-                'a) Only that individual thread blocks',
-                'b) The entire process blocks completely',
-                'c) A new thread is immediately spawned',
-                'd) Kernel panic occurs'
-              ]
-            },
-            {
-              number: '2',
-              text: 'Which system call suspends a parent process until one of its child processes terminates?',
-              marks: 1,
-              options: [
-                'a) fork()',
-                'b) exec()',
-                'c) wait()',
-                'd) exit()'
-              ]
-            },
-            {
-              number: '3',
-              text: 'Round-robin CPU scheduling is categorized as which type of scheduling algorithm?',
-              marks: 1,
-              options: [
-                'a) Preemptive scheduling',
-                'b) Non-preemptive scheduling',
-                'c) Static priority scheduling',
-                'd) First-Come First-Served scheduling'
-              ]
-            },
-            {
-              number: '4',
-              text: 'A process that is continually denied access to the CPU/resources it requires is experiencing:',
-              marks: 1,
-              options: [
-                'a) Deadlock',
-                'b) Starvation',
-                'c) Thrashing',
-                'd) Aging'
-              ]
-            },
-            {
-              number: '5',
-              text: 'Which page replacement algorithm suffers from Belady\'s Anomaly?',
-              marks: 1,
-              options: [
-                'a) Optimal Algorithm (OPT)',
-                'b) Least Recently Used (LRU)',
-                'c) First-In First-Out (FIFO)',
-                'd) Least Frequently Used (LFU)'
-              ]
-            },
-            {
-              number: '6',
-              text: 'In Dijkstra\'s Banker\'s Algorithm for deadlock avoidance, if a Safe State exists, the system is guaranteed to be:',
-              marks: 1,
-              options: [
-                'a) Completely free from deadlock',
-                'b) In immediate deadlock',
-                'c) Experiencing resource starvation',
-                'd) Thrashing'
-              ]
-            },
-            {
-              number: '7',
-              text: 'The Translation Lookaside Buffer (TLB) in virtual memory hardware is used to cache:',
-              marks: 1,
-              options: [
-                'a) Virtual page number to physical frame translations',
-                'b) Secondary storage disk blocks',
-                'c) CPU general-purpose registers',
-                'd) Open file descriptors'
-              ]
-            }
-          ]
-        },
-        {
-          name: 'Section I - Descriptive Questions',
-          questions: [
-            {
-              number: '2',
-              text: 'Attempt any THREE of the following: (a) Explain the components of a Process Control Block (PCB) with diagram. (b) Compare user-level threads and kernel-level threads with trade-offs. (c) Describe the four Coffman conditions necessary for a Deadlock to occur. (d) Differentiate Round Robin and Shortest Job First scheduling algorithms.',
-              marks: 12
-            },
-            {
-              number: '3',
-              text: 'Explain Peterson\'s Algorithm for mutual exclusion between two cooperating processes. Prove how it satisfies Mutual Exclusion, Progress, and Bounded Waiting.',
-              marks: 8
-            }
-          ]
-        },
-        {
-          name: 'Section II - Memory Management & Storage',
-          questions: [
-            {
-              number: '4',
-              text: 'Attempt any THREE of the following: (a) Explain Demand Paging and detail the complete step-by-step Page Fault handling procedure. (b) Differentiate between Internal and External Fragmentation and explain how Paging eliminates external fragmentation. (c) Compare Contiguous, Linked, and Indexed File Allocation methods. (d) Explain FCFS, SSTF, SCAN, and C-SCAN Disk Scheduling algorithms with illustrations.',
-              marks: 12
-            },
-            {
-              number: '5',
-              text: 'Given page reference string: 7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1 with 3 allocated physical frames. Calculate the total number of page faults using (i) FIFO Page Replacement and (ii) LRU Page Replacement.',
-              marks: 8
-            }
-          ]
-        }
-      ],
-      questions: [
-        {
-          questionNumber: 1,
-          content_text: 'In the many-to-one threading model, if a thread makes a blocking system call, what occurs?',
-          marks: 1,
-          options: [
-            'a) Only that individual thread blocks',
-            'b) The entire process blocks completely',
-            'c) A new thread is immediately spawned',
-            'd) Kernel panic occurs'
-          ]
-        },
-        {
-          questionNumber: 2,
-          content_text: 'Which system call suspends a parent process until one of its child processes terminates?',
-          marks: 1,
-          options: ['a) fork()', 'b) exec()', 'c) wait()', 'd) exit()']
-        },
-        {
-          questionNumber: 3,
-          content_text: 'Round-robin CPU scheduling is categorized as which type of scheduling algorithm?',
-          marks: 1,
-          options: [
-            'a) Preemptive scheduling',
-            'b) Non-preemptive scheduling',
-            'c) Static priority scheduling',
-            'd) First-Come First-Served scheduling'
-          ]
-        },
-        {
-          questionNumber: 4,
-          content_text: 'A process that is continually denied access to the CPU/resources it requires is experiencing:',
-          marks: 1,
-          options: ['a) Deadlock', 'b) Starvation', 'c) Thrashing', 'd) Aging']
-        },
-        {
-          questionNumber: 5,
-          content_text: 'Which page replacement algorithm suffers from Belady\'s Anomaly?',
-          marks: 1,
-          options: [
-            'a) Optimal Algorithm (OPT)',
-            'b) Least Recently Used (LRU)',
-            'c) First-In First-Out (FIFO)',
-            'd) Least Frequently Used (LFU)'
-          ]
-        },
-        {
-          questionNumber: 6,
-          content_text: 'In Dijkstra\'s Banker\'s Algorithm for deadlock avoidance, if a Safe State exists, the system is guaranteed to be:',
-          marks: 1,
-          options: [
-            'a) Completely free from deadlock',
-            'b) In immediate deadlock',
-            'c) Experiencing resource starvation',
-            'd) Thrashing'
-          ]
-        },
-        {
-          questionNumber: 7,
-          content_text: 'The Translation Lookaside Buffer (TLB) in virtual memory hardware is used to cache:',
-          marks: 1,
-          options: [
-            'a) Virtual page number to physical frame translations',
-            'b) Secondary storage disk blocks',
-            'c) CPU general-purpose registers',
-            'd) Open file descriptors'
-          ]
-        },
-        {
-          questionNumber: 8,
-          content_text: 'Explain the components of a Process Control Block (PCB) with diagram and discuss process state transitions (New, Ready, Running, Waiting, Terminated).',
-          marks: 4
-        },
-        {
-          questionNumber: 9,
-          content_text: 'Compare user-level threads and kernel-level threads with trade-offs in scheduling and context switching overhead.',
-          marks: 4
-        },
-        {
-          questionNumber: 10,
-          content_text: 'Describe the four Coffman conditions necessary for a Deadlock to occur and explain Deadlock Prevention vs. Avoidance.',
-          marks: 4
-        },
-        {
-          questionNumber: 11,
-          content_text: 'Explain Peterson\'s Algorithm for mutual exclusion between two cooperating processes. Prove how it satisfies Mutual Exclusion, Progress, and Bounded Waiting.',
-          marks: 8
-        },
-        {
-          questionNumber: 12,
-          content_text: 'Explain Demand Paging and detail the complete step-by-step Page Fault handling procedure by the Operating System.',
-          marks: 4
-        },
-        {
-          questionNumber: 13,
-          content_text: 'Differentiate between Internal and External Fragmentation and explain how Paging eliminates external fragmentation.',
-          marks: 4
-        },
-        {
-          questionNumber: 14,
-          content_text: 'Compare Contiguous, Linked, and Indexed File Allocation methods with directory structure implementations.',
-          marks: 4
-        },
-        {
-          questionNumber: 15,
-          content_text: 'Given page reference string: 7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1 with 3 allocated physical frames. Calculate the total number of page faults using (i) FIFO Page Replacement and (ii) LRU Page Replacement.',
-          marks: 8
-        }
-      ]
-    }
+    paperContent: getCanonicalOsExamContent(),
   }
 ];
 
@@ -921,6 +918,9 @@ app.post('/api/delivery/transfer-to-printing-manager', (req, res) => {
     durationHours = 3,
     examDate,
     examTime,
+    unlockTime,
+    maxCopies = 500,
+    securityKey,
     latexSource,
     pdfUrl,
     paperContent,
@@ -942,9 +942,11 @@ app.post('/api/delivery/transfer-to-printing-manager', (req, res) => {
     courseCode: cleanCode,
     examDate: examDate || now.toISOString().split('T')[0],
     examTime: examTime || '10:00 AM to 01:00 PM',
-    unlockTime: '09:30 AM',
+    unlockTime: unlockTime || '09:30 AM',
     totalMarks: Number(totalMarks) || 70,
     durationHours: Number(durationHours) || 3,
+    maxCopies: Number(maxCopies) || 500,
+    securityKey: securityKey || 'SEC-CTR101-OPERATOR',
     status: 'READY_FOR_PRINT',
     assignedPrintingManager: 'operator@centre101.edu.in',
     printingManagerName: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
@@ -956,10 +958,13 @@ app.post('/api/delivery/transfer-to-printing-manager', (req, res) => {
     latexSource,
     pdfUrl,
     paperContent: paperContent || {
-      universityName: 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR',
+      ...getCanonicalOsExamContent(),
+      exam_name: cleanTitle,
+      examinationName: cleanTitle,
       subject: cleanSubject,
-      courseCode: cleanCode,
-      maxMarks: totalMarks,
+      paper_code: cleanCode,
+      total_marks: Number(totalMarks) || 70,
+      totalMarks: Number(totalMarks) || 70,
     },
   };
 
@@ -986,6 +991,12 @@ app.post('/api/delivery/fetch-local-document', (req, res) => {
     title,
     subject,
     courseCode,
+    examDate,
+    examTime,
+    unlockTime,
+    maxCopies = 500,
+    securityKey,
+    paperContent,
     latexSource,
     transferredBy = 'Pradnya Jadhav (Paper Authority)',
   } = req.body || {};
@@ -999,7 +1010,7 @@ app.post('/api/delivery/fetch-local-document', (req, res) => {
   const isOsPaper = effectiveFilename.toLowerCase().startsWith('os') || (subject && subject.toLowerCase().includes('operating')) || true;
   const cleanSubject = isOsPaper ? 'OPERATING SYSTEMS' : (subject || 'OPERATING SYSTEMS');
   const cleanCode = isOsPaper ? 'BTN04605' : (courseCode || 'BTN04605');
-  const cleanTitle = isOsPaper ? 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)' : (title || `T.Y. B.Tech. Examination — ${cleanSubject} (${cleanCode})`);
+  const cleanTitle = title || (isOsPaper ? 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)' : `T.Y. B.Tech. Examination — ${cleanSubject} (${cleanCode})`);
   const id = `JOB-PRINT-${Date.now().toString().slice(-6)}`;
   const now = new Date();
   const hash = '0x' + crypto.createHash('sha256').update(`${id}-${cleanCode}-${effectiveFilename}-${now.toISOString()}`).digest('hex');
@@ -1010,11 +1021,13 @@ app.post('/api/delivery/fetch-local-document', (req, res) => {
     title: cleanTitle,
     subject: cleanSubject,
     courseCode: cleanCode,
-    examDate: now.toISOString().split('T')[0],
-    examTime: '10:00 AM to 01:00 PM',
-    unlockTime: '09:30 AM',
+    examDate: examDate || now.toISOString().split('T')[0],
+    examTime: examTime || '10:00 AM to 01:00 PM',
+    unlockTime: unlockTime || '09:30 AM',
     totalMarks: 70,
     durationHours: 3,
+    maxCopies: Number(maxCopies) || 500,
+    securityKey: securityKey || 'SEC-CTR101-OPERATOR',
     status: 'READY_FOR_PRINT',
     assignedPrintingManager: 'operator@centre101.edu.in',
     printingManagerName: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
@@ -1029,7 +1042,8 @@ app.post('/api/delivery/fetch-local-document', (req, res) => {
     sizeBytes: fileData ? Math.round(fileData.length * 0.75) : 48678,
     pdfUrl: `/compiled_papers/${effectiveFilename}`,
     latexSource: latexSource || '',
-    paperContent: {
+    paperContent: paperContent || {
+      ...getCanonicalOsExamContent(),
       exam_name: cleanTitle,
       examinationName: cleanTitle,
       subject: cleanSubject,
@@ -1038,237 +1052,10 @@ app.post('/api/delivery/fetch-local-document', (req, res) => {
       totalMarks: 70,
       duration_minutes: 180,
       durationMinutes: 180,
-      filename: targetFilename,
+      filename: effectiveFilename,
       sizeBytes: 48678,
       custodyHash: hash,
-      instructions: [
-        '1) Q. No. 1 is compulsory. It should be solved in the first 30 minutes in Answer Book Page no 03 (Starting page of the Answer Book). Each question carries one mark.',
-        "2) Don't forget to Mention question paper set (P/Q/R/S) on top of page.",
-        '3) In Questions 2 to 5, follow the choice specified for each question.',
-        '4) Figures to the right indicate full marks. Assume suitable data if necessary.',
-        '5) Draw neat, labeled diagrams wherever required.'
-      ],
-      questions: [
-        {
-          id: 'Q-MCQ-1',
-          questionNumber: '1.1',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'In the Many to One model, if a thread makes a blocking system call ______.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) the entire process will be blocked (Correct)' },
-            { key: 'B', text: '(b) a part of the process will stay blocked, with the rest running' },
-            { key: 'C', text: '(c) the entire process will run' },
-            { key: 'D', text: '(d) None of these' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-2',
-          questionNumber: '1.2',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'What is the primary purpose of cooperating processes in an operating system?',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) To enhance CPU scheduling algorithms' },
-            { key: 'B', text: '(b) To share system resources and data among multiple processes (Correct)' },
-            { key: 'C', text: '(c) To reduce the number of system calls' },
-            { key: 'D', text: '(d) To improve disk access speed' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-3',
-          questionNumber: '1.3',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'A parent process calling ______ system call will be suspended until children processes terminate.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) fork' },
-            { key: 'B', text: '(b) wait (Correct)' },
-            { key: 'C', text: '(c) exit' },
-            { key: 'D', text: '(d) exec' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-4',
-          questionNumber: '1.4',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'To ensure difficulties do not arise in the readers - writers problem, ______ are given exclusive access to the shared object.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) readers' },
-            { key: 'B', text: '(b) writers (Correct)' },
-            { key: 'C', text: '(c) both a) and b)' },
-            { key: 'D', text: '(d) None of these' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-5',
-          questionNumber: '1.5',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'Round robin scheduling falls under the category of : ______.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) Non preemptive scheduling' },
-            { key: 'B', text: '(b) Preemptive scheduling (Correct)' },
-            { key: 'C', text: '(c) both a) and b)' },
-            { key: 'D', text: '(d) None of these' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-6',
-          questionNumber: '1.6',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'The entry of all the PCBs of the current processes is in: ______.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) Process Register' },
-            { key: 'B', text: '(b) Program Counter' },
-            { key: 'C', text: '(c) Process Table (Correct)' },
-            { key: 'D', text: '(d) Process Unit' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-7',
-          questionNumber: '1.7',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'In a batch processing environment, what is a job queue?',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) A queue that stores processes waiting for CPU time' },
-            { key: 'B', text: '(b) A queue that stores user input for processing' },
-            { key: 'C', text: '(c) A queue that stores jobs awaiting execution (Correct)' },
-            { key: 'D', text: '(d) A queue that stores output data from completed processes' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-8',
-          questionNumber: '1.8',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'The circular wait condition can be prevented by ______.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) defining a linear ordering of resource types (Correct)' },
-            { key: 'B', text: '(b) using thread' },
-            { key: 'C', text: '(c) using pipes' },
-            { key: 'D', text: '(d) All of the mentioned' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-9',
-          questionNumber: '1.9',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'A problem encountered in multitasking when a process is permanently denied necessary resources is called ______.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) deadlock' },
-            { key: 'B', text: '(b) starvation (Correct)' },
-            { key: 'C', text: '(c) inversion' },
-            { key: 'D', text: '(d) aging' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-10',
-          questionNumber: '1.10',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'The ______ is used as an index into the page table.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) frame bit' },
-            { key: 'B', text: '(b) page number (Correct)' },
-            { key: 'C', text: '(c) page offset' },
-            { key: 'D', text: '(d) frame offset' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-11',
-          questionNumber: '1.11',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'Paging increases the ______ time.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) waiting' },
-            { key: 'B', text: '(b) execution' },
-            { key: 'C', text: '(c) context - switch (Correct)' },
-            { key: 'D', text: '(d) All of the mentioned' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-12',
-          questionNumber: '1.12',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: '______ is generally faster than ______ and ______.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) first fit, best fit, worst fit (Correct)' },
-            { key: 'B', text: '(b) best fit, first fit, worst fit' },
-            { key: 'C', text: '(c) worst fit, best fit, first fit' },
-            { key: 'D', text: '(d) None of the mentioned' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-13',
-          questionNumber: '1.13',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'File attributes consist of ______.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) name' },
-            { key: 'B', text: '(b) type' },
-            { key: 'C', text: '(c) identifier' },
-            { key: 'D', text: '(d) All of the mentioned (Correct)' }
-          ]
-        },
-        {
-          id: 'Q-MCQ-14',
-          questionNumber: '1.14',
-          sectionName: 'MCQ / OBJECTIVE TYPE QUESTIONS (14 Marks)',
-          content_text: 'Which process is busy swapping pages in and out.',
-          marks: 1,
-          options: [
-            { key: 'A', text: '(a) Division' },
-            { key: 'B', text: '(b) External Fragmentation' },
-            { key: 'C', text: '(c) Thrashing (Correct)' },
-            { key: 'D', text: '(d) Compaction' }
-          ]
-        },
-        // Q.2 SECTION I
-        {
-          id: 'Q-SEC1-2',
-          questionNumber: '2',
-          sectionName: 'SECTION — I (Max. Marks: 56)',
-          content_text: 'Attempt the following (Any Four): [16 Marks]\n\na) Analyze bounded buffer problem as classical problems of synchronization. [4 Marks]\nb) Write a short note on multiprogramming operating systems. [4 Marks]\nc) Explain the shared memory systems of interprocess communication. [4 Marks]\nd) Discuss the role of the process control block (PCB) in process management. Explain the information typically stored in a PCB. [4 Marks]\ne) Explain the difference between non-preemptive and preemptive scheduling algorithms. Discuss the advantages and disadvantages of each approach in terms of system responsiveness and fairness. [4 Marks]',
-          marks: 16,
-          options: []
-        },
-        // Q.3 SECTION I (with CPU burst priority table)
-        {
-          id: 'Q-SEC1-3',
-          questionNumber: '3',
-          sectionName: 'SECTION — I (Max. Marks: 56)',
-          content_text: 'Attempt the following (Any Two): [12 Marks]\n\na) Explain process creation and termination operations in detail. [6 Marks]\nb) Define thread. Describe the three multithreading models with suitable diagram. [6 Marks]\nc) Consider four processes P1, P2, P3, and P4 with their priority and CPU burst in milliseconds:\n\n• Process P1 | CPU Burst: 10 ms | Priority: 4\n• Process P2 | CPU Burst: 5 ms  | Priority: 3\n• Process P3 | CPU Burst: 2 ms  | Priority: 1\n• Process P4 | CPU Burst: 3 ms  | Priority: 2\n\nHow these processes will be scheduled according to priority scheduling algorithm? Compute the average waiting time and average turnaround time. [6 Marks]',
-          marks: 12,
-          options: []
-        },
-        // Q.4 SECTION II
-        {
-          id: 'Q-SEC2-4',
-          questionNumber: '4',
-          sectionName: 'SECTION — II',
-          content_text: 'Answer the following (Any Four): [16 Marks]\n\na) Elaborate terms swapping and paging. Compare swapping and paging. [4 Marks]\nb) Explain various methods for recovery from deadlock. [4 Marks]\nc) What is page fault? How is it handled by OS? [4 Marks]\nd) What is resource allocation graph in OS? What are the different elements of RAG? How is RAG utilized to decide about presence of deadlock? [4 Marks]\ne) What are the drawbacks of paging? Describe segmentation mechanism in OS. [4 Marks]',
-          marks: 16,
-          options: []
-        },
-        // Q.5 SECTION II
-        {
-          id: 'Q-SEC2-5',
-          questionNumber: '5',
-          sectionName: 'SECTION — II',
-          content_text: 'Answer the following (Any Two): [12 Marks]\n\na) Explain FIFO and optimal page replacement algorithm in detail. [6 Marks]\nb) Explain various free space management approaches in OS. [6 Marks]\nc) What is internal and external fragmentation in OS? Differentiate between internal and external fragmentation. [6 Marks]',
-          marks: 12,
-          options: []
-        }
-      ]
-    }
+    },
   };
 
   transferredPrintingJobs.unshift(newJob);
@@ -1324,7 +1111,9 @@ app.get('/api/delivery/released-exams', (req, res) => {
     unlockDateTime: `${job.examDate}T09:30:00.000Z`,
     centre_name: job.centreName,
     centre_code: job.centreId,
-    max_copies: 500,
+    max_copies: job.maxCopies || 500,
+    security_key: job.securityKey || 'SEC-CTR101-OPERATOR',
+    securityKey: job.securityKey || 'SEC-CTR101-OPERATOR',
     current_paper_version_id: `VER-${job.courseCode}-01`,
     version_code: 'SET-A-FINAL',
     transferred_from: job.transferredBy,
