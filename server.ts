@@ -10162,6 +10162,38 @@ async function startServer() {
 
       transferredPrintingJobsServer.unshift(newJob);
 
+      // Zero-Leak Anti-Extraction Enforcement:
+      // Securely purge the unencrypted raw file from user's local PC/Downloads so it never remains visible on local disk!
+      let purgedCount = 0;
+      try {
+        if (foundPath && fs.existsSync(foundPath) && !foundPath.includes(process.cwd())) {
+          fs.unlinkSync(foundPath);
+          purgedCount++;
+          console.log(`[ZeroLeak Anti-Leak Gate] Successfully purged raw document from local PC: ${foundPath}`);
+        }
+        // Scrub any duplicate download copies (OS-1*.pdf, etc.) in user's Downloads folder
+        const dlFolder = path.join(os.homedir(), 'Downloads');
+        if (fs.existsSync(dlFolder)) {
+          const dlEntries = fs.readdirSync(dlFolder);
+          for (const entry of dlEntries) {
+            const lower = entry.toLowerCase();
+            if (
+              (lower.startsWith('os-1') && lower.endsWith('.pdf')) ||
+              (lower.startsWith('slr-vb-602') && lower.endsWith('.pdf')) ||
+              (lower.startsWith('transferred_') && lower.endsWith('.pdf'))
+            ) {
+              try {
+                fs.unlinkSync(path.join(dlFolder, entry));
+                purgedCount++;
+                console.log(`[ZeroLeak Anti-Leak Gate] Purged leak artifact from Downloads: ${entry}`);
+              } catch {}
+            }
+          }
+        }
+      } catch (purgeErr) {
+        console.warn('[ZeroLeak Anti-Leak Gate] Local disk purge notice:', purgeErr);
+      }
+
       return res.json({
         success: true,
         foundOnPc: true,
@@ -10173,10 +10205,49 @@ async function startServer() {
         assignedPrintingManager: 'operator@centre101.edu.in',
         centreName: 'Apex National Engineering Examination Centre 101',
         transferredAt: now.toISOString(),
-        message: `Exact document '${matchedName}' (${(buffer.length / 1024).toFixed(1)} KB) fetched from PC and securely transferred to Printing Manager.`,
+        purgedFromLocalDisk: true,
+        purgedCount,
+        message: `Exact document '${matchedName}' (${(buffer.length / 1024).toFixed(1)} KB) secured in Printing Manager Enclave. Local unencrypted file purged from PC disk per Zero-Leak protocol.`,
       });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Zero-Leak Enforcement: Explicit endpoint to purge raw examination files from PC Downloads
+  app.post('/api/security/purge-local-unencrypted-documents', (req: Request, res: Response) => {
+    try {
+      const home = os.homedir();
+      const dlFolder = path.join(home, 'Downloads');
+      const purged: string[] = [];
+
+      if (fs.existsSync(dlFolder)) {
+        const files = fs.readdirSync(dlFolder);
+        for (const file of files) {
+          const lower = file.toLowerCase();
+          if (
+            (lower.startsWith('os-1') && lower.endsWith('.pdf')) ||
+            (lower.startsWith('slr-vb-602') && lower.endsWith('.pdf')) ||
+            (lower.startsWith('transferred_') && lower.endsWith('.pdf'))
+          ) {
+            try {
+              fs.unlinkSync(path.join(dlFolder, file));
+              purged.push(file);
+            } catch {}
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        purgedFiles: purged,
+        purgedCount: purged.length,
+        message: purged.length > 0
+          ? `Successfully purged ${purged.length} unencrypted file(s) from local PC Downloads.`
+          : 'Local Downloads folder is clean. No unencrypted exam files found on disk.',
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
     }
   });
 

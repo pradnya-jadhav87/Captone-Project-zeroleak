@@ -569,25 +569,12 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
       setActiveDecryptedPaper(fullPaper);
       setActiveOperatorPrintMeta(dlMeta);
 
-      const htmlDoc = buildCompetitivePaperPrintHtml(
-        fullPaper,
-        dlMeta,
-        fullPaper?.enableTranslation ? 'BILINGUAL' : 'ORIGINAL_ENGLISH'
-      );
-
-      const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${(fullPaper.title || 'Competitive_Exam_Paper').replace(/[^a-zA-Z0-9_-]/g, '_')}_${fullPaper.id}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
+      // Zero-Leak Anti-Extraction Policy:
+      // Direct file downloading to user's local PC/hard drive is strictly blocked to maintain exam security.
+      // The decrypted paper is loaded into the secure on-screen enclave viewer for authorized physical printing only.
       setStatusMessage({
         type: 'success',
-        text: `${res.message} Audit Tx: ${txHash?.slice(0, 16)}...`,
+        text: `Zero-Leak Security Active: Direct file download to laptop disk is restricted. Paper loaded in secure enclave viewer. Audit Tx: ${txHash?.slice(0, 16)}...`,
       });
       await loadCompetitivePapers(true);
       if (selectedAuditPaperId === paper.id) {
