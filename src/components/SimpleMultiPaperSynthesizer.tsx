@@ -56,6 +56,7 @@ import {
 } from '../utils/sourcePattern';
 import { enforceStructuralPattern } from '../utils/patternEnforcement';
 import { SecurePaperViewer } from './security/SecurePaperViewer';
+import { TransferToPrintingManagerModal } from './printing/TransferToPrintingManagerModal';
 
 interface UploadedPaper {
   id: string;
@@ -1414,17 +1415,12 @@ export const SimpleMultiPaperSynthesizer: React.FC<SimpleMultiPaperSynthesizerPr
     } catch {}
   };
 
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+
   const downloadLatexFile = () => {
-    if (!generatedLatex) return;
-    const blob = new Blob([generatedLatex], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${subject.replace(/[^a-zA-Z0-9]/g, '_')}_Synthesized_Paper.tex`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Zero-Leak Anti-Extraction: Do NOT download file to user's PC.
+    // Instead, transfer directly to Printing Manager (operator@centre101.edu.in)
+    setIsTransferModalOpen(true);
   };
 
   return (
@@ -2627,14 +2623,15 @@ export const SimpleMultiPaperSynthesizer: React.FC<SimpleMultiPaperSynthesizerPr
                     <div className="flex flex-wrap items-center gap-2">
 
                       {latexFallback?.sourceUrl && (
-                        <a
-                          href={`${latexFallback.sourceUrl}?download=1`}
-                          download="generated_question_paper.tex"
-                          className="px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-[#DCE5EA] dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        <button
+                          type="button"
+                          onClick={() => setIsTransferModalOpen(true)}
+                          className="px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-[#DCE5EA] dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                          title="Transfer Paper Directly to Printing Manager (Local PC Download Blocked)"
                         >
-                          <FileCode2 className="w-3.5 h-3.5" />
-                          <span>LaTeX Source</span>
-                        </a>
+                          <Printer className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Transfer to Printing Manager</span>
+                        </button>
                       )}
 
                       <button
@@ -2815,10 +2812,11 @@ export const SimpleMultiPaperSynthesizer: React.FC<SimpleMultiPaperSynthesizerPr
                             <button
                               type="button"
                               onClick={downloadLatexFile}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00A878] hover:bg-[#00C98B] text-white text-xs font-bold cursor-pointer transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#00A878] hover:bg-[#00C98B] text-white text-xs font-bold cursor-pointer transition-colors shadow-xs"
+                              title="Transfer Paper to Printing Manager (Zero-Leak Anti-Extraction Policy)"
                             >
-                              <Download className="w-3.5 h-3.5" />
-                              <span>Download .tex</span>
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>Transfer to Printing Manager</span>
                             </button>
                           </div>
                         </div>
@@ -3078,6 +3076,21 @@ export const SimpleMultiPaperSynthesizer: React.FC<SimpleMultiPaperSynthesizerPr
         isOpen={showPrismBrowser}
         onClose={() => setShowPrismBrowser(false)}
         initialUrl="https://prism.openai.com/"
+      />
+
+      {/* Transfer to Printing Manager Modal (Zero-Leak Enforcement) */}
+      <TransferToPrintingManagerModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        paperTitle={paperTitle || `T.Y. B.Tech. Examination — ${subject}`}
+        subject={subject || 'OPERATING SYSTEMS'}
+        courseCode="BTN04605"
+        totalMarks={totalMarks || 70}
+        durationHours={durationHours || 3}
+        latexSource={generatedLatex}
+        pdfUrl={compiledPdfUrl || undefined}
+        paperContent={structuredPaper || undefined}
+        transferredBy={currentUser ? `${currentUser.full_name} (${currentUser.role})` : 'Pradnya Jadhav (Personal Workspace)'}
       />
     </div>
   );

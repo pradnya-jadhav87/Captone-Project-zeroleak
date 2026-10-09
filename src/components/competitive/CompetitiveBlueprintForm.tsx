@@ -608,19 +608,22 @@ export const CompetitiveBlueprintForm = ({
           : 'original';
       const blob = await api.competitive.downloadPaperPdf(generatedPaper.id, mode);
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
       const safeName = (generatedPaper.title || examDetails.name || 'Competitive_Exam_Paper')
         .replace(/[^a-zA-Z0-9_-]/g, '_')
         .slice(0, 60);
-      a.href = url;
-      a.download = `${safeName}_${generatedPaper.id}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+      // Zero-Leak Enforcement: Intercept local download and transfer to Printing Manager
+      await api.transferToPrintingManager({
+        title: generatedPaper.title || examDetails.name || 'Competitive Examination Paper',
+        subject: examDetails.subject || examDetails.name || 'Competitive Examination',
+        courseCode: generatedPaper.id,
+        totalMarks: Number(examDetails.total_marks) || 100,
+        transferredBy: 'Exam Authority',
+      });
+
       setFinalizeMsg({
         type: 'success',
-        text: `Downloaded "${safeName}_${generatedPaper.id}.pdf" from the single generated paper.`,
+        text: `Zero-Leak Enforcement: Local PC download blocked. Paper "${safeName}" transferred directly to Printing Manager (operator@centre101.edu.in) for authorized printing.`,
       });
     } catch (err: any) {
       setFinalizeMsg({

@@ -29,8 +29,11 @@ import {
   Code2,
   Columns,
   ChevronDown,
+  Printer,
+  ShieldCheck,
 } from 'lucide-react';
 import { LaTeXText } from '../common/LaTeXText';
+import { TransferToPrintingManagerModal } from '../printing/TransferToPrintingManagerModal';
 
 import {
   sendBrowserCommand,
@@ -196,6 +199,7 @@ const PrismChromeWebAuthPane: React.FC<{
   const [isCompiling, setIsCompiling] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
 
   const authWindowRef = useRef<Window | null>(null);
 
@@ -378,6 +382,16 @@ const PrismChromeWebAuthPane: React.FC<{
 
           <button
             type="button"
+            onClick={() => setIsTransferModalOpen(true)}
+            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+            title="Transfer Generated Paper Directly to Printing Manager (Local PC Download Blocked)"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            <span>Transfer to Printing Manager</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleCopyCode}
             className="px-2.5 py-1.5 rounded-lg bg-[#2a2b2f] hover:bg-[#34353a] border border-white/5 text-slate-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Copy LaTeX source code"
@@ -546,6 +560,19 @@ const PrismChromeWebAuthPane: React.FC<{
           </div>
         </div>
       </div>
+
+      {/* Transfer to Printing Manager Modal */}
+      <TransferToPrintingManagerModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        paperTitle="T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)"
+        subject="OPERATING SYSTEMS"
+        courseCode="BTN04605"
+        totalMarks={70}
+        durationHours={3}
+        latexSource={latexDoc}
+        transferredBy="Pradnya Jadhav (Personal Workspace)"
+      />
     </div>
   );
 };

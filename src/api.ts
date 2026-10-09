@@ -1098,6 +1098,28 @@ export const api = {
     }),
 
   // Secure Delivery & Printing
+  transferToPrintingManager: (payload: {
+    title?: string;
+    subject?: string;
+    courseCode?: string;
+    totalMarks?: number;
+    durationHours?: number;
+    examDate?: string;
+    examTime?: string;
+    latexSource?: string;
+    pdfUrl?: string;
+    paperContent?: any;
+    transferredBy?: string;
+  }) => request<{
+    success: boolean;
+    message: string;
+    jobId: string;
+    custodyHash: string;
+    assignedPrintingManager: string;
+    centreName: string;
+    transferredAt: string;
+  }>('/api/delivery/transfer-to-printing-manager', { method: 'POST', body: JSON.stringify(payload) }),
+  getTransferredPrintJobs: () => request<{ jobs: any[] }>('/api/delivery/print-jobs'),
   getReleasedExams: () => request<{ examinations: Examination[] }>('/api/delivery/released-exams'),
   openSecureViewer: (exam_id: string) => request<{ message: string; paperContent: any; watermark: DynamicWatermarkData; paperVersionId: string }>('/api/delivery/open-viewer', { method: 'POST', body: JSON.stringify({ exam_id }) }),
 

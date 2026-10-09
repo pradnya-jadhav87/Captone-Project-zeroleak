@@ -211,6 +211,10 @@ export interface Examination {
   theory_marks?: number;
   negative_marks?: number;
   marking_scheme?: string;
+  transferred_from?: string;
+  custody_hash?: string;
+  job_id?: string;
+  paperContent?: any;
 }
 
 export type BlueprintStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';

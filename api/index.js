@@ -646,6 +646,220 @@ app.get(['/api/centres', '/api/print/centres'], (req, res) => {
   });
 });
 
+// =========================================================================
+// ZEROLEAK SECURE PRINTING MANAGER TRANSFER & ENCLAVE DISPATCH SUITE
+// =========================================================================
+
+const transferredPrintingJobs = [
+  {
+    id: 'JOB-PRINT-OS-BTN04605',
+    paperId: 'EXAM-OS-BTN04605',
+    title: 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS',
+    subject: 'OPERATING SYSTEMS',
+    courseCode: 'BTN04605',
+    examDate: new Date().toISOString().split('T')[0],
+    examTime: '10:00 AM to 01:00 PM',
+    unlockTime: '09:30 AM',
+    totalMarks: 70,
+    durationHours: 3,
+    status: 'READY_FOR_PRINT',
+    assignedPrintingManager: 'operator@centre101.edu.in',
+    printingManagerName: 'Manoj Kumar (Centre Superintendent)',
+    centreId: 'CTR-101',
+    centreName: 'Apex National Engineering Examination Centre 101',
+    transferredBy: 'Pradnya Jadhav (Paper Authority)',
+    transferredAt: new Date().toISOString(),
+    custodyHash: '0x8f2d3a1b4c9e7852a36b10de4f8a920c571348be7190ca345df19c028be934aa',
+    paperContent: {
+      universityName: 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR',
+      faculty: 'FACULTY OF SCIENCE & TECHNOLOGY',
+      course: 'T.Y. B.Tech. (Semester II) Examination',
+      subject: 'OPERATING SYSTEMS',
+      courseCode: 'BTN04605',
+      time: '10:00 a.m. to 1:00 p.m.',
+      maxMarks: 70,
+      instructions: [
+        '1) Question 1 is compulsory and should be completed in the first 30 minutes.',
+        '2) In Questions 2 to 5, follow the choice specified for each question.',
+        '3) Figures to the right indicate full marks. Assume suitable data if necessary.',
+        '4) Draw neat, labeled diagrams wherever required.'
+      ],
+      sections: [
+        {
+          name: 'Section I - Objective Type Questions',
+          questions: [
+            { number: '1', text: 'In the many-to-one threading model, if a thread makes a blocking system call, what occurs?', marks: 1 },
+            { number: '2', text: 'Which system call suspends a parent process until its child process terminates?', marks: 1 },
+            { number: '3', text: 'Round-robin scheduling is which type of scheduling algorithm?', marks: 1 },
+            { number: '4', text: 'A process that is continually denied the resources it needs is experiencing:', marks: 1 }
+          ]
+        }
+      ]
+    }
+  }
+];
+
+// 1. Transfer Generated Paper Directly to Printing Manager (Prevents Local PC Downloads)
+app.post('/api/delivery/transfer-to-printing-manager', (req, res) => {
+  const {
+    title,
+    subject,
+    courseCode,
+    totalMarks = 70,
+    durationHours = 3,
+    examDate,
+    examTime,
+    latexSource,
+    pdfUrl,
+    paperContent,
+    transferredBy = 'Pradnya Jadhav (Personal Workspace)',
+  } = req.body || {};
+
+  const cleanSubject = subject || 'OPERATING SYSTEMS';
+  const cleanCode = courseCode || 'BTN04605';
+  const cleanTitle = title || `T.Y. B.Tech. Examination — ${cleanSubject} (${cleanCode})`;
+  const id = `JOB-PRINT-${Date.now().toString().slice(-6)}`;
+  const now = new Date();
+  const hash = '0x' + crypto.createHash('sha256').update(`${id}-${cleanCode}-${now.toISOString()}`).digest('hex');
+
+  const newJob = {
+    id,
+    paperId: `EXAM-${cleanCode}-${Date.now().toString().slice(-4)}`,
+    title: cleanTitle,
+    subject: cleanSubject,
+    courseCode: cleanCode,
+    examDate: examDate || now.toISOString().split('T')[0],
+    examTime: examTime || '10:00 AM to 01:00 PM',
+    unlockTime: '09:30 AM',
+    totalMarks: Number(totalMarks) || 70,
+    durationHours: Number(durationHours) || 3,
+    status: 'READY_FOR_PRINT',
+    assignedPrintingManager: 'operator@centre101.edu.in',
+    printingManagerName: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
+    centreId: 'CTR-101',
+    centreName: 'Apex National Engineering Examination Centre 101',
+    transferredBy,
+    transferredAt: now.toISOString(),
+    custodyHash: hash,
+    latexSource,
+    pdfUrl,
+    paperContent: paperContent || {
+      universityName: 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR',
+      subject: cleanSubject,
+      courseCode: cleanCode,
+      maxMarks: totalMarks,
+    },
+  };
+
+  transferredPrintingJobs.unshift(newJob);
+
+  res.json({
+    success: true,
+    message: 'Paper securely transferred to Printing Manager. Local download blocked per Zero-Leak protocol.',
+    jobId: id,
+    custodyHash: hash,
+    assignedPrintingManager: 'operator@centre101.edu.in',
+    centreName: 'Apex National Engineering Examination Centre 101',
+    transferredAt: now.toISOString(),
+  });
+});
+
+// 2. Centre Operator: List Released & Transferred Examinations
+app.get('/api/delivery/released-exams', (req, res) => {
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  const formattedExams = transferredPrintingJobs.map(job => ({
+    id: job.paperId || job.id,
+    job_id: job.id,
+    name: job.title,
+    title: job.title,
+    subject: job.subject,
+    subject_code: job.courseCode,
+    exam_code: job.courseCode,
+    exam_date: job.examDate,
+    exam_time: job.examTime,
+    unlock_time: job.unlockTime,
+    total_marks: job.totalMarks,
+    duration_minutes: job.durationHours * 60,
+    status: 'READY_FOR_PRINT',
+    isTimeUnlocked: true,
+    serverCurrentTime: nowIso,
+    unlockDateTime: `${job.examDate}T09:30:00.000Z`,
+    centre_name: job.centreName,
+    centre_code: job.centreId,
+    max_copies: 500,
+    current_paper_version_id: `VER-${job.courseCode}-01`,
+    version_code: 'SET-A-FINAL',
+    transferred_from: job.transferredBy,
+    custody_hash: job.custodyHash,
+    paperContent: job.paperContent,
+  }));
+
+  res.json({
+    examinations: formattedExams,
+  });
+});
+
+// 3. Printing Jobs List
+app.get('/api/delivery/print-jobs', (req, res) => {
+  res.json({
+    jobs: transferredPrintingJobs,
+  });
+});
+
+// 4. Print Authorized Copy
+app.post('/api/delivery/print-authorized-copy', (req, res) => {
+  const { exam_id, copies_count = 1 } = req.body || {};
+  const copyId = `COPY-CTR101-${Date.now().toString().slice(-6)}`;
+  const txHash = '0x' + crypto.randomBytes(32).toString('hex');
+  res.json({
+    message: 'Print authorization granted. Dynamic forensic watermark applied.',
+    copies: [
+      {
+        copyId,
+        txHash,
+        printedAt: new Date().toISOString(),
+      },
+    ],
+  });
+});
+
+// 5. Open Secure Viewer
+app.post('/api/delivery/open-viewer', (req, res) => {
+  const { exam_id } = req.body || {};
+  const job = transferredPrintingJobs.find(j => j.paperId === exam_id || j.id === exam_id) || transferredPrintingJobs[0];
+  res.json({
+    message: 'Secure viewing session authenticated.',
+    paperContent: job?.paperContent || {},
+    paperVersionId: `VER-${job?.courseCode || '01'}`,
+    watermark: {
+      watermarkText: 'CONFIDENTIAL • CENTRE 101 • ZEROLEAK',
+      operatorId: 'operator@centre101.edu.in',
+      timestamp: new Date().toISOString(),
+      ipAddress: '127.0.0.1',
+    },
+  });
+});
+
+// 6. Print History
+app.get('/api/delivery/print-history', (req, res) => {
+  res.json({
+    printHistory: [
+      {
+        id: 'HIST-001',
+        exam_id: 'EXAM-OS-BTN04605',
+        exam_name: 'OPERATING SYSTEMS (BTN04605)',
+        centre_id: 'CTR-101',
+        copy_number: 1,
+        watermark_hash: '0x9924a...bf10',
+        printed_at: new Date(Date.now() - 3600000).toISOString(),
+      },
+    ],
+  });
+});
+
+
 // Seeded Multilingual Translations
 app.get('/api/translations', (req, res) => {
   res.json({

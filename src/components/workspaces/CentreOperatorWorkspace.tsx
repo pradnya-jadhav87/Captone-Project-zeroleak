@@ -1224,14 +1224,25 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="font-bold text-slate-900">{ex.name}</span>
                             <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-mono text-[10px] font-bold">
                               UNIVERSITY
                             </span>
+                            {ex.transferred_from && (
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 font-mono text-[10px] font-extrabold flex items-center gap-1 shadow-2xs">
+                                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                <span>Zero-Leak Direct Transfer ({ex.transferred_from})</span>
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                            Schedule Date: {ex.exam_date} {ex.exam_time} • Unlock Minute: {ex.unlock_time}
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex flex-wrap items-center gap-2">
+                            <span>Schedule Date: {ex.exam_date} {ex.exam_time} • Unlock Minute: {ex.unlock_time}</span>
+                            {ex.custody_hash && (
+                              <span className="text-emerald-700 font-mono bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                SHA-256 Custody: {ex.custody_hash.slice(0, 18)}...
+                              </span>
+                            )}
                           </div>
                         </div>
 

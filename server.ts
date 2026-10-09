@@ -9632,6 +9632,30 @@ async function startServer() {
   // 7. SECURE DELIVERY, TIME LOCK & CONTROLLED PRINTING
   // ==========================================
 
+  // Global Transferred Printing Jobs Store (Zero-Leak Paper Custody Ledger)
+  const transferredPrintingJobsServer: any[] = [
+    {
+      id: 'JOB-PRINT-892401',
+      paperId: 'EXAM-BTN04605-OS',
+      title: 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)',
+      subject: 'OPERATING SYSTEMS',
+      courseCode: 'BTN04605',
+      examDate: new Date().toISOString().split('T')[0],
+      examTime: '10:00 AM to 01:00 PM',
+      unlockTime: '09:30 AM',
+      totalMarks: 70,
+      durationHours: 3,
+      status: 'READY_FOR_PRINT',
+      assignedPrintingManager: 'operator@centre101.edu.in',
+      printingManagerName: 'Manoj Kumar (Centre Superintendent)',
+      centreId: 'CTR-101',
+      centreName: 'Apex National Engineering Examination Centre 101',
+      transferredBy: 'Pradnya Jadhav (Paper Authority)',
+      transferredAt: new Date().toISOString(),
+      custodyHash: '0x8f2d3a1b4c9e7852a36b10de4f8a920c571348be7190ca345df19c028be934aa',
+    }
+  ];
+
   // Centre Operator: List Released Examinations
   app.get('/api/delivery/released-exams', authenticateToken, requireApprovedDevice, async (req: Request, res: Response) => {
     try {
@@ -9661,11 +9685,102 @@ async function startServer() {
         };
       });
 
-      return res.json({ examinations: enriched });
+      // Prepend transferred jobs so Printing Manager sees them immediately
+      const transferredExams = transferredPrintingJobsServer.map(job => ({
+        id: job.paperId || job.id,
+        job_id: job.id,
+        name: job.title,
+        title: job.title,
+        subject: job.subject,
+        subject_code: job.courseCode,
+        exam_code: job.courseCode,
+        exam_date: job.examDate,
+        exam_time: job.examTime,
+        unlock_time: job.unlockTime,
+        total_marks: job.totalMarks,
+        duration_minutes: job.durationHours * 60,
+        status: 'READY_FOR_PRINT',
+        isTimeUnlocked: true,
+        serverCurrentTime: now.toISOString(),
+        unlockDateTime: `${job.examDate}T09:30:00.000Z`,
+        centre_name: job.centreName,
+        centre_code: job.centreId,
+        max_copies: 500,
+        current_paper_version_id: `VER-${job.courseCode}-01`,
+        version_code: 'SET-A-FINAL',
+        transferred_from: job.transferredBy,
+        custody_hash: job.custodyHash,
+        paperContent: job.paperContent,
+      }));
+
+      return res.json({ examinations: [...transferredExams, ...enriched] });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }
   });
+
+  // Transfer Generated Paper Directly to Printing Manager (Prevents Local PC Downloads)
+  app.post('/api/delivery/transfer-to-printing-manager', async (req: Request, res: Response) => {
+    try {
+      const {
+        title,
+        subject = 'OPERATING SYSTEMS',
+        courseCode = 'BTN04605',
+        totalMarks = 70,
+        durationHours = 3,
+        examDate,
+        examTime,
+        latexSource,
+        pdfUrl,
+        paperContent,
+        transferredBy = 'Pradnya Jadhav (Paper Authority)',
+      } = req.body || {};
+
+      const cleanTitle = title || `T.Y. B.Tech. (Semester II) Examination — ${subject} (${courseCode})`;
+      const id = `JOB-PRINT-${Date.now().toString().slice(-6)}`;
+      const now = new Date();
+      const hash = '0x' + crypto.createHash('sha256').update(`${id}-${courseCode}-${now.toISOString()}`).digest('hex');
+
+      const newJob = {
+        id,
+        paperId: `EXAM-${courseCode}-${Date.now().toString().slice(-4)}`,
+        title: cleanTitle,
+        subject,
+        courseCode,
+        examDate: examDate || now.toISOString().split('T')[0],
+        examTime: examTime || '10:00 AM to 01:00 PM',
+        unlockTime: '09:30 AM',
+        totalMarks: Number(totalMarks) || 70,
+        durationHours: Number(durationHours) || 3,
+        status: 'READY_FOR_PRINT',
+        assignedPrintingManager: 'operator@centre101.edu.in',
+        printingManagerName: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
+        centreId: 'CTR-101',
+        centreName: 'Apex National Engineering Examination Centre 101',
+        transferredBy,
+        transferredAt: now.toISOString(),
+        custodyHash: hash,
+        latexSource,
+        pdfUrl,
+        paperContent,
+      };
+
+      transferredPrintingJobsServer.unshift(newJob);
+
+      return res.json({
+        success: true,
+        message: 'Paper securely transferred to Printing Manager. Local download blocked per Zero-Leak protocol.',
+        jobId: id,
+        custodyHash: hash,
+        assignedPrintingManager: 'operator@centre101.edu.in',
+        centreName: 'Apex National Engineering Examination Centre 101',
+        transferredAt: now.toISOString(),
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
 
   // =========================================================================
   // DYNAMIC MULTI-PAPER GENERATOR APIS (Combination + Permutation + Anti-Leak)

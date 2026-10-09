@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { api, ollamaChatStream } from '../../api';
 import { LaTeXText } from '../common/LaTeXText';
+import { TransferToPrintingManagerModal } from '../printing/TransferToPrintingManagerModal';
 
 const DRAFT_STORAGE_KEY = 'zeroleak_prism_latex_draft';
 
@@ -339,6 +340,8 @@ export const EmbeddedPrismStudio: React.FC = () => {
   const [isCompiling, setIsCompiling] = useState<boolean>(false);
   const [compileNotice, setCompileNotice] = useState<string | null>(null);
   const [compileError, setCompileError] = useState<string | null>(null);
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState<boolean>(false);
+  const [compiledPdfUrl, setCompiledPdfUrl] = useState<string | null>(null);
 
   // AI Copilot state
   const [chatMessages, setChatMessages] = useState<Message[]>([
@@ -380,15 +383,9 @@ export const EmbeddedPrismStudio: React.FC = () => {
     }
   };
 
-  // Download .tex file
+  // Zero-Leak Enforcement: Intercept Download and Transfer Directly to Printing Manager
   const handleDownloadTex = () => {
-    const blob = new Blob([latexCode], { type: 'text/x-tex;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'Solapur_University_Exam_Paper.tex';
-    a.click();
-    URL.revokeObjectURL(url);
+    setIsTransferModalOpen(true);
   };
 
   // Compile to PDF via api.compileValidatedLatex
@@ -410,24 +407,18 @@ export const EmbeddedPrismStudio: React.FC = () => {
       });
 
       if (res.success && res.pdfUrl) {
-        setCompileNotice('✓ Official PDF compiled successfully! Starting download...');
-        const a = document.createElement('a');
-        a.href = res.pdfUrl;
-        a.download = res.filename || 'Exam_Paper_Solapur_University.pdf';
-        a.target = '_blank';
-        a.click();
+        setCompiledPdfUrl(res.pdfUrl);
+        setCompileNotice('✓ Official PDF compiled! Transferring directly to Printing Manager per Zero-Leak protocol...');
+        setIsTransferModalOpen(true);
         setTimeout(() => setCompileNotice(null), 4000);
       } else {
         throw new Error('Compiler finished without valid PDF URL');
       }
     } catch (err: any) {
       console.warn('Backend compiler notice:', err);
-      // Fallback: browser print preview / PDF export
-      setCompileNotice('Triggering in-browser PDF generation preview...');
-      setTimeout(() => {
-        window.print();
-        setCompileNotice(null);
-      }, 500);
+      // Fallback: Transfer paper to Printing Manager enclave
+      setIsTransferModalOpen(true);
+      setCompileNotice(null);
     } finally {
       setIsCompiling(false);
     }
@@ -656,10 +647,10 @@ You can use the **Insert into Editor** button below to paste this into your pape
             type="button"
             onClick={handleDownloadTex}
             className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 font-semibold text-xs flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-            title="Download .tex source file"
+            title="Transfer paper directly to Printing Manager (Zero-Leak Anti-Extraction Policy)"
           >
-            <Download className="w-3.5 h-3.5 text-slate-600" />
-            <span className="hidden sm:inline">.tex</span>
+            <Printer className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden sm:inline">Transfer to Printing Manager</span>
           </button>
 
           <button
@@ -1085,6 +1076,20 @@ You can use the **Insert into Editor** button below to paste this into your pape
           </div>
         )}
       </div>
+
+      {/* Transfer to Printing Manager Modal */}
+      <TransferToPrintingManagerModal
+        isOpen={isTransferModalOpen}
+        onClose={() => setIsTransferModalOpen(false)}
+        paperTitle="PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY — APPLIED CRYPTOGRAPHY (SLR-VB-602)"
+        subject="APPLIED CRYPTOGRAPHY & INFORMATION SECURITY"
+        courseCode="SLR-VB-602"
+        totalMarks={70}
+        durationHours={3}
+        latexSource={latexCode}
+        pdfUrl={compiledPdfUrl || undefined}
+        transferredBy="Pradnya Jadhav (Personal Workspace)"
+      />
     </div>
   );
 };

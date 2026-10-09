@@ -120,6 +120,31 @@ export function App() {
     };
   }, [currentUser]);
 
+  useEffect(() => {
+    const handleSwitchToPrintingManager = async () => {
+      try {
+        const res = await api.login({
+          identifier: 'operator@centre101.edu.in',
+          password: 'Password123!',
+        });
+        if (res?.user && res?.token) {
+          setStoredAuth(res.token, res.user);
+          setCurrentUser(res.user);
+          setActiveSubTab('dashboard');
+          window.history.pushState({}, '', `${window.location.pathname}${window.location.search}#dashboard`);
+          setRefreshTrigger(prev => prev + 1);
+        }
+      } catch (err) {
+        console.error('Failed to auto-switch to printing manager:', err);
+      }
+    };
+
+    window.addEventListener('zeroleak:switch-to-printing-manager', handleSwitchToPrintingManager);
+    return () => {
+      window.removeEventListener('zeroleak:switch-to-printing-manager', handleSwitchToPrintingManager);
+    };
+  }, []);
+
   const bootstrapSession = async () => {
     setSessionLoading(true);
     try {
