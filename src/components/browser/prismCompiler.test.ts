@@ -5,6 +5,7 @@ import path from 'node:path';
 
 const read = (relative: string) => fs.readFileSync(path.join(process.cwd(), relative), 'utf8');
 const BROWSER_SOURCE = read('src/components/browser/ChromeLikeBrowser.tsx');
+const PRISM_HTML = read('public/prism.html');
 
 function parseTabular(raw: string) {
   const match = raw.match(/\\begin\{tabular\}\{[^}]*\}([\s\S]*?)\\end\{tabular\}/i);
@@ -32,6 +33,40 @@ function parseTabular(raw: string) {
   };
 }
 
+function cleanLatexText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\\textbf\{([^}]*)\}/g, '$1')
+    .replace(/\\textit\{([^}]*)\}/g, '$1')
+    .replace(/\\textsf\{([^}]*)\}/g, '$1')
+    .replace(/\\textrm\{([^}]*)\}/g, '$1')
+    .replace(/\\texttt\{([^}]*)\}/g, '$1')
+    .replace(/\\underline\{([^}]*)\}/g, '$1')
+    .replace(/\\emph\{([^}]*)\}/g, '$1')
+    .replace(/\\mbox\{([^}]*)\}/g, '$1')
+    .replace(/\\large\b/g, '')
+    .replace(/\\Large\b/g, '')
+    .replace(/\\LARGE\b/g, '')
+    .replace(/\\small\b/g, '')
+    .replace(/\\normalsize\b/g, '')
+    .replace(/\\noindent\b/g, '')
+    .replace(/\\centering\b/g, '')
+    .replace(/\\hfill\b/g, ' ')
+    .replace(/\\quad\b/g, ' ')
+    .replace(/\\qquad\b/g, ' ')
+    .replace(/\\vspace\*?\{[^}]*\}/g, '')
+    .replace(/\\hspace\*?\{[^}]*\}/g, ' ')
+    .replace(/\\\\(?:\[[^\]]*\])?/g, '\n')
+    .replace(/\\&/g, '&')
+    .replace(/\\%/g, '%')
+    .replace(/\\#/g, '#')
+    .replace(/\\_/g, '_')
+    .replace(/---/g, '—')
+    .replace(/--/g, '–')
+    .replace(/[{}]/g, '')
+    .trim();
+}
+
 test('parseTabular extracts clean header and data rows from LaTeX tabular environment', () => {
   const latex = `
 \\begin{tabular}{|c|c|c|}
@@ -56,9 +91,26 @@ P4 & 3 & 2 \\\\
   assert.deepEqual(parsed.rows[3], ['P4', '3', '2']);
 });
 
-test('ChromeLikeBrowser source contains coordinate auto-framing and tabular components', () => {
+test('cleanLatexText cleanly unwraps LaTeX formatting macros without erasing words or math', () => {
+  const boldSample = '\\textbf{Q.1 Answer the following questions in detail.}';
+  assert.equal(cleanLatexText(boldSample), 'Q.1 Answer the following questions in detail.');
+
+  const mathSample = 'In RSA cryptosystem, public key $e \\cdot d \\equiv 1 \\pmod{\\phi(n)}$ holds.';
+  assert.equal(cleanLatexText(mathSample), 'In RSA cryptosystem, public key $e \\cdot d \\equiv 1 \\pmod\\phi(n)$ holds.');
+
+  const headerSample = '\\textbf{PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR}\\\\[3pt]';
+  assert.ok(cleanLatexText(headerSample).includes('SOLAPUR UNIVERSITY'));
+});
+
+test('ChromeLikeBrowser and prism.html contain universal compiler with cleanLatexText and resilient mode detection', () => {
+  assert.ok(BROWSER_SOURCE.includes('cleanLatexText'), 'cleanLatexText function must be in ChromeLikeBrowser.tsx');
   assert.ok(BROWSER_SOURCE.includes('AcademicTable'), 'AcademicTable component must be present');
   assert.ok(BROWSER_SOURCE.includes('topOffset'), 'Coordinate auto-framing topOffset must be present');
   assert.ok(BROWSER_SOURCE.includes('PRISM_OS_LATEX'), 'Operating Systems template must be present');
   assert.ok(BROWSER_SOURCE.includes('BTN04605'), 'Operating Systems BTN04605 code must be present');
+  assert.ok(BROWSER_SOURCE.includes('putCount >= 2'), 'Must detect picture mode via putCount >= 2');
+
+  assert.ok(PRISM_HTML.includes('cleanLatexText'), 'cleanLatexText function must be in prism.html');
+  assert.ok(PRISM_HTML.includes('putCount >= 2'), 'Must detect picture mode via putCount >= 2 in prism.html');
+  assert.ok(PRISM_HTML.includes('topOffset = minVisualTop > 35'), 'Auto-framing must be present in prism.html');
 });

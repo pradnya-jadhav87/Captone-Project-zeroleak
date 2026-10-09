@@ -595,6 +595,40 @@
       return html;
     }
 
+    function cleanLatexText(text) {
+      if (!text) return '';
+      return text
+        .replace(/\\textbf\{([^}]*)\}/g, '$1')
+        .replace(/\\textit\{([^}]*)\}/g, '$1')
+        .replace(/\\textsf\{([^}]*)\}/g, '$1')
+        .replace(/\\textrm\{([^}]*)\}/g, '$1')
+        .replace(/\\texttt\{([^}]*)\}/g, '$1')
+        .replace(/\\underline\{([^}]*)\}/g, '$1')
+        .replace(/\\emph\{([^}]*)\}/g, '$1')
+        .replace(/\\mbox\{([^}]*)\}/g, '$1')
+        .replace(/\\large\b/g, '')
+        .replace(/\\Large\b/g, '')
+        .replace(/\\LARGE\b/g, '')
+        .replace(/\\small\b/g, '')
+        .replace(/\\normalsize\b/g, '')
+        .replace(/\\noindent\b/g, '')
+        .replace(/\\centering\b/g, '')
+        .replace(/\\hfill\b/g, ' ')
+        .replace(/\\quad\b/g, ' ')
+        .replace(/\\qquad\b/g, ' ')
+        .replace(/\\vspace\*?\{[^}]*\}/g, '')
+        .replace(/\\hspace\*?\{[^}]*\}/g, ' ')
+        .replace(/\\\\(?:\[[^\]]*\])?/g, '\n')
+        .replace(/\\&/g, '&')
+        .replace(/\\%/g, '%')
+        .replace(/\\#/g, '#')
+        .replace(/\\_/g, '_')
+        .replace(/---/g, '—')
+        .replace(/--/g, '–')
+        .replace(/[{}]/g, '')
+        .trim();
+    }
+
     function parsePicturePages(code) {
       let rawChunks = code.split(/(?=\\begin\{picture\}|\\clearpage|\\newpage|\\pagebreak|%+\s*(?:---+\s*)?PAGE\s*\d+)/i);
       if (rawChunks.length === 0) rawChunks = [code];
@@ -624,15 +658,35 @@
           const rawContent = chunk.substring(startIdx, endIdx - 1);
           const fsMatch = rawContent.match(/\\fontsize\{([\d.]+)\}/);
           const fontSize = fsMatch ? parseFloat(fsMatch[1]) : 11;
-          const isBold = /\\textbf|\\bfseries|\{ptm\}\{b\}/.test(rawContent);
-          const isItalic = /\\textit|\\itshape|\{ptm\}\{it\}/.test(rawContent);
-          const text = rawContent
+          const isBold = /\\textbf|\\bfseries|\{ptm\}\{b\}|font-weight:\s*bold/i.test(rawContent);
+          const isItalic = /\\textit|\\itshape|\{ptm\}\{it\}|font-style:\s*italic/i.test(rawContent);
+          let text = rawContent
             .replace(/\\fontsize\{[^}]*\}\{[^}]*\}/g, '')
             .replace(/\\usefont\{[^}]*\}\{[^}]*\}\{[^}]*\}\{[^}]*\}/g, '')
+            .replace(/\\usefont\{[^}]*\}/g, '')
             .replace(/\\selectfont/g, '')
-            .replace(/\\color\{[^}]*\}/g, '')
+            .replace(/\\color(?:\[[^\]]*\])?\{[^}]*\}/g, '')
             .replace(/\\vphantom\{[^}]*\}/g, '')
-            .replace(/\\rule\{[^}]*\}\{[^}]*\}/g, '')
+            .replace(/\\rule(?:\[[^\]]*\])?\{[^}]*\}\{[^}]*\}/g, '')
+            .replace(/\\textbf\{([^}]*)\}/g, '$1')
+            .replace(/\\textit\{([^}]*)\}/g, '$1')
+            .replace(/\\textsf\{([^}]*)\}/g, '$1')
+            .replace(/\\textrm\{([^}]*)\}/g, '$1')
+            .replace(/\\texttt\{([^}]*)\}/g, '$1')
+            .replace(/\\underline\{([^}]*)\}/g, '$1')
+            .replace(/\\mbox\{([^}]*)\}/g, '$1')
+            .replace(/\\hspace\*?\{[^}]*\}/g, ' ')
+            .replace(/\\vspace\*?\{[^}]*\}/g, ' ')
+            .replace(/\\&/g, '&')
+            .replace(/\\%/g, '%')
+            .replace(/\\#/g, '#')
+            .replace(/\\_/g, '_')
+            .replace(/---/g, '—')
+            .replace(/--/g, '–')
+            .replace(/\\textbf\b/g, '')
+            .replace(/\\textit\b/g, '')
+            .replace(/\\bfseries\b/g, '')
+            .replace(/\\itshape\b/g, '')
             .replace(/[{}]/g, '');
           items.push({ x, y, fontSize, isBold, isItalic, text });
         }
@@ -655,7 +709,7 @@
         const minVisualTop = Math.min(...allVisualTops);
         const maxVisualTop = Math.max(...allVisualTops);
         const contentSpan = maxVisualTop - minVisualTop;
-        const topOffset = minVisualTop > 80 ? minVisualTop - 40 : 0;
+        const topOffset = minVisualTop > 35 ? minVisualTop - 35 : 0;
 
         const lines = sortedY.map(y => {
           const row = linesMap.get(y);
@@ -670,7 +724,7 @@
               segments.push(cur);
               cur = { x: it.x, fontSize: it.fontSize, isBold: it.isBold, isItalic: it.isItalic, text: it.text };
             } else {
-              if (gap > 3 && !cur.text.endsWith(' ') && !it.text.startsWith(' ')) cur.text += ' ';
+              if (gap > 2 && !cur.text.endsWith(' ') && !it.text.startsWith(' ')) cur.text += ' ';
               cur.text += it.text;
               if (it.isBold) cur.isBold = true;
               if (it.isItalic) cur.isItalic = true;
@@ -682,8 +736,21 @@
           return { y, top, segments };
         });
 
-        const pageHeight = contentSpan < 450 && lines.length < 15 ? Math.max(300, Math.min(842, contentSpan + 140)) : 842;
-        pages.push({ lines, height: pageHeight });
+        if (contentSpan > 820) {
+          const pageSize = 800;
+          const numSubPages = Math.ceil(contentSpan / pageSize);
+          for (let p = 0; p < numSubPages; p++) {
+            const pageStartTop = p * pageSize;
+            const pageEndTop = (p + 1) * pageSize;
+            const subLines = lines
+              .filter(l => l.top >= pageStartTop && l.top < pageEndTop)
+              .map(l => ({ ...l, top: l.top - pageStartTop + 35 }));
+            if (subLines.length > 0) pages.push({ lines: subLines, height: 842 });
+          }
+        } else {
+          const pageHeight = contentSpan < 450 && lines.length < 15 ? Math.max(300, Math.min(842, contentSpan + 100)) : 842;
+          pages.push({ lines, height: pageHeight });
+        }
       });
       return pages;
     }
@@ -709,11 +776,9 @@
 
       const putMatches = code.match(/\\put\s*\(/g);
       const putCount = putMatches ? putMatches.length : 0;
-      const questionMatches = code.match(/(?:\\textbf\{\s*Q\.\s*\d+|\\section\*?\{)/g);
-      const questionCount = questionMatches ? questionMatches.length : 0;
 
-      // Picture mode
-      if (putCount > 0 && questionCount === 0) {
+      // Picture mode: Any picture environment or coordinate placement
+      if (code.includes('\\begin{picture}') || putCount >= 2) {
         const pages = parsePicturePages(code);
         if (pages.length > 0) {
           let html = '<div style="display:flex;flex-direction:column;gap:32px;align-items:center;width:100%;">';
@@ -751,9 +816,9 @@
       let timeMatch = (code.match(/Time:\s*([0-9\s:AMPMapm.\-–—()Hours]+)/i) || [])[1] || '';
       let dateMatch = (code.match(/Day\s*\\?&\s*Date:\s*([^\\}\n]+)/i) || [])[1] || '';
 
-      globalUniv = globalUniv.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '').trim();
-      globalFac = globalFac.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '').trim();
-      globalExam = globalExam.replace(/\\[a-zA-Z]+/g, '').replace(/---/g, '—').replace(/[{}]/g, '').trim();
+      globalUniv = cleanLatexText(globalUniv);
+      globalFac = cleanLatexText(globalFac);
+      globalExam = cleanLatexText(globalExam);
 
       let pagesHtml = '<div style="display:flex;flex-direction:column;gap:32px;align-items:center;width:100%;">';
 
@@ -769,30 +834,32 @@
               ${globalFac ? `<div style="font-size:11px;font-weight:600;color:#334155;">${escapeHtml(globalFac)}</div>` : ''}
               ${globalExam ? `<div style="font-weight:bold;font-size:11px;margin-top:2px;">${escapeHtml(globalExam)}</div>` : ''}
               <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:8px;border-top:1px solid #cbd5e1;padding-top:4px;">
-                <span>${dateMatch ? escapeHtml(dateMatch.trim()) : 'Day & Date: Examination Day'}</span>
+                <span>${dateMatch ? escapeHtml(cleanLatexText(dateMatch)) : 'Day & Date: Examination Day'}</span>
                 <span>Max. Marks: ${marks || '70'}</span>
               </div>
               <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:2px;">
-                <span>Time: ${timeMatch ? escapeHtml(timeMatch.trim()) : '3 Hours'}</span>
+                <span>Time: ${timeMatch ? escapeHtml(cleanLatexText(timeMatch)) : '3 Hours'}</span>
                 <span>Paper Code: ${codeMatch || 'EXAM-CODE'}</span>
               </div>
             </div>
           `;
         }
 
-        const qMatches = pageTrim.match(/\\textbf\{\s*(Q\.\s*\d+[^}]*)\}([\s\S]*?)(?=(?:\\textbf\{\s*Q\.\s*\d+)|\\end\{document\}|$)/gi) || [];
+        const qMatches = pageTrim.match(/(?:\\noindent\s*)?(?:\\textbf\{\s*(?:[Q\.\s\d]+[^}]*)\}|(?:Question|Q\.)\s*\d+[^:\n\\]*)([\s\S]*?)(?=(?:\\noindent\s*)?(?:\\textbf\{\s*(?:Q\.\s*\d+|Question\s*\d+)|\\question\b|Q\.\s*\d+\b)|\\end\{document\}|$)/gi) || [];
         let innerContent = '';
 
         if (qMatches.length > 0) {
           qMatches.forEach(qBlock => {
-            const title = (qBlock.match(/\\textbf\{\s*(Q\.\s*\d+[^}]*)\}/i) || [])[1] || 'Question';
+            const titleMatch = qBlock.match(/(?:\\noindent\s*)?(?:\\textbf\{\s*([Q\.\s\d]+[^}]*)\}|(Question\s*\d+[^:\n\\]*)|(Q\.\s*\d+[^:\n\\]*))/i);
+            const title = cleanLatexText(titleMatch ? (titleMatch[1] || titleMatch[2] || titleMatch[3]) : 'Question');
             const tableHtml = parseTabularHtml(qBlock);
-            const cleanBody = qBlock
-              .replace(/\\textbf\{\s*Q\.\s*\d+[^}]*\}/i, '')
-              .replace(/\\hfill\s*\[\s*[^\]]+\s*\]/i, '')
-              .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
-              .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, '')
-              .trim();
+            const cleanBody = cleanLatexText(
+              qBlock
+                .replace(/(?:\\noindent\s*)?\\textbf\{\s*[Q\.\s\d]+[^}]*\}\s*(?:\\hfill\s*\[\s*[^\]]+\s*\])?/i, '')
+                .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
+                .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, '')
+                .trim()
+            );
 
             innerContent += `
               <div style="margin-top:14px;border-bottom:1px solid #f1f5f9;padding-bottom:10px;">
@@ -803,7 +870,7 @@
             `;
           });
         } else {
-          const lines = pageTrim.split(/\n\s*\n/).map(l => l.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, '').trim()).filter(l => l.length > 0);
+          const lines = pageTrim.split(/\n\s*\n/).map(l => cleanLatexText(l)).filter(l => l.length > 0);
           innerContent = lines.map(p => `<p style="margin-bottom:10px;font-size:11px;color:#334155;line-height:1.6;">${escapeHtml(p)}</p>`).join('');
         }
 

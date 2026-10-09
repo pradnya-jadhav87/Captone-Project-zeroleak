@@ -598,6 +598,40 @@ interface ParsedLatexDoc {
   standardPages: StandardPage[];
 }
 
+export function cleanLatexText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\\textbf\{([^}]*)\}/g, '$1')
+    .replace(/\\textit\{([^}]*)\}/g, '$1')
+    .replace(/\\textsf\{([^}]*)\}/g, '$1')
+    .replace(/\\textrm\{([^}]*)\}/g, '$1')
+    .replace(/\\texttt\{([^}]*)\}/g, '$1')
+    .replace(/\\underline\{([^}]*)\}/g, '$1')
+    .replace(/\\emph\{([^}]*)\}/g, '$1')
+    .replace(/\\mbox\{([^}]*)\}/g, '$1')
+    .replace(/\\large\b/g, '')
+    .replace(/\\Large\b/g, '')
+    .replace(/\\LARGE\b/g, '')
+    .replace(/\\small\b/g, '')
+    .replace(/\\normalsize\b/g, '')
+    .replace(/\\noindent\b/g, '')
+    .replace(/\\centering\b/g, '')
+    .replace(/\\hfill\b/g, ' ')
+    .replace(/\\quad\b/g, ' ')
+    .replace(/\\qquad\b/g, ' ')
+    .replace(/\\vspace\*?\{[^}]*\}/g, '')
+    .replace(/\\hspace\*?\{[^}]*\}/g, ' ')
+    .replace(/\\\\(?:\[[^\]]*\])?/g, '\n')
+    .replace(/\\&/g, '&')
+    .replace(/\\%/g, '%')
+    .replace(/\\#/g, '#')
+    .replace(/\\_/g, '_')
+    .replace(/---/g, '—')
+    .replace(/--/g, '–')
+    .replace(/[{}]/g, '')
+    .trim();
+}
+
 function parseLatexPicture(latex: string): PicturePage[] {
   let rawChunks = latex.split(/(?=\\begin\{picture\}|\\clearpage|\\newpage|\\pagebreak|%+\s*(?:---+\s*)?PAGE\s*\d+)/i);
   if (rawChunks.length === 0) rawChunks = [latex];
@@ -644,16 +678,36 @@ function parseLatexPicture(latex: string): PicturePage[] {
 
       const fsMatch = rawContent.match(/\\fontsize\{([\d.]+)\}/);
       const fontSize = fsMatch ? parseFloat(fsMatch[1]) : 11;
-      const isBold = /\\textbf|\\bfseries|\{ptm\}\{b\}/.test(rawContent);
-      const isItalic = /\\textit|\\itshape|\{ptm\}\{it\}/.test(rawContent);
+      const isBold = /\\textbf|\\bfseries|\{ptm\}\{b\}|font-weight:\s*bold/i.test(rawContent);
+      const isItalic = /\\textit|\\itshape|\{ptm\}\{it\}|font-style:\s*italic/i.test(rawContent);
 
-      const text = rawContent
+      let text = rawContent
         .replace(/\\fontsize\{[^}]*\}\{[^}]*\}/g, '')
         .replace(/\\usefont\{[^}]*\}\{[^}]*\}\{[^}]*\}\{[^}]*\}/g, '')
+        .replace(/\\usefont\{[^}]*\}/g, '')
         .replace(/\\selectfont/g, '')
-        .replace(/\\color\{[^}]*\}/g, '')
+        .replace(/\\color(?:\[[^\]]*\])?\{[^}]*\}/g, '')
         .replace(/\\vphantom\{[^}]*\}/g, '')
-        .replace(/\\rule\{[^}]*\}\{[^}]*\}/g, '')
+        .replace(/\\rule(?:\[[^\]]*\])?\{[^}]*\}\{[^}]*\}/g, '')
+        .replace(/\\textbf\{([^}]*)\}/g, '$1')
+        .replace(/\\textit\{([^}]*)\}/g, '$1')
+        .replace(/\\textsf\{([^}]*)\}/g, '$1')
+        .replace(/\\textrm\{([^}]*)\}/g, '$1')
+        .replace(/\\texttt\{([^}]*)\}/g, '$1')
+        .replace(/\\underline\{([^}]*)\}/g, '$1')
+        .replace(/\\mbox\{([^}]*)\}/g, '$1')
+        .replace(/\\hspace\*?\{[^}]*\}/g, ' ')
+        .replace(/\\vspace\*?\{[^}]*\}/g, ' ')
+        .replace(/\\&/g, '&')
+        .replace(/\\%/g, '%')
+        .replace(/\\#/g, '#')
+        .replace(/\\_/g, '_')
+        .replace(/---/g, '—')
+        .replace(/--/g, '–')
+        .replace(/\\textbf\b/g, '')
+        .replace(/\\textit\b/g, '')
+        .replace(/\\bfseries\b/g, '')
+        .replace(/\\itshape\b/g, '')
         .replace(/[{}]/g, '');
 
       items.push({ x, y, fontSize, isBold, isItalic, text });
@@ -689,8 +743,8 @@ function parseLatexPicture(latex: string): PicturePage[] {
     const maxVisualTop = Math.max(...allVisualTops);
     const contentSpan = maxVisualTop - minVisualTop;
 
-    // Coordinate Auto-Framing: If content starts lower than 80px down, normalize top margin to 40px
-    const topOffset = minVisualTop > 80 ? minVisualTop - 40 : 0;
+    // Coordinate Auto-Framing: If top element starts below 35px, offset so content starts cleanly at 35px
+    const topOffset = minVisualTop > 35 ? minVisualTop - 35 : 0;
 
     const lines: PictureLine[] = sortedY.map((y) => {
       const row = linesMap.get(y)!;
@@ -721,7 +775,7 @@ function parseLatexPicture(latex: string): PicturePage[] {
           };
         } else {
           // If there is a noticeable word boundary gap, preserve space
-          if (gap > 3 && !curSegment.text.endsWith(' ') && !it.text.startsWith(' ')) {
+          if (gap > 2 && !curSegment.text.endsWith(' ') && !it.text.startsWith(' ')) {
             curSegment.text += ' ';
           }
           curSegment.text += it.text;
@@ -742,13 +796,30 @@ function parseLatexPicture(latex: string): PicturePage[] {
       };
     });
 
-    // Dynamic height calculation: fragments get natural card height; full pages get standard 842px
-    const pageHeight =
-      contentSpan < 450 && lines.length < 15
-        ? Math.max(300, Math.min(842, contentSpan + 140))
-        : 842;
-
-    pages.push({ lines, height: pageHeight });
+    // Check if chunk spans more than one physical page (> 820px)
+    if (contentSpan > 820) {
+      const pageSize = 800;
+      const numSubPages = Math.ceil(contentSpan / pageSize);
+      for (let p = 0; p < numSubPages; p++) {
+        const pageStartTop = p * pageSize;
+        const pageEndTop = (p + 1) * pageSize;
+        const subLines = lines
+          .filter((l) => l.top >= pageStartTop && l.top < pageEndTop)
+          .map((l) => ({
+            ...l,
+            top: l.top - pageStartTop + 35,
+          }));
+        if (subLines.length > 0) {
+          pages.push({ lines: subLines, height: 842 });
+        }
+      }
+    } else {
+      const pageHeight =
+        contentSpan < 450 && lines.length < 15
+          ? Math.max(300, Math.min(842, contentSpan + 100))
+          : 842;
+      pages.push({ lines, height: pageHeight });
+    }
   });
 
   return pages;
@@ -763,14 +834,11 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
 
   if (!latex || !latex.trim()) return result;
 
-  // Decide mode: Check frequency of \put vs questions/sections
+  // Decide mode: Any presence of \begin{picture} or \put coordinates means Picture Mode
   const putMatches = latex.match(/\\put\s*\(/g);
   const putCount = putMatches ? putMatches.length : 0;
-  const questionMatches = latex.match(/(?:\\textbf\{\s*Q\.\s*\d+|\\section\*?\{)/g);
-  const questionCount = questionMatches ? questionMatches.length : 0;
 
-  // If predominant picture mode (e.g. converted PDF pages, Mathpix output)
-  if (putCount > 0 && questionCount === 0) {
+  if (latex.includes('\\begin{picture}') || putCount >= 2) {
     const pages = parseLatexPicture(latex);
     if (pages.length > 0) {
       result.isPictureMode = true;
@@ -806,14 +874,14 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
     cleanBody.match(/\\textbf\{([^}]+UNIVERSITY[^}]*)\}/i) ||
     cleanBody.match(/([A-Z\s]{8,}UNIVERSITY[A-Z\s,]*)/i);
   const globalUniversity = univMatch && univMatch[1]
-    ? univMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/\\large/g, '').trim()
+    ? cleanLatexText(univMatch[1])
     : undefined;
 
   const facMatch =
     cleanBody.match(/\\textbf\{([^}]+FACULTY[^}]*)\}/i) ||
     cleanBody.match(/(FACULTY OF [^\\\n}]+)/i);
   const globalFaculty = facMatch && facMatch[1]
-    ? facMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/\\&/g, '&').trim()
+    ? cleanLatexText(facMatch[1])
     : undefined;
 
   const examMatch =
@@ -821,7 +889,7 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
       /\\textbf\{([^}]+(?:Examination|B\.Tech|T\.Y\.|M\.Tech|Engineering|Diploma)[^}]*)\}/i,
     ) || cleanBody.match(/((?:B\.Tech|T\.Y\.|Examination)[^\\\n}]+)/i);
   const globalExamTitle = examMatch && examMatch[1]
-    ? examMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/---/g, '—').replace(/\\&/g, '&').trim()
+    ? cleanLatexText(examMatch[1])
     : undefined;
 
   const marksMatch = cleanBody.match(/Max\.\s*Marks:\s*(\d+)/i) || cleanBody.match(/Marks:\s*(\d+)/i);
@@ -831,10 +899,10 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
   const globalPaperCode = codeMatch ? codeMatch[1] : undefined;
 
   const timeMatch = cleanBody.match(/Time:\s*([0-9\s:AMPMapm.\-–—()Hours]+)/i);
-  const globalTime = timeMatch ? timeMatch[1].replace(/\\hfill.*/, '').replace(/\\\\/, '').trim() : undefined;
+  const globalTime = timeMatch ? cleanLatexText(timeMatch[1].replace(/\\hfill.*/, '')) : undefined;
 
   const dateMatch = cleanBody.match(/Day\s*\\?&\s*Date:\s*([^\\}\n]+)/i);
-  const globalDayDate = dateMatch ? dateMatch[1].replace(/\\hfill.*/, '').replace(/\\\\/, '').trim() : undefined;
+  const globalDayDate = dateMatch ? cleanLatexText(dateMatch[1].replace(/\\hfill.*/, '')) : undefined;
 
   // Extract instructions
   const globalInstructions: string[] = [];
@@ -842,7 +910,7 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
   if (instBlockMatch) {
     const rawItems = instBlockMatch[1].split(/\\item\s+/).slice(1);
     rawItems.forEach((it, idx) => {
-      const cleanInst = it.replace(/\\end\{enumerate\}.*/, '').trim();
+      const cleanInst = cleanLatexText(it.replace(/\\end\{enumerate\}[\s\S]*/, ''));
       if (cleanInst) globalInstructions.push(`${idx + 1}) ${cleanInst}`);
     });
   } else if (globalUniversity || globalExamTitle) {
@@ -881,7 +949,7 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
     }
 
     // Split sections within this page
-    const rawSections = chunkTrim.split(/(?=\\section|SECTION\s*---\s*[I|V|X]+|SECTION\s*-\s*[I|V|X]+)/i);
+    const rawSections = chunkTrim.split(/(?=\\section\*?\{|SECTION\s*---?\s*[I|V|X]+)/i);
 
     rawSections.forEach((secChunk) => {
       const secTrimmed = secChunk.trim();
@@ -890,12 +958,7 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
       let secTitle = '';
       const titleMatch = secTrimmed.match(/(?:\\section\*?\{([^}]+)\}|SECTION\s*---?\s*[I|V|X]+[^}\n\\]*)/i);
       if (titleMatch) {
-        secTitle = (titleMatch[1] || titleMatch[0])
-          .replace(/\\textbf\{([^}]+)\}/g, '$1')
-          .replace(/\\large/g, '')
-          .replace(/---/g, '—')
-          .replace(/[{}]/g, '')
-          .trim();
+        secTitle = cleanLatexText(titleMatch[1] || titleMatch[0]);
       }
 
       const currentSection: StandardSection = {
@@ -903,18 +966,18 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
         questions: [],
       };
 
-      // Split questions by \textbf{Q. or \item
-      const qBlocks = secTrimmed.split(/(?=(?:\\noindent\s*)?\\textbf\{\s*Q\.\s*\d+)/i);
+      // Split questions by Q., Question, \question, or \item
+      const qBlocks = secTrimmed.split(/(?=(?:\\noindent\s*)?(?:\\textbf\{\s*(?:Q\.\s*\d+|Question\s*\d+)|\\question\b|Q\.\s*\d+\b))/i);
 
       qBlocks.forEach((qChunk) => {
         const qTrim = qChunk.trim();
         if (!qTrim) return;
 
-        const qHeaderMatch = qTrim.match(/(?:\\noindent\s*)?\\textbf\{\s*(Q\.\s*\d+[^}]*)\}/i);
+        const qHeaderMatch = qTrim.match(/(?:\\noindent\s*)?(?:\\textbf\{\s*([Q\.\s\d]+[^}]*)\}|(Question\s*\d+[^:\n\\]*)|(Q\.\s*\d+[^:\n\\]*)|\\question\b)/i);
         const marksMatchInQ = qTrim.match(/\[\s*(\d+\s*Marks|\d+)\s*\]/i);
 
         if (qHeaderMatch) {
-          const headerText = qHeaderMatch[1].trim();
+          const headerText = cleanLatexText(qHeaderMatch[1] || qHeaderMatch[2] || qHeaderMatch[3] || 'Question');
           const items = qTrim.split(/\\item\s+/).slice(1);
 
           if (items.length > 0) {
@@ -931,7 +994,7 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
               const options: string[] = [];
               if (optParts.length > 0) {
                 optParts.forEach((opt) => {
-                  const optClean = opt.replace(/\\end\{enumerate\}[\s\S]*/, '').replace(/\\item.*/, '').trim();
+                  const optClean = cleanLatexText(opt.replace(/\\end\{enumerate\}[\s\S]*/, '').replace(/\\item.*/, ''));
                   if (optClean) options.push(optClean);
                 });
               }
@@ -941,25 +1004,27 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
               const labelMatch = cleanItem.match(/^([a-z\d]+)\)/i);
               const itemLabel = labelMatch ? labelMatch[1] : `${iIdx + 1}`;
 
-              const cleanMain = mainText
-                .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
-                .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, '')
-                .trim();
+              const cleanMain = cleanLatexText(
+                mainText
+                  .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
+                  .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, ''),
+              );
 
               currentSection.questions.push({
                 number: itemLabel,
-                title: cleanMain || cleanItem,
+                title: cleanMain || cleanLatexText(cleanItem),
                 options: options.length > 0 ? options : undefined,
                 table: parsedTab || undefined,
               });
             });
           } else {
             const parsedTab = parseTabular(qTrim);
-            const descContent = qTrim
-              .replace(/(?:\\noindent\s*)?\\textbf\{\s*Q\.\s*\d+[^}]*\}\s*(?:\\hfill\s*\[\s*[^\]]+\s*\])?/i, '')
-              .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
-              .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, '')
-              .trim();
+            const descContent = cleanLatexText(
+              qTrim
+                .replace(/(?:\\noindent\s*)?\\textbf\{\s*[Q\.\s\d]+[^}]*\}\s*(?:\\hfill\s*\[\s*[^\]]+\s*\])?/i, '')
+                .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
+                .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, ''),
+            );
 
             currentSection.questions.push({
               title: headerText + (descContent ? ` ${descContent}` : ''),
@@ -970,10 +1035,11 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
         } else if (qTrim.startsWith('\\item')) {
           const itemClean = qTrim.replace(/^\\item\s*/, '').trim();
           const parsedTab = parseTabular(itemClean);
-          const cleanItemTitle = itemClean
-            .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
-            .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, '')
-            .trim();
+          const cleanItemTitle = cleanLatexText(
+            itemClean
+              .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
+              .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, ''),
+          );
           if (cleanItemTitle) {
             currentSection.questions.push({
               title: cleanItemTitle,
@@ -991,7 +1057,7 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
     if (standardPage.sections.length === 0) {
       const rawParas = chunkTrim
         .split(/\n\s*\n/)
-        .map((p) => p.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, '').trim())
+        .map((p) => cleanLatexText(p))
         .filter((p) => p.length > 0);
       standardPage.rawParagraphs = rawParas;
     }
