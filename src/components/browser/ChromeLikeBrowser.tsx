@@ -376,10 +376,32 @@ Given page reference string: $7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1,
 
 \\end{document}`;
 
+export interface PictureSegment {
+  x: number;
+  fontSize: number;
+  isBold: boolean;
+  isItalic: boolean;
+  text: string;
+}
+
+export interface PictureLine {
+  y: number;
+  top: number;
+  segments: PictureSegment[];
+  fullText: string;
+}
+
+export interface PicturePage {
+  lines: PictureLine[];
+  height: number;
+}
+
 interface ParsedLatexDoc {
-  university: string;
-  faculty: string;
-  examTitle: string;
+  isPictureMode: boolean;
+  picturePages: PicturePage[];
+  university?: string;
+  faculty?: string;
+  examTitle?: string;
   dayDate?: string;
   time?: string;
   maxMarks?: string;
@@ -392,25 +414,166 @@ interface ParsedLatexDoc {
       title: string;
       marks?: string;
       options?: string[];
+      details?: string;
     }[];
   }[];
+  rawParagraphs: string[];
+}
+
+function parseLatexPicture(latex: string): PicturePage[] {
+  let chunks = latex.split(/(?=\\begin\{picture\}|\\clearpage|\\newpage)/i);
+  if (chunks.length === 0) chunks = [latex];
+
+  const pages: PicturePage[] = [];
+
+  chunks.forEach((chunk) => {
+    if (!chunk.includes('\\put')) return;
+
+    const items: {
+      x: number;
+      y: number;
+      fontSize: number;
+      isBold: boolean;
+      isItalic: boolean;
+      text: string;
+    }[] = [];
+
+    const regex = /\\put\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s*\{/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = regex.exec(chunk)) !== null) {
+      const x = parseFloat(match[1]);
+      const y = parseFloat(match[2]);
+      const startIdx = match.index + match[0].length;
+      let depth = 1;
+      let endIdx = startIdx;
+
+      while (depth > 0 && endIdx < chunk.length) {
+        if (chunk[endIdx] === '{') depth++;
+        else if (chunk[endIdx] === '}') depth--;
+        endIdx++;
+      }
+
+      const rawContent = chunk.substring(startIdx, endIdx - 1);
+
+      const fsMatch = rawContent.match(/\\fontsize\{([\d.]+)\}/);
+      const fontSize = fsMatch ? parseFloat(fsMatch[1]) : 11;
+      const isBold = /\\textbf|\\bfseries|\{ptm\}\{b\}/.test(rawContent);
+      const isItalic = /\\textit|\\itshape|\{ptm\}\{it\}/.test(rawContent);
+
+      const text = rawContent
+        .replace(/\\fontsize\{[^}]*\}\{[^}]*\}/g, '')
+        .replace(/\\usefont\{[^}]*\}\{[^}]*\}\{[^}]*\}\{[^}]*\}/g, '')
+        .replace(/\\selectfont/g, '')
+        .replace(/\\color\{[^}]*\}/g, '')
+        .replace(/\\vphantom\{[^}]*\}/g, '')
+        .replace(/\\rule\{[^}]*\}\{[^}]*\}/g, '')
+        .replace(/[{}]/g, '');
+
+      items.push({ x, y, fontSize, isBold, isItalic, text });
+    }
+
+    if (items.length === 0) return;
+
+    let minY = items[0].y;
+    for (const it of items) {
+      if (it.y < minY) minY = it.y;
+    }
+
+    const isNegativeY = items.some((it) => it.y < 0);
+
+    const linesMap = new Map<number, typeof items>();
+    for (const it of items) {
+      let matchedY: number | null = null;
+      for (const key of linesMap.keys()) {
+        if (Math.abs(key - it.y) < 3.5) {
+          matchedY = key;
+          break;
+        }
+      }
+      if (matchedY === null) {
+        matchedY = it.y;
+        linesMap.set(matchedY, []);
+      }
+      linesMap.get(matchedY)!.push(it);
+    }
+
+    const sortedY = Array.from(linesMap.keys()).sort((a, b) => b - a);
+
+    const lines: PictureLine[] = sortedY.map((y) => {
+      const row = linesMap.get(y)!;
+      row.sort((a, b) => a.x - b.x);
+
+      const segments: PictureSegment[] = [];
+      let curSegment: PictureSegment = {
+        x: row[0].x,
+        fontSize: row[0].fontSize,
+        isBold: row[0].isBold,
+        isItalic: row[0].isItalic,
+        text: row[0].text,
+      };
+
+      for (let i = 1; i < row.length; i++) {
+        const it = row[i];
+        const estWidth = curSegment.text.length * curSegment.fontSize * 0.52;
+        const gap = it.x - (curSegment.x + estWidth);
+
+        if (gap > 20) {
+          segments.push(curSegment);
+          curSegment = {
+            x: it.x,
+            fontSize: it.fontSize,
+            isBold: it.isBold,
+            isItalic: it.isItalic,
+            text: it.text,
+          };
+        } else {
+          curSegment.text += it.text;
+          if (it.isBold) curSegment.isBold = true;
+          if (it.isItalic) curSegment.isItalic = true;
+        }
+      }
+      segments.push(curSegment);
+
+      const top = isNegativeY ? Math.abs(y) : Math.max(0, 842 - y);
+
+      return {
+        y,
+        top,
+        segments,
+        fullText: segments.map((s) => s.text).join(' ').trim(),
+      };
+    });
+
+    const pageHeight = Math.max(842, isNegativeY ? Math.abs(minY) + 70 : 842);
+    pages.push({ lines, height: pageHeight });
+  });
+
+  return pages;
 }
 
 function parseLatexDocument(latex: string): ParsedLatexDoc {
   const result: ParsedLatexDoc = {
-    university: 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR',
-    faculty: 'FACULTY OF SCIENCE & TECHNOLOGY',
-    examTitle: 'B.Tech. Examination',
-    instructions: [
-      '1) All questions are compulsory. Figures to the right indicate full marks.',
-      '2) Question 1 is compulsory. Follow specified choices for other questions.',
-      '3) Draw neat diagrams wherever required.',
-    ],
+    isPictureMode: false,
+    picturePages: [],
+    instructions: [],
     sections: [],
+    rawParagraphs: [],
   };
 
   if (!latex || !latex.trim()) return result;
 
+  // Mode 1: Check for \put(x,y) or \begin{picture}
+  if (latex.includes('\\put')) {
+    const pages = parseLatexPicture(latex);
+    if (pages.length > 0) {
+      result.isPictureMode = true;
+      result.picturePages = pages;
+      return result;
+    }
+  }
+
+  // Mode 2 & 3: Standard Academic & General LaTeX AST parser
   const lines = latex.split('\n');
   const bodyLines: string[] = [];
   let inPreamble = true;
@@ -433,28 +596,47 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
   const cleanBody = (bodyLines.length > 0 ? bodyLines : lines).join('\n');
 
   // Extract University name
-  const univMatch = cleanBody.match(/\\textbf\{([^}]+UNIVERSITY[^}]*)\}/i) ||
-                    cleanBody.match(/([A-Z\s]{8,}UNIVERSITY[A-Z\s,]*)/i);
+  const univMatch =
+    cleanBody.match(/\\textbf\{([^}]+UNIVERSITY[^}]*)\}/i) ||
+    cleanBody.match(/([A-Z\s]{8,}UNIVERSITY[A-Z\s,]*)/i);
   if (univMatch && univMatch[1]) {
-    result.university = univMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/\\large/g, '').trim();
+    result.university = univMatch[1]
+      .replace(/\\\[.*?\]/g, '')
+      .replace(/\\\\/g, '')
+      .replace(/\\large/g, '')
+      .trim();
   }
 
   // Extract Faculty
-  const facMatch = cleanBody.match(/\\textbf\{([^}]+FACULTY[^}]*)\}/i) ||
-                   cleanBody.match(/(FACULTY OF [^\\\n}]+)/i);
+  const facMatch =
+    cleanBody.match(/\\textbf\{([^}]+FACULTY[^}]*)\}/i) ||
+    cleanBody.match(/(FACULTY OF [^\\\n}]+)/i);
   if (facMatch && facMatch[1]) {
-    result.faculty = facMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/\\&/g, '&').trim();
+    result.faculty = facMatch[1]
+      .replace(/\\\[.*?\]/g, '')
+      .replace(/\\\\/g, '')
+      .replace(/\\&/g, '&')
+      .trim();
   }
 
   // Extract Examination title
-  const examMatch = cleanBody.match(/\\textbf\{([^}]+(?:Examination|B\.Tech|T\.Y\.|M\.Tech|Engineering)[^}]*)\}/i) ||
-                    cleanBody.match(/((?:B\.Tech|T\.Y\.|Examination)[^\\\n}]+)/i);
+  const examMatch =
+    cleanBody.match(
+      /\\textbf\{([^}]+(?:Examination|B\.Tech|T\.Y\.|M\.Tech|Engineering|Diploma)[^}]*)\}/i,
+    ) || cleanBody.match(/((?:B\.Tech|T\.Y\.|Examination)[^\\\n}]+)/i);
   if (examMatch && examMatch[1]) {
-    result.examTitle = examMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/---/g, '—').replace(/\\&/g, '&').trim();
+    result.examTitle = examMatch[1]
+      .replace(/\\\[.*?\]/g, '')
+      .replace(/\\\\/g, '')
+      .replace(/---/g, '—')
+      .replace(/\\&/g, '&')
+      .trim();
   }
 
   // Extract Max Marks
-  const marksMatch = cleanBody.match(/Max\.\s*Marks:\s*(\d+)/i) || cleanBody.match(/Marks:\s*(\d+)/i);
+  const marksMatch =
+    cleanBody.match(/Max\.\s*Marks:\s*(\d+)/i) ||
+    cleanBody.match(/Marks:\s*(\d+)/i);
   if (marksMatch) {
     result.maxMarks = marksMatch[1];
   }
@@ -466,7 +648,7 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
   }
 
   // Extract Time
-  const timeMatch = cleanBody.match(/Time:\s*([^\\}\n]+)/i);
+  const timeMatch = cleanBody.match(/Time:\s*([0-9\s:AMPMapm.\-–—()Hours]+)/i);
   if (timeMatch) {
     result.time = timeMatch[1].replace(/\\hfill.*/, '').replace(/\\\\/, '').trim();
   }
@@ -477,6 +659,19 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
     result.dayDate = dateMatch[1].replace(/\\hfill.*/, '').replace(/\\\\/, '').trim();
   }
 
+  // Extract Instructions
+  const instBlockMatch = cleanBody.match(/Instructions[^:]*:\s*\\begin\{enumerate\}([\s\S]*?)\\end\{enumerate\}/i);
+  if (instBlockMatch) {
+    const rawItems = instBlockMatch[1].split(/\\item\s+/).slice(1);
+    result.instructions = rawItems.map((it, idx) => `${idx + 1}) ${it.replace(/\\end\{enumerate\}.*/, '').trim()}`);
+  } else if (result.university || result.examTitle) {
+    result.instructions = [
+      '1) All questions are compulsory. Figures to the right indicate full marks.',
+      '2) Question 1 is compulsory. Follow specified choices for other questions.',
+      '3) Draw neat diagrams wherever required.',
+    ];
+  }
+
   // Split into Sections
   const rawSections = cleanBody.split(/(?=\\section|SECTION\s*---\s*[I|V|X]+|SECTION\s*-\s*[I|V|X]+)/i);
 
@@ -485,7 +680,7 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
     if (!secTrimmed) return;
 
     let secTitle = '';
-    const titleMatch = secTrimmed.match(/(?:\\section\{([^}]+)\}|SECTION\s*---?\s*[I|V|X]+[^}\n\\]*)/i);
+    const titleMatch = secTrimmed.match(/(?:\\section\*?\{([^}]+)\}|SECTION\s*---?\s*[I|V|X]+[^}\n\\]*)/i);
     if (titleMatch) {
       secTitle = (titleMatch[1] || titleMatch[0])
         .replace(/\\textbf\{([^}]+)\}/g, '$1')
@@ -516,16 +711,13 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
       if (!qTrim) return;
 
       const qHeaderMatch = qTrim.match(/(?:\\noindent\s*)?\\textbf\{\s*(Q\.\s*\d+[^}]*)\}/i);
-      const marksMatchInQ = qTrim.match(/\[\s*(\d+\s*Marks)\s*\]/i);
+      const marksMatchInQ = qTrim.match(/\[\s*(\d+\s*Marks|\d+)\s*\]/i);
 
       if (qHeaderMatch) {
         const headerText = qHeaderMatch[1].trim();
-
-        // Check if there are items inside this question
         const items = qTrim.split(/\\item\s+/).slice(1);
 
         if (items.length > 0) {
-          // Push question header
           currentSection.questions.push({
             title: headerText,
             marks: marksMatchInQ ? marksMatchInQ[1] : undefined,
@@ -533,7 +725,6 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
 
           items.forEach((itemText, iIdx) => {
             const cleanItem = itemText.trim();
-            // Check for sub-options (a, b, c, d)
             const optParts = cleanItem.split(/\\item\s+/).slice(1);
             const mainText = cleanItem.split(/\\begin\{enumerate\}/)[0].replace(/\\end\{enumerate\}[\s\S]*/, '').trim();
 
@@ -552,8 +743,9 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
             });
           });
         } else {
-          // Descriptive question
-          const descContent = qTrim.replace(/(?:\\noindent\s*)?\\textbf\{\s*Q\.\s*\d+[^}]*\}\s*(?:\\hfill\s*\[\s*\d+\s*Marks\s*\])?/i, '').trim();
+          const descContent = qTrim
+            .replace(/(?:\\noindent\s*)?\\textbf\{\s*Q\.\s*\d+[^}]*\}\s*(?:\\hfill\s*\[\s*[^\]]+\s*\])?/i, '')
+            .trim();
           currentSection.questions.push({
             title: headerText + (descContent ? ` ${descContent}` : ''),
             marks: marksMatchInQ ? marksMatchInQ[1] : undefined,
@@ -574,6 +766,15 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
     }
   });
 
+  // If no sections were found, parse raw paragraphs so nothing is dropped
+  if (result.sections.length === 0) {
+    const rawParas = cleanBody
+      .split(/\n\s*\n/)
+      .map((p) => p.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, '').trim())
+      .filter((p) => p.length > 0);
+    result.rawParagraphs = rawParas;
+  }
+
   return result;
 }
 
@@ -584,6 +785,79 @@ const DynamicCompiledLatexPreview: React.FC<{
 }> = ({ latex, isCompiling, zoom }) => {
   const parsed = useMemo(() => parseLatexDocument(latex), [latex]);
 
+  // Mode 1: Picture Environment / PDF Layout (with exact 2D coordinates)
+  if (parsed.isPictureMode && parsed.picturePages.length > 0) {
+    return (
+      <div
+        className="flex flex-col items-center gap-8 transition-transform"
+        style={{
+          transform: `scale(${zoom})`,
+          transformOrigin: 'top center',
+        }}
+      >
+        {parsed.picturePages.map((page, pIdx) => (
+          <div
+            key={pIdx}
+            className="w-[595px] bg-white text-black shadow-2xl relative select-text font-serif border border-slate-300 transition-all rounded-xs overflow-hidden"
+            style={{
+              minHeight: `${page.height}px`,
+              height: `${page.height}px`,
+            }}
+          >
+            {/* Compiling Spinner Overlay */}
+            {isCompiling && (
+              <div className="absolute inset-0 bg-white/70 backdrop-blur-2xs z-30 flex flex-col items-center justify-center gap-2">
+                <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+                <span className="text-xs font-mono font-bold text-slate-800">
+                  pdfTeX 3.141592653 compiling LaTeX AST...
+                </span>
+              </div>
+            )}
+
+            {/* Absolute Line & Segment Elements */}
+            {page.lines.map((line, lIdx) => (
+              <div
+                key={lIdx}
+                className="absolute flex items-baseline leading-none"
+                style={{
+                  top: `${line.top}px`,
+                  left: 0,
+                  right: 0,
+                }}
+              >
+                {line.segments.map((seg, sIdx) => (
+                  <span
+                    key={sIdx}
+                    className={`absolute inline-block whitespace-pre ${
+                      seg.isBold ? 'font-bold' : ''
+                    } ${seg.isItalic ? 'italic' : ''}`}
+                    style={{
+                      left: `${seg.x}px`,
+                      fontSize: `${seg.fontSize}px`,
+                      lineHeight: 1.15,
+                      color: '#000000',
+                    }}
+                  >
+                    <LaTeXText text={seg.text} />
+                  </span>
+                ))}
+              </div>
+            ))}
+
+            {/* Academic Page Footer */}
+            <div className="absolute bottom-3 left-8 right-8 pt-2 border-t border-black/30 flex justify-between items-center text-[9px] font-sans text-slate-500">
+              <span className="font-mono">SOLAPUR UNIVERSITY • ZEROLEAK</span>
+              <span>
+                Page {pIdx + 1} of {parsed.picturePages.length}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Mode 2: Standard Academic Question Paper
   return (
     <div
       className="w-full max-w-[590px] bg-white text-black p-8 sm:p-10 rounded-xs shadow-2xl min-h-[840px] text-xs leading-relaxed font-serif relative transition-all border border-slate-300 select-text"
@@ -603,36 +877,46 @@ const DynamicCompiledLatexPreview: React.FC<{
       )}
 
       {/* Official Academic Header */}
-      <div className="text-center mb-5 pb-3 border-b-2 border-black">
-        <h3 className="font-bold text-sm tracking-wide uppercase font-serif">
-          {parsed.university}
-        </h3>
-        <p className="text-[11px] font-semibold text-slate-800 tracking-tight mt-0.5">
-          {parsed.faculty}
-        </p>
-        <p className="text-[11px] font-bold mt-1 text-slate-900">
-          {parsed.examTitle}
-        </p>
+      {(parsed.university || parsed.faculty || parsed.examTitle) && (
+        <div className="text-center mb-5 pb-3 border-b-2 border-black">
+          {parsed.university && (
+            <h3 className="font-bold text-sm tracking-wide uppercase font-serif">
+              {parsed.university}
+            </h3>
+          )}
+          {parsed.faculty && (
+            <p className="text-[11px] font-semibold text-slate-800 tracking-tight mt-0.5">
+              {parsed.faculty}
+            </p>
+          )}
+          {parsed.examTitle && (
+            <p className="text-[11px] font-bold mt-1 text-slate-900">
+              {parsed.examTitle}
+            </p>
+          )}
 
-        <div className="flex justify-between items-center text-[10px] text-slate-900 mt-3 pt-1 border-t border-black/40 font-semibold font-sans">
-          <span>{parsed.dayDate || 'Day & Date: Wednesday, 14-05-2026'}</span>
-          <span>Max. Marks: {parsed.maxMarks || '70'}</span>
+          <div className="flex justify-between items-center text-[10px] text-slate-900 mt-3 pt-1 border-t border-black/40 font-semibold font-sans">
+            <span>{parsed.dayDate || 'Day & Date: Wednesday, 14-05-2026'}</span>
+            <span>Max. Marks: {parsed.maxMarks || '70'}</span>
+          </div>
+          <div className="flex justify-between items-center text-[10px] text-slate-900 font-semibold font-sans mt-0.5">
+            <span>Time: {parsed.time || '3.00 PM to 6.00 PM (3 Hours)'}</span>
+            <span>Paper Code: {parsed.paperCode || 'SLR-VB-602'}</span>
+          </div>
         </div>
-        <div className="flex justify-between items-center text-[10px] text-slate-900 font-semibold font-sans mt-0.5">
-          <span>Time: {parsed.time || '3.00 PM to 6.00 PM (3 Hours)'}</span>
-          <span>Paper Code: {parsed.paperCode || 'SLR-VB-602'}</span>
-        </div>
-      </div>
+      )}
 
       {/* General Instructions */}
-      <div className="mb-5 p-2.5 bg-slate-50 border border-black/20 rounded text-[10px] font-sans space-y-0.5">
-        <p className="font-bold text-black uppercase tracking-wide">Instructions:</p>
-        {parsed.instructions.map((inst, idx) => (
-          <p key={idx} className="text-slate-800">
-            {inst}
-          </p>
-        ))}
-      </div>
+      {parsed.instructions.length > 0 && (
+        <div className="mb-5 p-2.5 bg-slate-50 border border-black/20 rounded text-[10px] font-sans space-y-0.5">
+          <p className="font-bold text-black uppercase tracking-wide">Instructions:</p>
+          {parsed.instructions.map((inst, idx) => (
+            <p key={idx} className="text-slate-800">
+              {inst}
+            </p>
+          ))}
+        </div>
+      )}
 
       {/* Sections and Questions */}
       <div className="space-y-6">
@@ -675,9 +959,17 @@ const DynamicCompiledLatexPreview: React.FC<{
               </div>
             </div>
           ))
+        ) : parsed.rawParagraphs.length > 0 ? (
+          <div className="space-y-3 text-[11px] leading-relaxed">
+            {parsed.rawParagraphs.map((para, pIdx) => (
+              <p key={pIdx}>
+                <LaTeXText text={para} />
+              </p>
+            ))}
+          </div>
         ) : (
           <div className="py-8 text-center text-slate-500 font-mono text-xs">
-            LaTeX document compiled with 0 errors. Add sections and questions in the editor.
+            LaTeX document compiled with 0 errors.
           </div>
         )}
       </div>
