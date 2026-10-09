@@ -1205,8 +1205,81 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
             </div>
           </div>
 
-          {/* Competitive Exam Time-Locked Papers Section */}
-          {renderCompetitiveTimeLockedPapersSection()}
+          {/* ZERO-LEAK TRANSFERRED PAPER HERO CARD */}
+          {releasedExams.length > 0 && (() => {
+            const primaryExam = releasedExams[0];
+            const uniLock = getUniversityLockState(primaryExam);
+            return (
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white shadow-xl border border-emerald-500/40 space-y-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                  <div className="flex items-start sm:items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0">
+                      <ShieldCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase tracking-wide flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                          <span>Document Fetched & Ready</span>
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/10 text-slate-300 font-bold">
+                          {primaryExam.subject_code || primaryExam.exam_code || 'BTN04605'}
+                        </span>
+                      </div>
+                      <h2 className="text-base sm:text-lg font-black text-white mt-1 leading-snug">
+                        {primaryExam.name}
+                      </h2>
+                      <p className="text-xs text-slate-300 font-medium">
+                        Punyashlok Ahilyadevi Holkar Solapur University &bull; Faculty of Science & Technology
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenSecureViewer(primaryExam)}
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/25 flex items-center gap-2 cursor-pointer transition-all"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>View & Read Full Document</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => openPrintGate(primaryExam.id, primaryExam.name)}
+                      className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/10 flex items-center gap-2 cursor-pointer transition-all"
+                    >
+                      <Printer className="w-4 h-4 text-emerald-400" />
+                      <span>Print Authorized Copy</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Custody telemetry grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-black/30 p-3.5 rounded-xl border border-white/5 font-mono">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">Custody Hash:</span>
+                    <span className="text-emerald-400 font-bold truncate block">
+                      {primaryExam.custody_hash || '0x8f2d3a1b4c9e7852a36b10de4f8a920c571348be7190ca345df19c028be934aa'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">Transferred From:</span>
+                    <span className="text-white font-semibold">
+                      {primaryExam.transferred_from || 'Pradnya Jadhav (Paper Authority)'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] uppercase">Enclave Terminal:</span>
+                    <span className="text-white font-semibold">
+                      Apex Centre 101 (CTR-101) &bull; Air-Gapped
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="p-6 rounded-xl bg-white border border-slate-200 shadow-xs space-y-3">
             <h3 className="text-sm font-bold text-slate-900">Scheduled Examination Papers</h3>
@@ -1320,6 +1393,9 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
               </div>
             )}
           </div>
+
+          {/* Competitive Exam Time-Locked Papers Section */}
+          {renderCompetitiveTimeLockedPapersSection()}
         </div>
       )}
 

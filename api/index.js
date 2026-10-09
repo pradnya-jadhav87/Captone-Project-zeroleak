@@ -686,13 +686,225 @@ const transferredPrintingJobs = [
       ],
       sections: [
         {
-          name: 'Section I - Objective Type Questions',
+          name: 'Section I - Objective Type Questions (MCQs)',
           questions: [
-            { number: '1', text: 'In the many-to-one threading model, if a thread makes a blocking system call, what occurs?', marks: 1 },
-            { number: '2', text: 'Which system call suspends a parent process until its child process terminates?', marks: 1 },
-            { number: '3', text: 'Round-robin scheduling is which type of scheduling algorithm?', marks: 1 },
-            { number: '4', text: 'A process that is continually denied the resources it needs is experiencing:', marks: 1 }
+            {
+              number: '1',
+              text: 'In the many-to-one threading model, if a thread makes a blocking system call, what occurs?',
+              marks: 1,
+              options: [
+                'a) Only that individual thread blocks',
+                'b) The entire process blocks completely',
+                'c) A new thread is immediately spawned',
+                'd) Kernel panic occurs'
+              ]
+            },
+            {
+              number: '2',
+              text: 'Which system call suspends a parent process until one of its child processes terminates?',
+              marks: 1,
+              options: [
+                'a) fork()',
+                'b) exec()',
+                'c) wait()',
+                'd) exit()'
+              ]
+            },
+            {
+              number: '3',
+              text: 'Round-robin CPU scheduling is categorized as which type of scheduling algorithm?',
+              marks: 1,
+              options: [
+                'a) Preemptive scheduling',
+                'b) Non-preemptive scheduling',
+                'c) Static priority scheduling',
+                'd) First-Come First-Served scheduling'
+              ]
+            },
+            {
+              number: '4',
+              text: 'A process that is continually denied access to the CPU/resources it requires is experiencing:',
+              marks: 1,
+              options: [
+                'a) Deadlock',
+                'b) Starvation',
+                'c) Thrashing',
+                'd) Aging'
+              ]
+            },
+            {
+              number: '5',
+              text: 'Which page replacement algorithm suffers from Belady\'s Anomaly?',
+              marks: 1,
+              options: [
+                'a) Optimal Algorithm (OPT)',
+                'b) Least Recently Used (LRU)',
+                'c) First-In First-Out (FIFO)',
+                'd) Least Frequently Used (LFU)'
+              ]
+            },
+            {
+              number: '6',
+              text: 'In Dijkstra\'s Banker\'s Algorithm for deadlock avoidance, if a Safe State exists, the system is guaranteed to be:',
+              marks: 1,
+              options: [
+                'a) Completely free from deadlock',
+                'b) In immediate deadlock',
+                'c) Experiencing resource starvation',
+                'd) Thrashing'
+              ]
+            },
+            {
+              number: '7',
+              text: 'The Translation Lookaside Buffer (TLB) in virtual memory hardware is used to cache:',
+              marks: 1,
+              options: [
+                'a) Virtual page number to physical frame translations',
+                'b) Secondary storage disk blocks',
+                'c) CPU general-purpose registers',
+                'd) Open file descriptors'
+              ]
+            }
           ]
+        },
+        {
+          name: 'Section I - Descriptive Questions',
+          questions: [
+            {
+              number: '2',
+              text: 'Attempt any THREE of the following: (a) Explain the components of a Process Control Block (PCB) with diagram. (b) Compare user-level threads and kernel-level threads with trade-offs. (c) Describe the four Coffman conditions necessary for a Deadlock to occur. (d) Differentiate Round Robin and Shortest Job First scheduling algorithms.',
+              marks: 12
+            },
+            {
+              number: '3',
+              text: 'Explain Peterson\'s Algorithm for mutual exclusion between two cooperating processes. Prove how it satisfies Mutual Exclusion, Progress, and Bounded Waiting.',
+              marks: 8
+            }
+          ]
+        },
+        {
+          name: 'Section II - Memory Management & Storage',
+          questions: [
+            {
+              number: '4',
+              text: 'Attempt any THREE of the following: (a) Explain Demand Paging and detail the complete step-by-step Page Fault handling procedure. (b) Differentiate between Internal and External Fragmentation and explain how Paging eliminates external fragmentation. (c) Compare Contiguous, Linked, and Indexed File Allocation methods. (d) Explain FCFS, SSTF, SCAN, and C-SCAN Disk Scheduling algorithms with illustrations.',
+              marks: 12
+            },
+            {
+              number: '5',
+              text: 'Given page reference string: 7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1 with 3 allocated physical frames. Calculate the total number of page faults using (i) FIFO Page Replacement and (ii) LRU Page Replacement.',
+              marks: 8
+            }
+          ]
+        }
+      ],
+      questions: [
+        {
+          questionNumber: 1,
+          content_text: 'In the many-to-one threading model, if a thread makes a blocking system call, what occurs?',
+          marks: 1,
+          options: [
+            'a) Only that individual thread blocks',
+            'b) The entire process blocks completely',
+            'c) A new thread is immediately spawned',
+            'd) Kernel panic occurs'
+          ]
+        },
+        {
+          questionNumber: 2,
+          content_text: 'Which system call suspends a parent process until one of its child processes terminates?',
+          marks: 1,
+          options: ['a) fork()', 'b) exec()', 'c) wait()', 'd) exit()']
+        },
+        {
+          questionNumber: 3,
+          content_text: 'Round-robin CPU scheduling is categorized as which type of scheduling algorithm?',
+          marks: 1,
+          options: [
+            'a) Preemptive scheduling',
+            'b) Non-preemptive scheduling',
+            'c) Static priority scheduling',
+            'd) First-Come First-Served scheduling'
+          ]
+        },
+        {
+          questionNumber: 4,
+          content_text: 'A process that is continually denied access to the CPU/resources it requires is experiencing:',
+          marks: 1,
+          options: ['a) Deadlock', 'b) Starvation', 'c) Thrashing', 'd) Aging']
+        },
+        {
+          questionNumber: 5,
+          content_text: 'Which page replacement algorithm suffers from Belady\'s Anomaly?',
+          marks: 1,
+          options: [
+            'a) Optimal Algorithm (OPT)',
+            'b) Least Recently Used (LRU)',
+            'c) First-In First-Out (FIFO)',
+            'd) Least Frequently Used (LFU)'
+          ]
+        },
+        {
+          questionNumber: 6,
+          content_text: 'In Dijkstra\'s Banker\'s Algorithm for deadlock avoidance, if a Safe State exists, the system is guaranteed to be:',
+          marks: 1,
+          options: [
+            'a) Completely free from deadlock',
+            'b) In immediate deadlock',
+            'c) Experiencing resource starvation',
+            'd) Thrashing'
+          ]
+        },
+        {
+          questionNumber: 7,
+          content_text: 'The Translation Lookaside Buffer (TLB) in virtual memory hardware is used to cache:',
+          marks: 1,
+          options: [
+            'a) Virtual page number to physical frame translations',
+            'b) Secondary storage disk blocks',
+            'c) CPU general-purpose registers',
+            'd) Open file descriptors'
+          ]
+        },
+        {
+          questionNumber: 8,
+          content_text: 'Explain the components of a Process Control Block (PCB) with diagram and discuss process state transitions (New, Ready, Running, Waiting, Terminated).',
+          marks: 4
+        },
+        {
+          questionNumber: 9,
+          content_text: 'Compare user-level threads and kernel-level threads with trade-offs in scheduling and context switching overhead.',
+          marks: 4
+        },
+        {
+          questionNumber: 10,
+          content_text: 'Describe the four Coffman conditions necessary for a Deadlock to occur and explain Deadlock Prevention vs. Avoidance.',
+          marks: 4
+        },
+        {
+          questionNumber: 11,
+          content_text: 'Explain Peterson\'s Algorithm for mutual exclusion between two cooperating processes. Prove how it satisfies Mutual Exclusion, Progress, and Bounded Waiting.',
+          marks: 8
+        },
+        {
+          questionNumber: 12,
+          content_text: 'Explain Demand Paging and detail the complete step-by-step Page Fault handling procedure by the Operating System.',
+          marks: 4
+        },
+        {
+          questionNumber: 13,
+          content_text: 'Differentiate between Internal and External Fragmentation and explain how Paging eliminates external fragmentation.',
+          marks: 4
+        },
+        {
+          questionNumber: 14,
+          content_text: 'Compare Contiguous, Linked, and Indexed File Allocation methods with directory structure implementations.',
+          marks: 4
+        },
+        {
+          questionNumber: 15,
+          content_text: 'Given page reference string: 7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1 with 3 allocated physical frames. Calculate the total number of page faults using (i) FIFO Page Replacement and (ii) LRU Page Replacement.',
+          marks: 8
         }
       ]
     }
@@ -828,16 +1040,61 @@ app.post('/api/delivery/print-authorized-copy', (req, res) => {
 // 5. Open Secure Viewer
 app.post('/api/delivery/open-viewer', (req, res) => {
   const { exam_id } = req.body || {};
-  const job = transferredPrintingJobs.find(j => j.paperId === exam_id || j.id === exam_id) || transferredPrintingJobs[0];
+  const job = transferredPrintingJobs.find(j => j.paperId === exam_id || j.id === exam_id || j.courseCode === exam_id) || transferredPrintingJobs[0];
+  const content = job?.paperContent || {};
+
+  const allQuestions = [];
+  if (Array.isArray(content.questions) && content.questions.length > 0) {
+    allQuestions.push(...content.questions);
+  } else if (Array.isArray(content.sections)) {
+    content.sections.forEach(sec => {
+      if (Array.isArray(sec.questions)) {
+        sec.questions.forEach((q, qIndex) => {
+          allQuestions.push({
+            id: `Q-${sec.name}-${qIndex}`,
+            questionNumber: q.number || qIndex + 1,
+            content_text: q.text || q.content_text,
+            marks: q.marks || (sec.name.includes('Objective') ? 1 : 4),
+            options: q.options || [],
+            sectionName: sec.name,
+          });
+        });
+      }
+    });
+  }
+
   res.json({
     message: 'Secure viewing session authenticated.',
-    paperContent: job?.paperContent || {},
-    paperVersionId: `VER-${job?.courseCode || '01'}`,
+    paperContent: {
+      ...content,
+      exam_name: job?.title || content.course || 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)',
+      examinationName: job?.title || 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)',
+      subject: job?.subject || content.subject || 'OPERATING SYSTEMS',
+      paper_code: job?.courseCode || content.courseCode || 'BTN04605',
+      total_marks: job?.totalMarks || content.maxMarks || 70,
+      totalMarks: job?.totalMarks || content.maxMarks || 70,
+      duration_minutes: (job?.durationHours || 3) * 60,
+      durationMinutes: (job?.durationHours || 3) * 60,
+      instructions: content.instructions || [
+        '1) Question 1 is compulsory and should be completed in the first 30 minutes.',
+        '2) In Questions 2 to 5, follow the choice specified for each question.',
+        '3) Figures to the right indicate full marks. Assume suitable data if necessary.',
+        '4) Draw neat, labeled diagrams wherever required.'
+      ],
+      questions: allQuestions,
+      sections: content.sections || [],
+    },
+    paperVersionId: `VER-${job?.courseCode || 'BTN04605'}-01`,
     watermark: {
-      watermarkText: 'CONFIDENTIAL • CENTRE 101 • ZEROLEAK',
+      organizationName: 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR',
+      centreId: 'CTR-101',
       operatorId: 'operator@centre101.edu.in',
+      operatorName: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
+      deviceFingerprint: 'HW-AIRGAP-CTR101-SEC',
       timestamp: new Date().toISOString(),
-      ipAddress: '127.0.0.1',
+      ipAddress: '10.0.101.12',
+      sessionTxRef: job?.custodyHash || '0x8f2d3a1b4c9e7852a36b10de4f8a920c571348be7190ca345df19c028be934aa',
+      watermarkText: 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY • CTR-101 • ZEROLEAK',
     },
   });
 });

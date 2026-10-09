@@ -70,14 +70,47 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
     }
   };
 
-  const questions = paper?.questions || [];
+  // Robust Extraction: read flat questions, section questions, or nested paperContent
+  const directQuestions: any[] = Array.isArray(paper?.questions)
+    ? paper.questions
+    : Array.isArray(paper?.paperContent?.questions)
+    ? paper.paperContent.questions
+    : [];
+
+  const rawSections: any[] = Array.isArray(paper?.sections)
+    ? paper.sections
+    : Array.isArray(paper?.paperContent?.sections)
+    ? paper.paperContent.sections
+    : [];
+
+  const sectionQuestions: any[] = rawSections.flatMap((s: any) =>
+    Array.isArray(s?.questions)
+      ? s.questions.map((q: any, qIdx: number) => ({
+          ...q,
+          id: q.id || `SQ-${s.name}-${qIdx}`,
+          questionNumber: q.number || q.questionNumber || qIdx + 1,
+          sectionName: s.name || s.title,
+          content_text: q.text || q.content_text || q.content || q.questionText,
+          marks: q.marks || (s.name?.includes('Objective') ? 1 : 4),
+          options: q.options || q.options_json,
+        }))
+      : []
+  );
+
+  const questions: any[] = directQuestions.length > 0 ? directQuestions : sectionQuestions;
+  const sections: any[] = rawSections;
+
   // Papers arrive in two shapes: the delivery payload uses `examinationName`,
   // the generator payload uses `exam_name`, and questions use `content` in one
   // and `content_text` in the other. Reading both is what keeps a real paper
   // from rendering as a blank sheet.
   const examName =
-    paper?.exam_name || paper?.examinationName || paper?.subject || 'National Standardized Examination';
-  const questionText = (question: any): string => question?.content_text || question?.content || '';
+    paper?.exam_name ||
+    paper?.examinationName ||
+    paper?.paperContent?.course ||
+    paper?.subject ||
+    'National Standardized Examination';
+  const questionText = (question: any): string => question?.content_text || question?.content || question?.text || '';
   const questionOptions = (question: any): any[] => {
     const raw = question?.options_json ?? question?.options;
     if (Array.isArray(raw)) return raw;
@@ -222,18 +255,28 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
           <div className="space-y-8 relative z-20">
             {questions.map((q: any, idx: number) => {
               const options = questionOptions(q);
+              const showSectionHeader = q.sectionName && (idx === 0 || questions[idx - 1]?.sectionName !== q.sectionName);
 
               return (
-                <div key={q.id || idx} className="space-y-3 pb-6 border-b border-slate-200 last:border-0">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="font-bold text-sm text-slate-900">
-                      <span className="mr-2">Q{q.questionNumber || idx + 1}.</span>
-                      <span>{questionText(q)}</span>
+                <div key={q.id || idx}>
+                  {showSectionHeader && (
+                    <div className="pt-6 pb-2 border-b-2 border-slate-900 mb-6 first:pt-0">
+                      <h3 className="font-black text-sm uppercase tracking-wider text-slate-900 bg-slate-100 px-3 py-1.5 rounded inline-block">
+                        {q.sectionName}
+                      </h3>
                     </div>
-                    <span className="text-xs font-sans font-bold text-slate-500 shrink-0">
-                      [{q.marks || 4} Marks]
-                    </span>
-                  </div>
+                  )}
+
+                  <div className="space-y-3 pb-6 border-b border-slate-200 last:border-0">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="font-bold text-sm text-slate-900">
+                        <span className="mr-2">Q{q.questionNumber || idx + 1}.</span>
+                        <span>{questionText(q)}</span>
+                      </div>
+                      <span className="text-xs font-sans font-bold text-slate-500 shrink-0">
+                        [{q.marks || 1} Marks]
+                      </span>
+                    </div>
 
                   {options.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-sans pl-6">
@@ -248,8 +291,9 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
                     </div>
                   )}
                 </div>
-              );
-            })}
+              </div>
+            );
+          })}
           </div>
 
           {/* Paper Footer */}
