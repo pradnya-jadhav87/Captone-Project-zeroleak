@@ -699,6 +699,17 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
             reloadSignal={reloadSignal}
             onOpenExternal={handleOpenExternal}
             chrome={true}
+            toolbarExtra={
+              <button
+                type="button"
+                onClick={() => openAuthWindow('https://prism.openai.com/', 'toolbar sign in')}
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0"
+                title="Open OpenAI Sign-In Window"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
+            }
           />
           {downloadNotice && (
             <div className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-lg rounded-lg border border-emerald-800/70 bg-emerald-950/95 px-3 py-2 text-[11px] text-emerald-100 shadow-lg">
