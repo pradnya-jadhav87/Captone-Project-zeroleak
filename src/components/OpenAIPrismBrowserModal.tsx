@@ -666,6 +666,24 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
+              onClick={() => setReloadSignal((prev) => prev + 1)}
+              title="Reload page"
+              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOpenExternal('https://prism.openai.com/')}
+              title="Open in window"
+              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsMaximized(!isMaximized)}
               title={isMaximized ? 'Restore' : 'Maximize'}
               className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
@@ -698,18 +716,7 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
             beforeNavigate={handleBeforeNavigate}
             reloadSignal={reloadSignal}
             onOpenExternal={handleOpenExternal}
-            chrome={true}
-            toolbarExtra={
-              <button
-                type="button"
-                onClick={() => openAuthWindow('https://prism.openai.com/', 'toolbar sign in')}
-                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-xs shrink-0"
-                title="Open OpenAI Sign-In Window"
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>Sign In</span>
-              </button>
-            }
+            chrome={false}
           />
           {downloadNotice && (
             <div className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-lg rounded-lg border border-emerald-800/70 bg-emerald-950/95 px-3 py-2 text-[11px] text-emerald-100 shadow-lg">
