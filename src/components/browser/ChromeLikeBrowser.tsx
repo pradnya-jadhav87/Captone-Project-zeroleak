@@ -132,11 +132,7 @@ const safeCall = (view: any, method: string) => {
 
 /**
  * Web Auth Gateway Pane for OpenAI Prism.
- *
- * In a standard web browser (non-Electron, non-streamed), embedding Prism's
- * OAuth button directly in an iframe causes openai-provider-validation-failed
- * because the identity provider refuses iframe OAuth transactions and browser
- * third-party cookie isolation prevents cross-origin session storage.
+ */
 const PRISM_DEFAULT_LATEX = `\\documentclass[11pt,a4paper]{article}
 \\usepackage[margin=0.75in]{geometry}
 \\usepackage{amsmath,amssymb}
