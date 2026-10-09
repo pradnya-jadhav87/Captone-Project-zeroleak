@@ -246,6 +246,9 @@ export interface ExamBlueprint {
   status: BlueprintStatus;
   version: string;
   sections: BlueprintSection[];
+  translationRequired?: boolean;
+  originalLanguage?: string;
+  translationLanguage?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -280,6 +283,10 @@ export interface Question {
   created_by: string;
   created_at: string;
   updated_at: string;
+  source_pdf_name?: string;
+  question_paper_id?: string;
+  source_page?: number;
+  question_number?: string;
 }
 
 export interface QuestionTranslation {
@@ -429,226 +436,30 @@ export interface PrintRelayEnvelope {
 export interface AuditEvent {
   id: string;
   event_type: string;
-  event_category?: string;
-  severity?: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   user_id?: string;
   user_email?: string;
   role?: string;
-  target_user_id?: string;
   org_id?: string;
   exam_id?: string;
-  paper_id?: string;
-  paper_version_id?: string;
   device_id?: string;
-  session_id?: string;
-  centre_id?: string;
   ip_address?: string;
   status: string;
   tx_ref: string;
   details_json?: string;
-  previous_event_hash?: string;
-  event_hash?: string;
   created_at: string;
 }
 
 export interface SecurityEvent {
   id: string;
   event_type: string;
-  severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   risk_score: number;
   user_id?: string;
-  user_email?: string;
-  role?: string;
   org_id?: string;
-  exam_id?: string;
-  paper_id?: string;
-  device_id?: string;
   ip_address?: string;
   details_json?: string;
   resolved: number;
-  status?: 'DETECTED' | 'ALERTED' | 'OPEN' | 'INVESTIGATING' | 'ACTION_TAKEN' | 'RESOLVED' | 'DISMISSED';
-  resolved_by?: string;
-  resolved_at?: string;
-  resolution_notes?: string;
   timestamp: string;
-}
-
-export interface AuditorDashboardMetrics {
-  totalAuditEvents: number;
-  todayEvents: number;
-  highCriticalEvents: number;
-  activeSecurityEvents: number;
-  failedLogins: number;
-  unauthorizedAttempts: number;
-  suspendedDevices: number;
-  proctoringIncidents: number;
-  pendingKeyRequests: number;
-  pendingUnlockRequests: number;
-  printViolations: number;
-  watermarkInvestigations: number;
-  ledgerIntegrity: {
-    verified: boolean;
-    chainedCount: number;
-    status: string;
-  };
-}
-
-export interface UserSessionActivity {
-  id: string;
-  user_id: string;
-  user_name?: string;
-  user_email: string;
-  role: string;
-  org_id: string;
-  device_id?: string;
-  device_name?: string;
-  ip_address: string;
-  login_time: string;
-  logout_time?: string;
-  session_duration_seconds: number;
-  auth_result: string;
-  failed_attempts: number;
-  status: string;
-  security_events_count?: number;
-}
-
-export interface UserSecurityProfile {
-  user: {
-    id: string;
-    full_name: string;
-    email: string;
-    role: string;
-    org_id: string;
-    status: string;
-    designation?: string;
-    created_at: string;
-  };
-  recentSessions: UserSessionActivity[];
-  devices: Array<{
-    id: string;
-    device_uuid: string;
-    device_name?: string;
-    operating_system?: string;
-    status: string;
-    last_seen_at?: string;
-  }>;
-  roleActivity: AuditEvent[];
-  examActivity: AuditEvent[];
-  paperActivity: AuditEvent[];
-  translationActivity: AuditEvent[];
-  securityIncidents: SecurityEvent[];
-  printActivity: Array<{
-    id: string;
-    copy_id: string;
-    exam_id: string;
-    centre_id: string;
-    printed_at: string;
-    status: string;
-  }>;
-}
-
-export interface DeviceActivityItem {
-  id: string;
-  device_uuid: string;
-  user_id: string;
-  user_name?: string;
-  user_email?: string;
-  role?: string;
-  org_id: string;
-  device_name?: string;
-  device_model?: string;
-  operating_system?: string;
-  os_version?: string;
-  browser_info?: string;
-  ip_address?: string;
-  status: string;
-  first_seen: string;
-  last_seen: string;
-  auth_failures: number;
-  security_events_count: number;
-}
-
-export interface PaperSecurityOverview {
-  examId: string;
-  examName: string;
-  subject: string;
-  category: string;
-  examStatus: string;
-  versionsCount: number;
-  encrypted: boolean;
-  algorithm?: string;
-  checksumSha256?: string;
-  encryptedAt?: string;
-  shamirSharesCount: number;
-  shamirThreshold: number;
-  examDate: string;
-  examTime: string;
-  unlockTime: string;
-  isUnlocked: boolean;
-  earlyUnlockPending: boolean;
-  maxCopies: number;
-  totalPrinted: number;
-  printQuotaViolations: number;
-}
-
-export interface SecurityEvidenceRecord {
-  id: string;
-  org_id: string;
-  user_id?: string;
-  user_name?: string;
-  user_email?: string;
-  exam_id?: string;
-  exam_name?: string;
-  session_id?: string;
-  device_id?: string;
-  event_id?: string;
-  captured_at: string;
-  mime_type: string;
-  image_data?: string;
-  hash: string;
-  integrity_status: 'VALID' | 'TAMPERED';
-}
-
-export interface WatermarkInvestigationRecord {
-  id: string;
-  org_id: string;
-  investigator_user_id: string;
-  investigator_name?: string;
-  investigator_role: string;
-  leak_source_type: string;
-  input_reference?: string;
-  extracted_signature?: string;
-  status: 'VERIFIED' | 'TAMPERED' | 'NOT_RECOVERABLE';
-  resolved_exam_id?: string;
-  resolved_exam_name?: string;
-  resolved_paper_id?: string;
-  resolved_paper_version?: string;
-  resolved_copy_id?: string;
-  resolved_centre_id?: string;
-  resolved_centre_name?: string;
-  resolved_device_id?: string;
-  resolved_operator_name?: string;
-  resolved_operator_email?: string;
-  resolved_print_tx?: string;
-  resolved_timestamp?: string;
-  resolved_details_json?: string;
-  created_at: string;
-}
-
-export interface AuditReportSummary {
-  totalEvents: number;
-  successfulLogins: number;
-  failedLogins: number;
-  unauthorizedAttempts: number;
-  securityEvents: number;
-  highCriticalEvents: number;
-  deviceEvents: number;
-  proctoringEvents: number;
-  printEvents: number;
-  watermarkInvestigations: number;
-  byCategory: Record<string, number>;
-  bySeverity: Record<string, number>;
-  generatedAt: string;
 }
 
 export interface NotificationItem {
@@ -909,7 +720,7 @@ export interface AuthorityProctorSession {
   workspace_type: string;
   exam_id?: string;
   exam_name?: string;
-  status: 'ACTIVE' | 'LOCKED' | 'TERMINATED' | 'COMPLETED';
+  status: 'ACTIVE' | 'LOCKED' | 'TERMINATED' | 'COMPLETED' | 'FLAGGED_FOR_REVIEW';
   camera_status: 'ACTIVE' | 'DISABLED' | 'ERROR';
   microphone_status: 'ACTIVE' | 'DISABLED' | 'MUTED';
   fullscreen_status: 'ACTIVE' | 'EXITED';
@@ -922,9 +733,81 @@ export interface AuthorityProctorSession {
   emergency_locked: number;
   emergency_lock_reason?: string;
   locked_by?: string;
+  warning_count?: number;
   last_heartbeat_at: string;
   created_at: string;
   updated_at: string;
+  camera_evidence_count?: number;
+  voice_evidence_count?: number;
+  has_camera_evidence?: boolean;
+  has_voice_evidence?: boolean;
+  review_status?: string;
+  auditor_remarks?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+}
+
+export interface CameraEvidenceItem {
+  id: string;
+  session_id: string;
+  exam_id?: string;
+  user_id: string;
+  user_name: string;
+  user_role: string;
+  image_data_url: string;
+  storage_reference?: string;
+  file_size_bytes?: number;
+  mime_type?: string;
+  event_type: string;
+  presence_status?: string;
+  warning_number?: number;
+  submitted_by?: string;
+  recipient?: string;
+  review_status?: string;
+  created_at: string;
+}
+
+export interface VoiceEvidenceItem {
+  id: string;
+  session_id: string;
+  exam_id?: string;
+  user_id: string;
+  user_name: string;
+  user_role: string;
+  audio_data_url: string;
+  storage_reference?: string;
+  duration_seconds: number;
+  file_size_bytes?: number;
+  mime_type?: string;
+  event_type?: string;
+  warning_number?: number;
+  submitted_by?: string;
+  recipient?: string;
+  review_status?: string;
+  created_at: string;
+}
+
+export interface UnifiedEvidenceItem {
+  id: string;
+  session_id: string;
+  exam_id?: string;
+  user_id: string;
+  user_name: string;
+  user_role: string;
+  type: 'CAMERA_SNAPSHOT' | 'VOICE_EVIDENCE' | 'SECURITY_EVENT' | 'PROCTOR_WARNING';
+  file_url?: string;
+  storage_reference?: string;
+  duration_seconds?: number;
+  mime_type?: string;
+  file_size_bytes?: number;
+  event_id?: string;
+  event_type?: string;
+  warning_number?: number;
+  severity?: string;
+  presence_status?: string;
+  submitted_to?: string;
+  review_status?: string;
+  created_at: string;
 }
 
 export interface AuthorityProctorEvent {
@@ -1341,9 +1224,120 @@ export interface UniversityFinalPaperResponse {
   };
 }
 
+export type PrinterStatus = 'ONLINE' | 'OFFLINE';
 
+export type PrintJobStatus =
+  | 'PRINT_REQUESTED'
+  | 'PRINTING'
+  | 'PRINTED_SUCCESSFULLY'
+  | 'PRINT_FAILED'
+  | 'PRINTER_OFFLINE'
+  | 'PRINTER_NOT_AVAILABLE';
 
+export interface PrinterItem {
+  id: string;
+  name: string;
+  location: string;
+  type: string;
+  status: PrinterStatus;
+  isDefault?: boolean;
+  centreId?: string;
+}
 
+export interface PrintAnywhereJob {
+  id: string;
+  examId: string;
+  examName: string;
+  examType: 'UNIVERSITY' | 'COMPETITIVE';
+  paperId: string;
+  centreId: string;
+  centreName: string;
+  operatorId: string;
+  operatorName: string;
+  printerId: string;
+  printerName: string;
+  printerLocation: string;
+  status: PrintJobStatus;
+  unlockTime: string;
+  requestedAt: string;
+  completedAt?: string | null;
+  failureReason?: string | null;
+  copiesCount: number;
+  txHash?: string | null;
+  createdAt: string;
+}
 
+export interface PrintAnywhereRequest {
+  exam_type: 'UNIVERSITY' | 'COMPETITIVE';
+  exam_id: string;
+  paper_id?: string;
+  printer_id: string;
+  copies_count?: number;
+}
+
+export interface PrintAnywhereResponse {
+  message: string;
+  job: PrintAnywhereJob;
+  examName: string;
+  printerName: string;
+  status: string;
+  printedAt: string;
+  txHash: string;
+}
+
+// ============================================================================
+// VIEW-ONCE PREVIEW TYPES (ONE-TIME VERIFICATION SECURITY)
+// ============================================================================
+export type ViewOnceStatus = 'NOT_VIEWED' | 'VIEWING' | 'CONSUMED';
+
+export interface ViewOnceStatusResponse {
+  previewStatus: ViewOnceStatus;
+  canView: boolean;
+  paperId: string;
+  examId: string;
+  examType: 'COMPETITIVE' | 'UNIVERSITY';
+  activeSessionToken?: string;
+  remainingSeconds?: number;
+  consumedAt?: string | null;
+  consumedBy?: string | null;
+  consumedReason?: string | null;
+  startedAt?: string | null;
+  expiresAt?: string | null;
+}
+
+export interface StartViewOnceRequest {
+  examType: 'COMPETITIVE' | 'UNIVERSITY';
+  examId: string;
+  paperId: string;
+  browserInfo?: any;
+  durationSeconds?: number;
+  requestSessionToken?: string;
+}
+
+export interface StartViewOnceResponse {
+  success: boolean;
+  status: ViewOnceStatus;
+  sessionToken?: string;
+  startedAt?: string;
+  expiresAt?: string;
+  durationSeconds?: number;
+  paper?: any;
+  error?: string;
+}
+
+export interface ConsumeViewOnceRequest {
+  examType: 'COMPETITIVE' | 'UNIVERSITY';
+  paperId: string;
+  sessionToken?: string;
+  reason: 'USER_CLOSED' | 'CONFIRMED_FINALIZE' | 'CANCELLED' | 'EXPIRED' | 'SECURITY_DEFOCUS' | string;
+}
+
+export interface ConsumeViewOnceResponse {
+  success: boolean;
+  status: ViewOnceStatus;
+  consumedAt: string;
+  reason: string;
+  error?: string;
+}
 
 

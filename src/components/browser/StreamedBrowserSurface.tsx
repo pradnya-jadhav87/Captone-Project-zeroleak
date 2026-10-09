@@ -138,17 +138,35 @@ export const StreamedBrowserSurface: React.FC<StreamedBrowserSurfaceProps> = ({
    * tab's URL did not change, so nothing announces it. That left a restarted
    * browser showing a blank page while the panel still said Prism - which is how
    * a crash used to look like the feature breaking rather than restarting.
+   *
+   * IMPORTANT: Skip the navigate if the browser is already on the same host as
+   * the requested URL. This lets the persistent session (persist:zeroleak-streamed)
+   * resume its authenticated Prism session without a forced reload that would
+   * redirect back to the login page.
    */
   const wasReadyRef = useRef(false);
   useEffect(() => {
     const ready = status?.state === 'ready';
     const liveUrl = status?.url ?? '';
-    if (ready && !wasReadyRef.current && url && url !== NEW_TAB_URL && liveUrl !== url) {
-      requestedRef.current = url;
-      void sendBrowserCommand({ type: 'navigate', url }).catch(() => undefined);
+    if (ready && !wasReadyRef.current && url && url !== NEW_TAB_URL) {
+      // Only navigate if the live URL is blank or a completely different host.
+      // If the browser is already on the same domain (e.g. prism.openai.com),
+      // let it keep its page — forcing a reload would throw away the login session.
+      const isSameHost = (() => {
+        try {
+          return new URL(liveUrl).host === new URL(url).host;
+        } catch {
+          return false;
+        }
+      })();
+      if (!isSameHost && liveUrl !== url) {
+        requestedRef.current = url;
+        void sendBrowserCommand({ type: 'navigate', url }).catch(() => undefined);
+      }
     }
     wasReadyRef.current = ready;
   }, [status?.state, status?.url, url]);
+
 
   // An explicit reload from the tab strip.
   useEffect(() => {
@@ -396,7 +414,7 @@ export const StreamedBrowserSurface: React.FC<StreamedBrowserSurfaceProps> = ({
   const ready = status?.state === 'ready';
 
   return (
-    <div ref={boxRef} className="absolute inset-0 flex items-center justify-center bg-slate-950 overflow-hidden">
+    <div ref={boxRef} className="absolute inset-0 flex items-center justify-center bg-[#F8FAFC] overflow-hidden">
       <canvas
         ref={canvasRef}
         width={status?.viewport.width ?? 1280}
@@ -417,37 +435,25 @@ export const StreamedBrowserSurface: React.FC<StreamedBrowserSurfaceProps> = ({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         style={{ maxWidth: '100%', maxHeight: '100%', visibility: visible ? 'visible' : 'hidden' }}
-        className={`bg-white outline-none ${ready ? 'cursor-auto' : 'cursor-wait'}`}
+        className={`bg-white outline-none shadow-2xs ${ready ? 'cursor-auto' : 'cursor-wait'}`}
       />
 
       {/* The stream's own progress, so a slow first frame is not mistaken for a
           blank page. */}
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center px-6">
-          <div className="max-w-md text-center space-y-2 rounded-xl border border-slate-700 bg-slate-900/95 px-5 py-4">
+          <div className="max-w-md text-center space-y-2 rounded-2xl border border-slate-200 bg-white/95 px-6 py-5 shadow-xl">
             {status?.state === 'error' ? (
-              <TriangleAlert className="w-5 h-5 text-rose-400 mx-auto" />
+              <TriangleAlert className="w-6 h-6 text-rose-500 mx-auto" />
             ) : (
-              <Loader2 className="w-5 h-5 text-emerald-400 mx-auto animate-spin" />
+              <Loader2 className="w-6 h-6 text-emerald-600 mx-auto animate-spin" />
             )}
-            <p className="text-sm font-semibold text-slate-100">
-              {status?.state === 'error' ? 'The streamed browser stopped' : 'Starting a real browser...'}
+            <p className="text-sm font-bold text-slate-900">
+              {status?.state === 'error' ? 'Failed to connect to ZeroLeak AI' : 'Loading ZeroLeak AI...'}
             </p>
-            <p className="text-[11px] text-slate-400">{status?.reason ?? 'Waiting for the server to describe the browser.'}</p>
-            {status?.error && <p className="text-[11px] text-rose-300">{status.error}</p>}
+            <p className="text-xs text-slate-500">{status?.reason ?? 'Connecting to workspace...'}</p>
+            {status?.error && <p className="text-xs text-rose-600 font-medium">{status.error}</p>}
           </div>
-        </div>
-      )}
-
-      {/* A canvas cannot show a caret, so the only honest hint is a prompt. */}
-      {ready && !focused && visible && !keyboardOpen && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 pointer-events-none">
-          <span className="flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-900/95 px-3 py-1 text-[11px] text-slate-300">
-            <MousePointerClick className="w-3.5 h-3.5 text-emerald-400" />
-            {isTouchDevice
-              ? 'Tap the page to click. Use “Type here” for the keyboard.'
-              : 'Click the page to type into it. This is a real browser, so sign-in works here.'}
-          </span>
         </div>
       )}
 
@@ -459,8 +465,8 @@ export const StreamedBrowserSurface: React.FC<StreamedBrowserSurfaceProps> = ({
             onClick={() => setKeyboardOpen(open => !open)}
             className={`absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold shadow-lg transition-colors ${
               keyboardOpen
-                ? 'border-emerald-400 bg-emerald-600 text-white'
-                : 'border-slate-600 bg-slate-900/95 text-slate-200'
+                ? 'border-emerald-500 bg-emerald-600 text-white'
+                : 'border-slate-200 bg-white text-slate-800'
             }`}
           >
             <Keyboard className="w-3.5 h-3.5" />

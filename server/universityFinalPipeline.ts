@@ -32,7 +32,7 @@ export interface FinalValidationSummary {
 export async function logUniversityPaperAudit(
   examId: string,
   paperId: string | null,
-  actionType: 'UPLOAD' | 'EXTRACTION' | 'RAG_PROCESSING' | 'SELECTION' | 'VALIDATION' | 'GENERATION' | 'ENCRYPTION' | 'DOWNLOAD',
+  actionType: 'UPLOAD' | 'EXTRACTION' | 'RAG_PROCESSING' | 'SELECTION' | 'VALIDATION' | 'GENERATION' | 'ENCRYPTION' | 'DOWNLOAD' | 'DOWNLOAD_BLOCKED',
   userId?: string,
   userRole?: string,
   details?: Record<string, any>,
@@ -274,7 +274,7 @@ export async function handleGetUniversityAuditLogs(req: Request, res: Response) 
 }
 
 /**
- * Express Route Handler: Download Encrypted PDF & Audit Download Event
+ * Express Route Handler: Download Encrypted PDF (Hardened: Paper download permanently blocked)
  */
 export async function handleDownloadUniversityPaper(req: Request, res: Response) {
   try {
@@ -282,27 +282,35 @@ export async function handleDownloadUniversityPaper(req: Request, res: Response)
     const user_id = (req as any).user?.id || 'usr-exam-mgr';
     const user_role = (req as any).user?.role || 'EXAM_MANAGER';
     const ip_address = req.ip || '127.0.0.1';
+    const device_id = (req as any).user?.device_id || (req as any).clientDeviceFingerprint || (req.headers['x-device-fingerprint'] as string) || 'unknown-device';
 
     const db = await getDb();
     const rows = executeQuery(db, 'SELECT * FROM university_generated_papers WHERE id = ? OR pdf_filename LIKE ?', [paperId, `%${paperId}%`]);
     const paper = rows[0];
 
-    if (!paper) {
-      return res.status(404).json({ success: false, error: 'Generated paper record not found.' });
-    }
+    // Log Download Blocked Audit Event
+    await logUniversityPaperAudit(
+      paper?.exam_id || 'unknown',
+      paper?.id || paperId,
+      'DOWNLOAD_BLOCKED',
+      user_id,
+      user_role,
+      {
+        message: 'University exam paper download blocked for security hardening.',
+        pdfFilename: paper?.pdf_filename,
+        deviceId: device_id,
+        route: req.originalUrl,
+      },
+      ip_address
+    );
 
-    // Log Download Audit Event
-    await logUniversityPaperAudit(paper.exam_id, paper.id, 'DOWNLOAD', user_id, user_role, { pdfFilename: paper.pdf_filename }, ip_address);
-
-    return res.json({
-      success: true,
-      message: 'Download authorized and audited.',
-      pdfUrl: paper.pdf_url,
-      pdfFilename: paper.pdf_filename,
-      pdfHash: paper.pdf_hash,
+    return res.status(403).json({
+      success: false,
+      error: 'DOWNLOAD_BLOCKED: University examination paper downloads are permanently prohibited for security hardening.',
+      code: 'DOWNLOAD_BLOCKED',
     });
   } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message || 'Failed to process download request.' });
   }
 }
 

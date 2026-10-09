@@ -26,8 +26,9 @@ import {
   Paperclip,
   FileCode
 } from 'lucide-react';
-import { api, ollamaChatStream } from '../../api';
+import { api, ollamaChatStream, getStoredUser } from '../../api';
 import { Examination, PaperVersion } from '../../types';
+import { SecurePaperViewer } from '../security/SecurePaperViewer';
 
 interface QuestionPaperPdfModalProps {
   exam: Examination;
@@ -834,42 +835,6 @@ export const QuestionPaperPdfModal: React.FC<QuestionPaperPdfModalProps> = ({
               </select>
             )}
 
-            {/* LaTeX.Online PDF Download Button */}
-            <button
-              type="button"
-              onClick={() => handleDownloadLatex('latexonline')}
-              disabled={compilingEngine === 'latexonline'}
-              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
-              title="Compile and Download High-Fidelity LaTeX PDF via LaTeX.Online (latexonline.cc)"
-            >
-              <Zap className={`w-3.5 h-3.5 ${compilingEngine === 'latexonline' ? 'animate-spin' : ''}`} />
-              <span>{compilingEngine === 'latexonline' ? 'Compiling...' : '⚡ LaTeX.Online PDF'}</span>
-            </button>
-
-            {/* TeXLive.net PDF Download Button - free, no key, no quota */}
-            <button
-              type="button"
-              onClick={() => handleDownloadLatex('texlive')}
-              disabled={compilingEngine === 'texlive'}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
-              title="Compile and Download High-Fidelity LaTeX PDF via TeXLive.net (free LaTeX-on-HTTP service, no API key or quota)"
-            >
-              <Zap className={`w-3.5 h-3.5 ${compilingEngine === 'texlive' ? 'animate-spin' : ''}`} />
-              <span>{compilingEngine === 'texlive' ? 'Compiling...' : '⚡ TeXLive.net PDF'}</span>
-            </button>
-
-            {/* FormaTeX Cloud PDF Download Button */}
-            <button
-              type="button"
-              onClick={() => handleDownloadLatex('formatex')}
-              disabled={compilingEngine === 'formatex'}
-              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg font-bold text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50"
-              title="Compile and Download High-Fidelity LaTeX PDF via FormaTeX Cloud Engine"
-            >
-              <Zap className={`w-3.5 h-3.5 ${compilingEngine === 'formatex' ? 'animate-spin' : ''}`} />
-              <span>{compilingEngine === 'formatex' ? 'Compiling...' : '⚡ FormaTeX PDF'}</span>
-            </button>
-
             {/* Answer Key Toggle */}
             <button
               type="button"
@@ -885,16 +850,30 @@ export const QuestionPaperPdfModal: React.FC<QuestionPaperPdfModalProps> = ({
               <span>{showAnswerKey ? 'Answer Key ON' : 'Answer Key OFF'}</span>
             </button>
 
-            {/* Print / Save PDF Button */}
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-all"
-              title="Print or Save as PDF"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print / Save PDF</span>
-            </button>
+            {/* Hardened Print Paper Button: strictly Centre Operator at authorized centre after unlock time */}
+            {(() => {
+              const user = getStoredUser();
+              const isOperator = user?.role === 'CENTRE_OPERATOR';
+              const isAuthorized = Boolean(user?.centre_id);
+              const unlockTimeIso = (exam as any).unlock_time_iso || exam.unlock_time;
+              const isUnlocked = unlockTimeIso ? new Date(unlockTimeIso).getTime() <= Date.now() : true;
+
+              if (!isOperator || !isAuthorized || !isUnlocked) {
+                return null;
+              }
+
+              return (
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-all"
+                  title="Print Paper"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Paper</span>
+                </button>
+              );
+            })()}
 
             {/* Close */}
             <button
@@ -905,36 +884,6 @@ export const QuestionPaperPdfModal: React.FC<QuestionPaperPdfModalProps> = ({
               <X className="w-5 h-5" />
             </button>
           </div>
-        </div>
-
-        {/* TexAPI action - kept on its own row, separate from the two re-render
-            buttons above, because it does more than re-render: it rebuilds the
-            paper from the uploaded question paper's pattern first. */}
-        <div className="px-3.5 sm:px-4 py-2.5 bg-emerald-50 border-b border-emerald-200 flex flex-wrap items-center justify-between gap-3 print:hidden shrink-0">
-          <div className="flex items-start gap-2.5 min-w-0">
-            <div className="p-1.5 rounded-lg bg-emerald-600 text-white shrink-0">
-              <Wand2 className="w-4 h-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-extrabold text-emerald-900">
-                Generate from Uploaded Pattern
-              </div>
-              <div className="text-[11px] text-emerald-700 leading-snug">
-                Rebuilds this paper to follow the pattern of your uploaded question paper, then
-                compiles it via TexAPI Cloud.
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => handleDownloadLatex('texapi')}
-            disabled={compilingEngine === 'texapi'}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-50 shrink-0"
-            title="Regenerate this paper from the uploaded question paper's pattern, then compile it via TexAPI Cloud"
-          >
-            <Zap className={`w-3.5 h-3.5 ${compilingEngine === 'texapi' ? 'animate-spin' : ''}`} />
-            <span>{compilingEngine === 'texapi' ? 'Regenerating & compiling...' : '⚡ TexAPI PDF'}</span>
-          </button>
         </div>
 
         {/* Local LaTeX assistant (Ollama). Runs against the local model - no
@@ -1139,10 +1088,16 @@ export const QuestionPaperPdfModal: React.FC<QuestionPaperPdfModalProps> = ({
             </div>
           ) : paperData ? (
             /* Printable A4 Paper Layout */
-            <div
-              ref={printRef}
-              className="bg-white text-slate-900 p-6 sm:p-10 rounded-xl shadow-md border border-slate-300 max-w-3xl mx-auto space-y-6 relative print:shadow-none print:border-none print:p-0 print:m-0"
+            <SecurePaperViewer
+              paperId={paperData.version?.id}
+              examId={exam.id}
+              examTitle={paperData.version?.paper_code || exam.name}
+              examType="UNIVERSITY"
             >
+              <div
+                ref={printRef}
+                className="bg-white text-slate-900 p-6 sm:p-10 rounded-xl shadow-md border border-slate-300 max-w-3xl mx-auto space-y-6 relative print:shadow-none print:border-none print:p-0 print:m-0"
+              >
               {/* Paper Watermark */}
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.03] select-none text-slate-950 font-black text-6xl rotate-[-30deg] uppercase">
                 ZeroLeak Enclave Sealed
@@ -1400,7 +1355,8 @@ export const QuestionPaperPdfModal: React.FC<QuestionPaperPdfModalProps> = ({
                 </div>
               </div>
             </div>
-          ) : null}
+          </SecurePaperViewer>
+        ) : null}
         </div>
       </div>
     </div>

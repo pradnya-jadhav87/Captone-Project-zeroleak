@@ -1014,12 +1014,19 @@ export function renderPatternSectionsLatex(sections: UniversityLatexSection[]): 
     const sectionMarks = formatMarks(section?.totalMarks);
     const instructions = section?.instructions ? cleanAndSanitizeLatex(String(section.instructions).trim()) : '';
 
-    const lines: string[] = [
+    const lines: string[] = [];
+    // Dynamic Page Breaks: Strictly separate Component 1 (MCQ / Objective, Q.1)
+    // from descriptive SECTION - I and subsequent descriptive sections.
+    if (sIdx > 0) {
+      lines.push('\\clearpage');
+    }
+
+    lines.push(
       '\\vspace{2mm}',
       '\\begin{center}',
       `  {\\large \\textbf{\\color{boardblue}${title}}}${sectionMarks ? ` \\hfill \\textbf{[${sectionMarks}]}` : ''}`,
-      '\\end{center}',
-    ];
+      '\\end{center}'
+    );
 
     if (instructions) {
       // Every block is closed with an explicit paragraph break: LaTeX joins
@@ -1193,7 +1200,7 @@ ${mcqLines.join('\n')}
 \\end{enumerate}
 \\vspace{4mm}
 \\hrule
-\\vspace{4mm}
+\\clearpage
 ` : '';
 
   const section1Latex = theory1Lines.length > 0 ? `
@@ -1217,7 +1224,7 @@ ${(theory1Lines.slice(5).length > 0 ? theory1Lines.slice(5) : theory1Lines.slice
 \\end{enumerate}
 \\vspace{4mm}
 \\hrule
-\\vspace{4mm}
+\\clearpage
 ` : '';
 
   const section2Latex = theory2Lines.length > 0 ? `
@@ -1264,7 +1271,7 @@ ${(theory2Lines.slice(5).length > 0 ? theory2Lines.slice(5) : theory2Lines.slice
     : [mcqSectionLatex, section1Latex, section2Latex, fallbackQuestions].join('\n');
 
   return `\\documentclass[11pt,a4paper]{article}
-\\usepackage[top=20mm,bottom=20mm,left=18mm,right=18mm]{geometry}
+\\usepackage[a4paper, left=18mm, right=18mm, top=20mm, bottom=20mm]{geometry}
 \\usepackage{amsmath,amssymb,amsfonts}
 \\usepackage{enumitem}
 \\usepackage{fancyhdr}
@@ -1272,6 +1279,7 @@ ${(theory2Lines.slice(5).length > 0 ? theory2Lines.slice(5) : theory2Lines.slice
 \\usepackage{tabularx}
 \\usepackage{array}
 \\usepackage{graphicx}
+\\usepackage[export]{adjustbox}
 \\usepackage{tikz}
 \\usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc,decorations.pathreplacing,fit,backgrounds}
 \\usepackage{microtype}
@@ -1301,12 +1309,9 @@ ${(theory2Lines.slice(5).length > 0 ? theory2Lines.slice(5) : theory2Lines.slice
 % --- Seat Number Box & Paper Header ---
 \\noindent
 \\begin{tabularx}{\\textwidth}{@{}l X r@{}}
-  \\fbox{\\textbf{Seat No:}\\hspace{3.5cm}} & & 
-  \\begin{tabular}{|c|c|}
-    \\hline
-    \\textbf{SET} & \\textbf{${setLetter}} \\\\
-    \\hline
-  \\end{tabular}
+  \\textbf{Seat No.:} \\framebox[2.5cm]{\\vphantom{A}} & 
+  \\centering \\textbf{${universityName}} & 
+  \\textbf{Set: ${setLetter}} \\\\
 \\end{tabularx}
 
 \\vspace{3mm}

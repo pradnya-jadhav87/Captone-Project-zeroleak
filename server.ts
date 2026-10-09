@@ -10,7 +10,7 @@ import { createServer as createViteServer } from 'vite';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb, executeQuery, executeRun, executeTransaction, saveDb, resetDatabase, lookupUserInPostgres, lookupAuthorizedUserInPostgres, getPostgresPool } from './server/db.ts';
+import { getDb, executeQuery, executeRun, executeTransaction, saveDb, resetDatabase, lookupUserInPostgres, lookupAuthorizedUserInPostgres, getPostgresPool, connectDB } from './server/db.ts';
 import { uploadDocumentToCloudinary, listAllCloudinaryAssets, getCloudinaryHealth, deleteAssetFromCloudinary } from './server/cloudinary.ts';
 import {
   encryptExamPaper,
@@ -96,11 +96,25 @@ import {
   type PaperFigureAsset,
 } from './server/synthesizedPaperPdfGenerator.ts';
 import {
+  processSecurityKeyVerification,
+  validateSecurityAuthorizationToken,
+  getSecurityAttemptRecord,
+  getServerSecretKey,
+  type SecurityOperation,
+} from './server/securityKeyService.ts';
+import {
+  triggerEmergencyThreatMode,
+  getActiveEmergencyIncidents,
+  getEmergencyIncident,
+  generateEmergencyPaper,
+  approveEmergencyPaper,
+  isPaperCompromisedOrLocked,
+} from './server/emergencyService.ts';
+import {
   generatePdfWithLatex,
   latexFallbackHealth,
   type LatexBuildResult,
 } from './server/latexFallbackPdf.ts';
-import { applyVisibleWatermarkToPdf } from './server/universityPdfProtection.ts';
 import { extractPdfTextWithOcr } from './server/ocrPdfHelper.ts';
 import { extractSourceFigures, readPublishedFigureResources } from './server/pdfFigureExtractor.ts';
 import {
@@ -156,6 +170,13 @@ import {
   emergencyLockAuthoritySession,
   endAuthorityEnclaveSession,
   getAuthoritySurveillanceDashboard,
+  saveVoiceEvidence,
+  getVoiceEvidenceBySession,
+  saveCameraEvidence,
+  getCameraEvidenceBySession,
+  getUnifiedSessionEvidence,
+  issueAuthorityWarning,
+  handleAuditorReviewAction,
 } from './server/proctor.ts';
 import {
   generateMultiPaperSets,
@@ -176,16 +197,31 @@ import { handleUniversityRagPipeline } from './server/universityRagPipeline.ts';
 import { handleGenerateFinalUniversityPaper, handleGetUniversityAuditLogs, handleDownloadUniversityPaper } from './server/universityFinalPipeline.ts';
 import {
   initializeCompetitiveSchema,
-  handleGetCompetitiveExams,
-  handleSaveCompetitiveExam,
-  handleUploadSubjectPdf,
-  handleGetSubjectPoolFiles,
-  handleGetQuestionPools,
-  handleValidateBlueprint,
-  handleGenerateCompetitivePaper,
-  handleGetGeneratedPaper,
-  handleDeletePoolFile,
+  registerCompetitiveExamRoutes,
+  evaluatePaperEncryptionState,
+  decryptCompetitivePaperData,
+  logCompetitivePaperAudit,
+  hydrateCompetitivePaperRow,
 } from './server/competitiveExam.ts';
+import {
+  DEFAULT_CENTRE_PRINTERS,
+  getAvailablePrinters,
+  getPrinterById,
+  createPrintAnywhereJob,
+  updatePrintAnywhereJob,
+  getPrintAnywhereJobs,
+  getLatestPrintAnywhereJobForExam,
+  initPrintAnywhereSchema,
+  type PrinterDevice,
+  type PrintAnywhereJobRecord,
+} from './server/printerService.ts';
+import {
+  initViewOnceSchema,
+  getViewOnceStatus,
+  startViewOnceSession,
+  consumeViewOnceSession,
+  recordViewOnceSecurityEvent,
+} from './server/viewOnceService.ts';
 
 const configuredJwtSecret = process.env.JWT_SECRET;
 if (process.env.NODE_ENV === 'production' && (!configuredJwtSecret || configuredJwtSecret.length < 32)) {
@@ -583,22 +619,15 @@ async function startServer() {
     };
   };
 
-  // Helper to log Audit Events with cryptographic SHA-256 hash chaining
+  // Helper to log Audit Events
   async function logAuditEvent(params: {
     event_type: string;
-    event_category?: string;
-    severity?: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
     user_id?: string;
     user_email?: string;
     role?: string;
-    target_user_id?: string;
     org_id?: string;
     exam_id?: string;
-    paper_id?: string;
-    paper_version_id?: string;
     device_id?: string;
-    session_id?: string;
-    centre_id?: string;
     ip_address?: string;
     status?: string;
     details?: any;
@@ -606,50 +635,25 @@ async function startServer() {
     try {
       const db = await getDb();
       const id = uuidv4();
-      const nowIso = new Date().toISOString();
-      const orgId = params.org_id || null;
-
-      const lastRow = orgId
-        ? executeQuery(db, 'SELECT event_hash FROM audit_events WHERE org_id = ? ORDER BY created_at DESC LIMIT 1', [orgId])[0]
-        : executeQuery(db, 'SELECT event_hash FROM audit_events ORDER BY created_at DESC LIMIT 1', [])[0];
-
-      const previous_event_hash = lastRow?.event_hash || 'GENESIS_0000000000000000000000000000000000000000000000000000000000000000';
-      const event_hash = crypto
-        .createHash('sha256')
-        .update(previous_event_hash + id + params.event_type + (orgId || '') + (params.user_id || '') + nowIso)
-        .digest('hex');
-
       const tx_ref = generateTxHash(params.event_type + (params.user_id || ''));
       executeRun(
         db,
-        `INSERT INTO audit_events (
-          id, event_type, event_category, severity, user_id, user_email, role, target_user_id,
-          org_id, exam_id, paper_id, paper_version_id, device_id, session_id, centre_id,
-          ip_address, status, tx_ref, details_json, previous_event_hash, event_hash, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO audit_events (id, event_type, user_id, user_email, role, org_id, exam_id, device_id, ip_address, status, tx_ref, details_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           params.event_type,
-          params.event_category || 'SYSTEM',
-          params.severity || 'INFO',
           params.user_id || null,
           params.user_email || null,
           params.role || null,
-          params.target_user_id || null,
-          orgId,
+          params.org_id || null,
           params.exam_id || null,
-          params.paper_id || null,
-          params.paper_version_id || null,
           params.device_id || null,
-          params.session_id || null,
-          params.centre_id || null,
           params.ip_address || '127.0.0.1',
           params.status || 'SUCCESS',
           tx_ref,
           params.details ? JSON.stringify(params.details) : null,
-          previous_event_hash,
-          event_hash,
-          nowIso,
+          new Date().toISOString(),
         ]
       );
     } catch (e) {
@@ -710,16 +714,11 @@ async function startServer() {
   // Helper to log Security & Threat Events
   async function logSecurityEvent(params: {
     event_type: string;
-    severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
     user_id?: string;
-    role?: string;
     org_id?: string;
-    exam_id?: string;
-    paper_id?: string;
-    device_id?: string;
     ip_address?: string;
     details?: any;
-    status?: string;
   }) {
     try {
       const db = await getDb();
@@ -736,73 +735,46 @@ async function startServer() {
 
       executeRun(
         db,
-        `INSERT INTO security_events (id, event_type, severity, risk_score, user_id, role, org_id, exam_id, paper_id, device_id, ip_address, details_json, resolved, status, timestamp)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+        `INSERT INTO security_events (id, event_type, severity, risk_score, user_id, org_id, ip_address, details_json, resolved, timestamp)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           params.event_type,
           params.severity,
           threatScore.riskScore,
           params.user_id || null,
-          params.role || null,
           params.org_id || null,
-          params.exam_id || null,
-          params.paper_id || null,
-          params.device_id || null,
           params.ip_address || '127.0.0.1',
           params.details ? JSON.stringify(params.details) : null,
-          params.status || 'OPEN',
+          0,
           new Date().toISOString(),
         ]
       );
+
+      // Auto-trigger Emergency Mode whenever a HIGH or CRITICAL security event involves an exam
+      if ((params.severity === 'HIGH' || params.severity === 'CRITICAL') && params.details) {
+        const examId = params.details.examId || params.details.exam_id;
+        if (examId) {
+          try {
+            const isComp = params.details.examType === 'COMPETITIVE' || params.details.isCompetitive;
+            triggerEmergencyThreatMode(db, {
+              examId,
+              paperId: params.details.paperId || params.details.paper_id,
+              examType: isComp ? 'COMPETITIVE' : 'UNIVERSITY',
+              threatType: params.event_type,
+              severity: params.severity,
+              userId: params.user_id,
+              orgId: params.org_id,
+              ipAddress: params.ip_address,
+              details: params.details,
+            });
+          } catch (autoErr: any) {
+            console.warn('Auto-emergency mode trigger notice:', autoErr.message);
+          }
+        }
+      }
     } catch (e) {
       console.error('Security event logging failure:', e);
-    }
-  }
-
-  // Helper to store proctoring camera evidence securely with cryptographic SHA-256 hash
-  async function storeSecurityEvidence(params: {
-    org_id: string;
-    user_id?: string;
-    exam_id?: string;
-    paper_id?: string;
-    session_id?: string;
-    device_id?: string;
-    event_id?: string;
-    mime_type?: string;
-    image_data: string;
-  }): Promise<{ id: string; hash: string } | null> {
-    if (!params.image_data) return null;
-    try {
-      const db = await getDb();
-      const id = `EVID-${uuidv4().substring(0, 8).toUpperCase()}`;
-      const nowIso = new Date().toISOString();
-      const hash = crypto.createHash('sha256').update(params.image_data).digest('hex');
-
-      executeRun(
-        db,
-        `INSERT INTO security_evidence (id, org_id, user_id, exam_id, paper_id, session_id, device_id, event_id, captured_at, mime_type, image_data, hash, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          id,
-          params.org_id,
-          params.user_id || null,
-          params.exam_id || null,
-          params.paper_id || null,
-          params.session_id || null,
-          params.device_id || null,
-          params.event_id || null,
-          nowIso,
-          params.mime_type || 'image/jpeg',
-          params.image_data,
-          hash,
-          nowIso,
-        ]
-      );
-      return { id, hash };
-    } catch (e) {
-      console.error('Security evidence storage error:', e);
-      return null;
     }
   }
 
@@ -6062,15 +6034,6 @@ async function startServer() {
         });
       }
 
-      // Ensure visible diagonal watermark is stamped across every page
-      const watermarkLabel = `ZEROLEAK | CONFIDENTIAL | ${paperCode || 'SLR-FINAL-04'}`;
-      try {
-        pdfBuffer = await applyVisibleWatermarkToPdf(pdfBuffer, watermarkLabel);
-        pdfLog(`Watermark applied: stamped "${watermarkLabel}" across all pages`);
-      } catch (wmErr: any) {
-        console.warn('[PDF] Watermarking notice:', wmErr?.message || wmErr);
-      }
-
       const safeTitle = (subject || 'Question_Paper').replace(/[^a-zA-Z0-9_\-]/g, '_');
       const filename = `${safeTitle}_Set4_${Date.now()}.pdf`;
       const localOutputDir = path.join(process.cwd(), 'public', 'compiled_papers');
@@ -10270,15 +10233,7 @@ async function startServer() {
   // =========================================================================
   // ZEROLEAK COMPETITIVE EXAMINATION MODULE API ROUTES
   // =========================================================================
-  app.get('/api/competitive/exams', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER', 'AUDITOR']), handleGetCompetitiveExams);
-  app.post('/api/competitive/exams', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER']), handleSaveCompetitiveExam);
-  app.post('/api/competitive/upload-subject-pdf', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER']), handleUploadSubjectPdf);
-  app.get('/api/competitive/pool-files/:examId/:subjectId', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER', 'AUDITOR']), handleGetSubjectPoolFiles);
-  app.get('/api/competitive/question-pools/:examId', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER', 'AUDITOR']), handleGetQuestionPools);
-  app.post('/api/competitive/validate-blueprint', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER']), handleValidateBlueprint);
-  app.post('/api/competitive/generate-final-paper', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER']), handleGenerateCompetitivePaper);
-  app.get('/api/competitive/generated-papers/:paperId', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER', 'AUDITOR', 'CENTRE_OPERATOR']), handleGetGeneratedPaper);
-  app.post('/api/competitive/delete-pool-file', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER']), handleDeletePoolFile);
+  registerCompetitiveExamRoutes(app, authenticateToken, requireRole);
 
   // Centre Operator: Open Secure Viewer (Strict Backend Time-Lock & Device Enforced)
   app.post('/api/delivery/open-viewer', authenticateToken, requireApprovedDevice, requireRole(['CENTRE_OPERATOR', 'EXAM_MANAGER']), async (req: Request, res: Response) => {
@@ -10610,6 +10565,688 @@ async function startServer() {
       return res.json({ printHistory: history });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // =========================================================================
+  // 7A-2. PRINT ANYWHERE FEATURE (SECURE MULTI-PRINTER ENCLAVE DISPATCH)
+  // Supports both University Examination & Competitive Examination.
+  // Gated by server-side unlock time, authentication, decryption verification,
+  // online printer validation, serialized copy logging, audit ledger, and notifications.
+  // =========================================================================
+
+  // Get Available Centre Printers
+  app.get('/api/printers', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const printers = getAvailablePrinters(req.user?.centre_id);
+      return res.json({ printers });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || 'Failed to list centre printers.' });
+    }
+  });
+
+  // Get Print Anywhere Jobs (Monitoring for Centre Operator, Controller, Owner)
+  app.get('/api/delivery/print-anywhere/jobs', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const db = await getDb();
+      const examId = req.query.exam_id ? String(req.query.exam_id) : undefined;
+      const centreId = req.query.centre_id ? String(req.query.centre_id) : undefined;
+      const examType = req.query.exam_type ? String(req.query.exam_type) : undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : 100;
+
+      const jobs = getPrintAnywhereJobs(db, {
+        examId,
+        centreId,
+        examType,
+        limit,
+      });
+
+      return res.json({ jobs });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || 'Failed to load print anywhere jobs.' });
+    }
+  });
+
+  // Get Latest Print Anywhere Job Status for a Specific Exam/Paper
+  app.get('/api/delivery/print-anywhere/status/:examId', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const db = await getDb();
+      const job = getLatestPrintAnywhereJobForExam(db, req.params.examId);
+      return res.json({ job });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || 'Failed to retrieve print status.' });
+    }
+  });
+
+  // Notify Authorized Controller when Exam Paper is Unlocked and Ready for Printing
+  app.post('/api/delivery/print-anywhere/notify-unlocked', authenticateToken, requireApprovedDevice, requireRole(['CENTRE_OPERATOR', 'EXAM_MANAGER']), async (req: Request, res: Response) => {
+    try {
+      const db = await getDb();
+      const { exam_id, exam_type } = req.body || {};
+      const isCompetitive = exam_type?.toUpperCase() === 'COMPETITIVE';
+      let examName = 'Examination Paper';
+
+      if (isCompetitive) {
+        const comp = executeQuery(db, 'SELECT title FROM competitive_generated_papers WHERE id = ? OR exam_id = ?', [exam_id, exam_id])[0];
+        if (comp?.title) examName = comp.title;
+      } else {
+        const exam = executeQuery(db, 'SELECT name FROM examinations WHERE id = ?', [exam_id])[0];
+        if (exam?.name) examName = exam.name;
+      }
+
+      await createNotification({
+        role: 'EXAM_MANAGER',
+        org_id: req.user!.org_id,
+        title: 'Paper Unlocked – Ready for Printing',
+        message: `${isCompetitive ? 'Competitive' : 'University'} exam paper "${examName}" is unlocked and ready for printing.`,
+        category: 'PAPER_RELEASE',
+      });
+
+      return res.json({ success: true, message: 'Unlock notification transmitted.' });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Execute Print Anywhere Job
+  app.post('/api/delivery/print-anywhere', authenticateToken, requireApprovedDevice, requireRole(['CENTRE_OPERATOR', 'EXAM_MANAGER']), async (req: Request, res: Response) => {
+    try {
+      const db = await getDb();
+      const {
+        exam_type,
+        exam_id,
+        paper_id,
+        printer_id,
+        copies_count,
+      } = req.body || {};
+
+      const count = Math.max(1, Math.min(50, Number(copies_count) || 1));
+      const centreId = req.user!.centre_id || 'CTR-101';
+      const centreName = req.user!.centre_id ? `Centre ${req.user!.centre_id}` : 'Main Centre Enclave';
+
+      if (!exam_id) {
+        return res.status(400).json({ error: 'Exam ID is required for Print Anywhere.' });
+      }
+      if (!printer_id) {
+        return res.status(400).json({ error: 'Printer selection is required.' });
+      }
+
+      // 1. Verify Printer Status
+      const printer = getPrinterById(printer_id, centreId);
+      if (!printer) {
+        return res.status(400).json({
+          error: 'Printer Not Available: The chosen printer was not found at this centre.',
+          status: 'PRINTER_NOT_AVAILABLE',
+        });
+      }
+      if (printer.status !== 'ONLINE') {
+        return res.status(400).json({
+          error: `Printer Offline: "${printer.name}" is currently offline. Please select an active online printer.`,
+          status: 'PRINTER_OFFLINE',
+        });
+      }
+
+      const isCompetitive = exam_type?.toUpperCase() === 'COMPETITIVE';
+      let examName = '';
+      let resolvedPaperId = paper_id || exam_id;
+      let unlockTimeDisplay = '';
+
+      if (isCompetitive) {
+        const compRows = executeQuery(
+          db,
+          'SELECT * FROM competitive_generated_papers WHERE id = ? OR exam_id = ?',
+          [resolvedPaperId, exam_id]
+        );
+        if (!compRows || compRows.length === 0) {
+          return res.status(404).json({ error: 'Competitive examination paper not found.' });
+        }
+        const compRow = compRows[0];
+        examName = compRow.title || 'Competitive Examination';
+        resolvedPaperId = compRow.id;
+
+        const encState = evaluatePaperEncryptionState(db, compRow);
+        unlockTimeDisplay = encState.decryptionTimeDisplay;
+
+        if (!encState.isFinalized) {
+          return res.status(400).json({ error: 'Competitive examination paper is not finalized for printing yet.' });
+        }
+
+        // STRICT TIME-LOCK CHECK
+        const unlockMs = compRow.decryption_time_iso ? new Date(compRow.decryption_time_iso).getTime() : NaN;
+        if (isNaN(unlockMs) || encState.serverTimestampMs < unlockMs) {
+          logCompetitivePaperAudit(db, {
+            paperId: compRow.id,
+            examId: compRow.exam_id,
+            orgId: compRow.org_id,
+            actionType: 'PRE_UNLOCK_PRINT_BLOCKED',
+            userId: req.user?.id,
+            userName: req.user?.full_name || 'Centre Operator',
+            userEmail: req.user?.email,
+            userRole: req.user?.role || 'CENTRE_OPERATOR',
+            ipAddress: req.ip,
+            timezone: compRow.schedule_timezone || 'Asia/Kolkata (IST, UTC+05:30)',
+            status: 'BLOCKED',
+            details: {
+              message: `Print Anywhere blocked pre-unlock before ${encState.decryptionTimeDisplay}.`,
+              printer: printer.name,
+              unlockTime: encState.decryptionTimeDisplay,
+            },
+          });
+
+          return res.status(403).json({
+            error: `Paper Locked – Printing will be available at ${encState.decryptionTimeDisplay}`,
+            locked: true,
+            status: 'PAPER_LOCKED',
+            unlockTime: encState.decryptionTimeDisplay,
+          });
+        }
+
+        // Paper Decryption Verification
+        if (compRow.encrypted_payload_json) {
+          try {
+            const encRecord = JSON.parse(compRow.encrypted_payload_json);
+            decryptCompetitivePaperData(encRecord);
+          } catch (decErr: any) {
+            return res.status(500).json({ error: `Decryption verification failed: ${decErr.message}` });
+          }
+        }
+      } else {
+        // University Examination
+        const uniExams = executeQuery(
+          db,
+          'SELECT * FROM examinations WHERE id = ? AND org_id = ?',
+          [exam_id, req.user!.org_id]
+        );
+        if (!uniExams || uniExams.length === 0) {
+          return res.status(404).json({ error: 'University examination not found.' });
+        }
+        const uniExam = uniExams[0];
+        examName = uniExam.name;
+        unlockTimeDisplay = uniExam.unlock_time || '10:00 AM';
+
+        const now = new Date();
+        const unlockDateTime = new Date(`${uniExam.exam_date}T${uniExam.unlock_time}:00`);
+        const isUnlocked = isNaN(unlockDateTime.getTime()) ? true : now >= unlockDateTime;
+
+        if (!isUnlocked && req.user!.role === 'CENTRE_OPERATOR') {
+          await logSecurityEvent({
+            event_type: 'PRE_UNLOCK_PRINT_ANYWHERE_ATTEMPT',
+            severity: 'CRITICAL',
+            user_id: req.user!.id,
+            org_id: req.user!.org_id,
+            ip_address: req.ip,
+            details: {
+              exam_id,
+              scheduledUnlock: uniExam.unlock_time,
+              attemptTime: now.toISOString(),
+              printer: printer.name,
+            },
+          });
+
+          return res.status(403).json({
+            error: `Paper Locked – Printing will be available at ${uniExam.unlock_time} on ${uniExam.exam_date}`,
+            locked: true,
+            status: 'PAPER_LOCKED',
+            unlockTime: uniExam.unlock_time,
+          });
+        }
+
+        // Validate paper version & decryption
+        const versions = executeQuery(
+          db,
+          'SELECT * FROM paper_versions WHERE exam_id = ? AND is_current = 1',
+          [uniExam.id]
+        );
+        if (versions.length === 0) {
+          return res.status(404).json({ error: 'No generated examination paper found for this exam.' });
+        }
+        const paperVersion = versions[0];
+        resolvedPaperId = paperVersion.id;
+
+        if (paperVersion.status === 'INVALIDATED' || paperVersion.status === 'COMPROMISED') {
+          return res.status(403).json({ error: 'This paper version has been permanently INVALIDATED.' });
+        }
+
+        const encryptedData = executeQuery(
+          db,
+          'SELECT * FROM encrypted_papers WHERE paper_version_id = ?',
+          [paperVersion.id]
+        )[0];
+        if (!encryptedData) {
+          return res.status(404).json({ error: 'Encrypted paper payload not found.' });
+        }
+
+        try {
+          decryptExamPaper({
+            cipherText: encryptedData.aes_cipher_text,
+            iv: encryptedData.iv_hex,
+            authTag: encryptedData.auth_tag_hex,
+            encryptedKeyRSA: encryptedData.encrypted_aes_key_rsa,
+            keyFingerprint: encryptedData.key_fingerprint,
+            checksumSHA256: encryptedData.checksum_sha256,
+            timestamp: encryptedData.encrypted_at,
+          });
+        } catch (decErr: any) {
+          return res.status(500).json({ error: `Decryption verification failed: ${decErr.message}` });
+        }
+
+        // Validate quota
+        const centreRow = executeQuery(
+          db,
+          'SELECT * FROM examination_centres WHERE exam_id = ? AND (id = ? OR centre_code = ? OR operator_user_id = ?)',
+          [uniExam.id, centreId, centreId, req.user!.id]
+        )[0];
+        const managerAuthorized = Number(uniExam.max_copies || 500);
+        const centreAuthorized = centreRow ? Number(centreRow.max_copies || 100) : 100;
+        const finalAllowedCopies = Math.min(managerAuthorized, centreAuthorized);
+        const totalPrinted = Number(
+          executeQuery(db, 'SELECT COUNT(*) as cnt FROM print_copies WHERE exam_id = ?', [exam_id])[0]?.cnt || 0
+        );
+        if (totalPrinted + count > finalAllowedCopies) {
+          return res.status(403).json({
+            error: `Print quota exceeded. Allowed: ${finalAllowedCopies}, Printed: ${totalPrinted}, Requested: ${count}.`,
+          });
+        }
+      }
+
+      // 2. Create Initial Print Job Record (PRINT_REQUESTED)
+      const job = createPrintAnywhereJob(db, {
+        examId: exam_id,
+        examName,
+        examType: isCompetitive ? 'COMPETITIVE' : 'UNIVERSITY',
+        paperId: resolvedPaperId,
+        centreId,
+        centreName,
+        operatorId: req.user!.id,
+        operatorName: req.user!.full_name || 'Centre Operator',
+        printerId: printer.id,
+        printerName: printer.name,
+        printerLocation: printer.location,
+        status: 'PRINT_REQUESTED',
+        unlockTime: unlockTimeDisplay,
+        copiesCount: count,
+      });
+
+      // Emit Notification: Print Started
+      await createNotification({
+        role: 'EXAM_MANAGER',
+        org_id: req.user!.org_id,
+        title: 'Print Anywhere Started',
+        message: `${examName} (${isCompetitive ? 'Competitive' : 'University'}) printing has started on "${printer.name}" at ${centreName}.`,
+        category: 'EXAMINATION',
+      });
+      await createNotification({
+        role: 'ORG_OWNER',
+        org_id: req.user!.org_id,
+        title: 'Print Anywhere Started',
+        message: `${examName} (${isCompetitive ? 'Competitive' : 'University'}) printing has started on "${printer.name}" at ${centreName}.`,
+        category: 'EXAMINATION',
+      });
+
+      // 3. Dispatch & Record Printed Copies
+      const nowIso = new Date().toISOString();
+      let txHash = '';
+
+      if (isCompetitive) {
+        const compRows = executeQuery(
+          db,
+          'SELECT * FROM competitive_generated_papers WHERE id = ?',
+          [resolvedPaperId]
+        );
+        const compRow = compRows[0];
+        const newPrintCount = Number(compRow.print_count || 0) + count;
+
+        executeRun(
+          db,
+          `UPDATE competitive_generated_papers
+           SET encryption_status = 'PRINTED',
+               printed_at = ?,
+               printed_by = ?,
+               printed_by_name = ?,
+               print_count = ?
+           WHERE id = ?`,
+          [nowIso, req.user!.id, req.user!.full_name, newPrintCount, resolvedPaperId]
+        );
+
+        const copyId = `COMP-PRN-${String(newPrintCount).padStart(4, '0')}`;
+        const auditEntry = logCompetitivePaperAudit(db, {
+          paperId: resolvedPaperId,
+          examId: compRow.exam_id,
+          orgId: compRow.org_id,
+          actionType: 'PAPER_PRINTED',
+          userId: req.user?.id,
+          userName: req.user?.full_name || 'Centre Operator',
+          userEmail: req.user?.email,
+          userRole: req.user?.role || 'CENTRE_OPERATOR',
+          ipAddress: req.ip,
+          timezone: compRow.schedule_timezone || 'Asia/Kolkata (IST, UTC+05:30)',
+          status: 'SUCCESS',
+          details: {
+            message: `Print Anywhere executed on ${printer.name} (${count} copy/copies, Serial: ${copyId}).`,
+            printerId: printer.id,
+            printerName: printer.name,
+            printerLocation: printer.location,
+            copyId,
+            copiesPrinted: count,
+            serverTimeIso: nowIso,
+          },
+        });
+        txHash = auditEntry.txHash;
+
+        try {
+          executeRun(
+            db,
+            `INSERT INTO print_copies (id, copy_id, exam_id, paper_version_id, centre_id, operator_user_id, device_id, printed_at, status, tx_hash)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PRINTED', ?)`,
+            [uuidv4(), copyId, compRow.exam_id, resolvedPaperId, centreId, req.user!.id, printer.name, nowIso, txHash]
+          );
+        } catch {}
+      } else {
+        const totalPrinted = Number(
+          executeQuery(db, 'SELECT COUNT(*) as cnt FROM print_copies WHERE exam_id = ?', [exam_id])[0]?.cnt || 0
+        );
+        const generatedCopies = await insertPrintCopies({
+          examId: exam_id,
+          paperVersionId: resolvedPaperId,
+          centreId,
+          operatorUserId: req.user!.id,
+          deviceId: printer.name,
+          count,
+          startIndex: totalPrinted,
+        });
+        txHash = generatedCopies[0]?.txHash || generateTxHash(exam_id + nowIso);
+      }
+
+      // 4. Update Job: PRINTED_SUCCESSFULLY
+      const updatedJob = updatePrintAnywhereJob(db, job.id, {
+        status: 'PRINTED_SUCCESSFULLY',
+        completedAt: nowIso,
+        txHash,
+      });
+
+      // 5. Immutable Audit Log
+      await logAuditEvent({
+        event_type: 'PRINT_ANYWHERE_SUCCESS',
+        user_id: req.user!.id,
+        user_email: req.user!.email,
+        role: req.user!.role,
+        org_id: req.user!.org_id,
+        exam_id,
+        device_id: printer.id,
+        ip_address: req.ip,
+        status: 'SUCCESS',
+        details: {
+          examId: exam_id,
+          examName,
+          examType: isCompetitive ? 'COMPETITIVE' : 'UNIVERSITY',
+          paperId: resolvedPaperId,
+          printerId: printer.id,
+          printerName: printer.name,
+          printerLocation: printer.location,
+          copiesCount: count,
+          unlockTime: unlockTimeDisplay,
+          printedAt: nowIso,
+          txHash,
+        },
+      });
+
+      // 6. Emit Completion Notifications
+      await createNotification({
+        role: 'EXAM_MANAGER',
+        org_id: req.user!.org_id,
+        title: 'Exam Paper Printed Successfully',
+        message: `${examName} was printed successfully on "${printer.name}" at ${centreName}.`,
+        category: 'EXAMINATION',
+      });
+      await createNotification({
+        role: 'ORG_OWNER',
+        org_id: req.user!.org_id,
+        title: 'Exam Paper Printed Successfully',
+        message: `${examName} (${isCompetitive ? 'Competitive' : 'University'}) was printed successfully on "${printer.name}" at ${centreName}.`,
+        category: 'EXAMINATION',
+      });
+
+      return res.json({
+        message: `Paper successfully printed on ${printer.name}.`,
+        job: updatedJob,
+        examName,
+        printerName: printer.name,
+        status: 'PRINTED_SUCCESSFULLY',
+        printedAt: nowIso,
+        txHash,
+      });
+    } catch (err: any) {
+      console.error('Print Anywhere execution failure:', err);
+      return res.status(500).json({
+        error: err.message || 'Internal error executing Print Anywhere job.',
+        status: 'PRINT_FAILED',
+      });
+    }
+  });
+
+  // =========================================================================
+  // 7C. SECURE VIEW-ONCE PREVIEW (ONE-TIME VERIFICATION ENGINE)
+  // =========================================================================
+
+  // 1. Get View-Once Status
+  app.get('/api/delivery/view-once/status/:examType/:paperId', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const db = await getDb();
+      const examType = (req.params.examType?.toUpperCase() === 'COMPETITIVE' ? 'COMPETITIVE' : 'UNIVERSITY') as 'COMPETITIVE' | 'UNIVERSITY';
+      const paperId = req.params.paperId;
+      const status = getViewOnceStatus(db, examType, paperId);
+      return res.json(status);
+    } catch (err: any) {
+      console.error('Error fetching View-Once status:', err);
+      return res.status(500).json({ error: err.message || 'Failed to fetch View-Once status.' });
+    }
+  });
+
+  // 2. Start Secure View-Once Session
+  app.post('/api/delivery/view-once/start', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER']), async (req: Request, res: Response) => {
+    try {
+      const db = await getDb();
+      const {
+        examType,
+        examId,
+        paperId,
+        browserInfo,
+        durationSeconds,
+        requestSessionToken,
+      } = req.body || {};
+
+      if (!paperId || !examId) {
+        return res.status(400).json({ error: 'paperId and examId are required to start View-Once session.' });
+      }
+
+      const category = (examType?.toUpperCase() === 'COMPETITIVE' ? 'COMPETITIVE' : 'UNIVERSITY') as 'COMPETITIVE' | 'UNIVERSITY';
+
+      const sessionResult = startViewOnceSession(db, {
+        examType: category,
+        examId,
+        paperId,
+        userId: req.user!.id,
+        userRole: req.user!.role,
+        browserInfo,
+        ipAddress: req.ip,
+        durationSeconds: Number(durationSeconds) || 900,
+        requestSessionToken,
+      });
+
+      if (!sessionResult.success) {
+        await logAuditEvent({
+          event_type: 'VIEW_ONCE_PREVIEW_BLOCKED',
+          user_id: req.user!.id,
+          user_email: req.user!.email,
+          role: req.user!.role,
+          org_id: req.user!.org_id,
+          exam_id: examId,
+          ip_address: req.ip,
+          status: 'BLOCKED',
+          details: {
+            paperId,
+            examType: category,
+            reason: sessionResult.error,
+          },
+        });
+
+        return res.status(sessionResult.statusCode || 403).json({
+          error: sessionResult.error,
+          previewStatus: sessionResult.status,
+        });
+      }
+
+      // Safe hydration of paper payload ONLY upon verified session creation
+      let paperPayload: any = null;
+      if (category === 'COMPETITIVE') {
+        const compRows = executeQuery(db, 'SELECT * FROM competitive_generated_papers WHERE id = ?', [paperId]);
+        if (compRows && compRows[0]) {
+          paperPayload = hydrateCompetitivePaperRow(db, compRows[0], undefined, {
+            viewerRole: req.user!.role,
+            includeDecryptedForOperator: true,
+          });
+        }
+      } else {
+        const uniRows = executeQuery(db, 'SELECT * FROM university_generated_papers WHERE id = ? OR exam_id = ? ORDER BY created_at DESC', [paperId, examId]);
+        if (uniRows && uniRows[0]) {
+          paperPayload = uniRows[0];
+        }
+      }
+
+      // Log successful start in immutable audit log
+      await logAuditEvent({
+        event_type: 'VIEW_ONCE_PREVIEW_STARTED',
+        user_id: req.user!.id,
+        user_email: req.user!.email,
+        role: req.user!.role,
+        org_id: req.user!.org_id,
+        exam_id: examId,
+        ip_address: req.ip,
+        status: 'SUCCESS',
+        details: {
+          paperId,
+          examType: category,
+          sessionToken: sessionResult.sessionToken,
+          expiresAt: sessionResult.expiresAt,
+          durationSeconds: sessionResult.durationSeconds,
+          browserInfo,
+        },
+      });
+
+      return res.json({
+        ...sessionResult,
+        paper: paperPayload,
+      });
+    } catch (err: any) {
+      console.error('Error starting View-Once session:', err);
+      return res.status(500).json({ error: err.message || 'Failed to start View-Once session.' });
+    }
+  });
+
+  // 3. Consume Secure View-Once Session
+  app.post('/api/delivery/view-once/consume', authenticateToken, requireRole(['EXAM_MANAGER', 'ORG_OWNER']), async (req: Request, res: Response) => {
+    try {
+      const db = await getDb();
+      const {
+        examType,
+        paperId,
+        sessionToken,
+        reason,
+      } = req.body || {};
+
+      if (!paperId) {
+        return res.status(400).json({ error: 'paperId is required to consume View-Once session.' });
+      }
+
+      const category = (examType?.toUpperCase() === 'COMPETITIVE' ? 'COMPETITIVE' : 'UNIVERSITY') as 'COMPETITIVE' | 'UNIVERSITY';
+
+      const consumeResult = consumeViewOnceSession(db, {
+        examType: category,
+        paperId,
+        sessionToken,
+        userId: req.user!.id,
+        userRole: req.user!.role,
+        reason: reason || 'USER_CLOSED',
+        ipAddress: req.ip,
+      });
+
+      await logAuditEvent({
+        event_type: 'VIEW_ONCE_PREVIEW_CONSUMED',
+        user_id: req.user!.id,
+        user_email: req.user!.email,
+        role: req.user!.role,
+        org_id: req.user!.org_id,
+        ip_address: req.ip,
+        status: 'SUCCESS',
+        details: {
+          paperId,
+          examType: category,
+          sessionToken,
+          reason: consumeResult.reason,
+          consumedAt: consumeResult.consumedAt,
+        },
+      });
+
+      return res.json(consumeResult);
+    } catch (err: any) {
+      console.error('Error consuming View-Once session:', err);
+      return res.status(500).json({ error: err.message || 'Failed to consume View-Once session.' });
+    }
+  });
+
+  // 4. Record View-Once Security Event
+  app.post('/api/delivery/view-once/security-event', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const db = await getDb();
+      const {
+        examType,
+        examId,
+        paperId,
+        sessionToken,
+        eventType,
+        details,
+      } = req.body || {};
+
+      if (!sessionToken || !paperId) {
+        return res.status(400).json({ error: 'sessionToken and paperId are required.' });
+      }
+
+      const category = (examType?.toUpperCase() === 'COMPETITIVE' ? 'COMPETITIVE' : 'UNIVERSITY') as 'COMPETITIVE' | 'UNIVERSITY';
+
+      const eventResult = recordViewOnceSecurityEvent(db, {
+        sessionToken,
+        paperId,
+        examId: examId || '',
+        examType: category,
+        userId: req.user!.id,
+        userRole: req.user!.role,
+        eventType: eventType || 'SECURITY_INTERCEPTION',
+        details,
+        ipAddress: req.ip,
+      });
+
+      await logAuditEvent({
+        event_type: 'SCREENSHOT_OR_CAPTURE_DETECTED',
+        user_id: req.user!.id,
+        user_email: req.user!.email,
+        role: req.user!.role,
+        org_id: req.user!.org_id,
+        exam_id: examId || '',
+        ip_address: req.ip,
+        status: 'WARNING',
+        details: {
+          paperId,
+          examType: category,
+          sessionToken,
+          eventType,
+          violationDetails: details,
+        },
+      });
+
+      return res.json(eventResult);
+    } catch (err: any) {
+      console.error('Error recording security event:', err);
+      return res.status(500).json({ error: err.message || 'Failed to record security event.' });
     }
   });
 
@@ -11272,7 +11909,7 @@ async function startServer() {
         operatorUserId: operator.id,
         deviceId: `RELAY:${release.device.fingerprint}`,
         count: 1,
-        startIndex: context.totalPrinted,
+        startIndex: Number(context.totalPrinted ?? 0),
       });
 
       await logAuditEvent({
@@ -11318,374 +11955,35 @@ async function startServer() {
   // 8. AUDIT, THREAT DETECTION & SECURITY
   // ==========================================
 
-  // Auditor Dashboard Metrics (100% database-driven from real records)
-  app.get('/api/audit/dashboard-stats', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
+  // Audit Events
+  app.get('/api/audit/events', authenticateToken, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
-      const orgId = req.user!.org_id;
-
-      const totalAuditEvents = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM audit_events WHERE org_id = ?', [orgId])[0]?.c || 0);
-
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-      const todayIso = startOfDay.toISOString();
-      const todayEvents = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM audit_events WHERE org_id = ? AND created_at >= ?', [orgId, todayIso])[0]?.c || 0);
-
-      const highCriticalEvents = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM security_events WHERE org_id = ? AND severity IN ("HIGH", "CRITICAL")', [orgId])[0]?.c || 0);
-      const activeSecurityEvents = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM security_events WHERE org_id = ? AND (resolved = 0 OR status NOT IN ("RESOLVED", "DISMISSED"))', [orgId])[0]?.c || 0);
-      const failedLogins = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM audit_events WHERE org_id = ? AND event_type IN ("LOGIN_FAILED", "FAILED_LOGIN")', [orgId])[0]?.c || 0);
-      const unauthorizedAttempts = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM security_events WHERE org_id = ? AND event_type LIKE "%UNAUTHORIZED%"', [orgId])[0]?.c || 0);
-      const suspendedDevices = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM trusted_devices WHERE org_id = ? AND status IN ("SUSPENDED", "DISABLED", "REVOKED")', [orgId])[0]?.c || 0);
-      const proctoringIncidents = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM proctor_events pe JOIN authority_proctor_sessions aps ON pe.session_id = aps.id WHERE aps.org_id = ? AND pe.severity IN ("MEDIUM", "HIGH", "CRITICAL")', [orgId])[0]?.c || 0);
-      const pendingKeyRequests = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM key_contribution_requests WHERE org_id = ? AND status = "PENDING"', [orgId])[0]?.c || 0);
-      const pendingUnlockRequests = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM early_unlock_requests WHERE org_id = ? AND status = "PENDING"', [orgId])[0]?.c || 0);
-      const printViolations = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM security_events WHERE org_id = ? AND (event_type LIKE "%PRINT%" OR details_json LIKE "%print%")', [orgId])[0]?.c || 0);
-      const watermarkInvestigations = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM watermark_investigations WHERE org_id = ?', [orgId])[0]?.c || 0);
-
-      // Verify SHA-256 event hash chain integrity for the organization
-      const chainEvents = executeQuery(db, 'SELECT id, event_type, org_id, user_id, previous_event_hash, event_hash, created_at FROM audit_events WHERE org_id = ? ORDER BY created_at ASC', [orgId]);
-      let chainValid = true;
-      let prevHash = 'GENESIS_0000000000000000000000000000000000000000000000000000000000000000';
-      for (const ev of chainEvents) {
-        if (ev.previous_event_hash && ev.previous_event_hash !== prevHash) {
-          chainValid = false;
-          break;
-        }
-        if (ev.event_hash) {
-          const expected = crypto.createHash('sha256').update((ev.previous_event_hash || prevHash) + ev.id + ev.event_type + (ev.org_id || '') + (ev.user_id || '') + ev.created_at).digest('hex');
-          if (expected !== ev.event_hash) {
-            chainValid = false;
-            break;
-          }
-          prevHash = ev.event_hash;
-        }
-      }
-
-      return res.json({
-        totalAuditEvents,
-        todayEvents,
-        highCriticalEvents,
-        activeSecurityEvents,
-        failedLogins,
-        unauthorizedAttempts,
-        suspendedDevices,
-        proctoringIncidents,
-        pendingKeyRequests,
-        pendingUnlockRequests,
-        printViolations,
-        watermarkInvestigations,
-        ledgerIntegrity: {
-          verified: chainValid,
-          chainedCount: chainEvents.length,
-          status: chainValid ? 'VERIFIED TAMPER-FREE' : 'INTEGRITY COMPROMISED',
-        },
-      });
-    } catch (e: any) {
-      console.error('Auditor dashboard error:', e);
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Verify Audit Chain Integrity
-  app.get('/api/audit/verify-integrity', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-      const chainEvents = executeQuery(db, 'SELECT id, event_type, org_id, user_id, previous_event_hash, event_hash, created_at FROM audit_events WHERE org_id = ? ORDER BY created_at ASC', [orgId]);
-
-      let chainValid = true;
-      let brokenAt: string | null = null;
-      let prevHash = 'GENESIS_0000000000000000000000000000000000000000000000000000000000000000';
-
-      for (const ev of chainEvents) {
-        if (ev.previous_event_hash && ev.previous_event_hash !== prevHash) {
-          chainValid = false;
-          brokenAt = ev.id;
-          break;
-        }
-        if (ev.event_hash) {
-          const expected = crypto.createHash('sha256').update((ev.previous_event_hash || prevHash) + ev.id + ev.event_type + (ev.org_id || '') + (ev.user_id || '') + ev.created_at).digest('hex');
-          if (expected !== ev.event_hash) {
-            chainValid = false;
-            brokenAt = ev.id;
-            break;
-          }
-          prevHash = ev.event_hash;
-        }
-      }
-
-      return res.json({
-        verified: chainValid,
-        chainedCount: chainEvents.length,
-        brokenAt,
-        status: chainValid ? 'TAMPER_FREE' : 'HASH_CHAIN_MISMATCH',
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Filterable Audit Events
-  app.get('/api/audit/events', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-      const { search, category, severity, user_id, role, event_type, exam_id, date_from, date_to, limit = 200 } = req.query;
-
-      let sql = 'SELECT * FROM audit_events WHERE org_id = ?';
-      const params: any[] = [orgId];
-
-      if (category && category !== 'ALL') {
-        sql += ' AND event_category = ?';
-        params.push(String(category));
-      }
-      if (severity && severity !== 'ALL') {
-        sql += ' AND severity = ?';
-        params.push(String(severity));
-      }
-      if (user_id) {
-        sql += ' AND user_id = ?';
-        params.push(String(user_id));
-      }
-      if (role && role !== 'ALL') {
-        sql += ' AND role = ?';
-        params.push(String(role));
-      }
-      if (event_type && event_type !== 'ALL') {
-        sql += ' AND event_type = ?';
-        params.push(String(event_type));
-      }
-      if (exam_id) {
-        sql += ' AND exam_id = ?';
-        params.push(String(exam_id));
-      }
-      if (date_from) {
-        sql += ' AND created_at >= ?';
-        params.push(String(date_from));
-      }
-      if (date_to) {
-        sql += ' AND created_at <= ?';
-        params.push(String(date_to));
-      }
-      if (search) {
-        sql += ' AND (event_type LIKE ? OR user_email LIKE ? OR tx_ref LIKE ? OR details_json LIKE ?)';
-        const pattern = `%${String(search).trim()}%`;
-        params.push(pattern, pattern, pattern, pattern);
-      }
-
-      sql += ' ORDER BY created_at DESC LIMIT ?';
-      params.push(Math.min(500, Number(limit) || 200));
-
-      const events = executeQuery(db, sql, params);
-      return res.json({ events, total: events.length });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // User & Session Activity
-  app.get('/api/audit/user-activity', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-
-      const sessions = executeQuery(
-        db,
-        `SELECT s.*, u.full_name as user_name,
-                (SELECT COUNT(*) FROM security_events se WHERE se.user_id = s.user_id) as security_events_count
-         FROM user_sessions s
-         LEFT JOIN users u ON s.user_id = u.id
-         WHERE s.org_id = ?
-         ORDER BY s.login_time DESC
-         LIMIT 100`,
-        [orgId]
-      );
-
-      if (sessions.length === 0) {
-        const users = executeQuery(
-          db,
-          `SELECT u.id as user_id, u.full_name as user_name, u.email as user_email, u.role, u.org_id,
-                  u.last_login_at as login_time, u.status,
-                  (SELECT COUNT(*) FROM security_events se WHERE se.user_id = u.id) as security_events_count
-           FROM users u
-           WHERE u.org_id = ?
-           ORDER BY u.created_at DESC`,
-          [orgId]
-        );
-        const mapped = users.map((u: any) => ({
-          id: `SESS-${u.user_id}`,
-          user_id: u.user_id,
-          user_name: u.user_name,
-          user_email: u.user_email,
-          role: u.role,
-          org_id: u.org_id,
-          ip_address: '127.0.0.1',
-          login_time: u.login_time || new Date().toISOString(),
-          session_duration_seconds: 0,
-          auth_result: 'SUCCESS',
-          failed_attempts: 0,
-          status: u.status,
-          security_events_count: Number(u.security_events_count || 0),
-        }));
-        return res.json({ users: mapped });
-      }
-
-      return res.json({ users: sessions });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // User Security Profile Detail View
-  app.get('/api/audit/user-profile/:userId', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-      const targetUserId = req.params.userId;
-
-      const user = executeQuery(db, 'SELECT id, full_name, email, role, org_id, status, created_at FROM users WHERE id = ? AND org_id = ?', [targetUserId, orgId])[0];
-      if (!user) return res.status(404).json({ error: 'User not found in organization.' });
-
-      const recentSessions = executeQuery(db, 'SELECT * FROM user_sessions WHERE user_id = ? ORDER BY login_time DESC LIMIT 20', [targetUserId]);
-      const devices = executeQuery(db, 'SELECT id, device_uuid, device_name, operating_system, status, last_seen_at FROM trusted_devices WHERE user_id = ? AND org_id = ?', [targetUserId, orgId]);
-      const roleActivity = executeQuery(db, 'SELECT * FROM audit_events WHERE (user_id = ? OR target_user_id = ?) AND event_type LIKE "%ROLE%" ORDER BY created_at DESC LIMIT 20', [targetUserId, targetUserId]);
-      const examActivity = executeQuery(db, 'SELECT * FROM audit_events WHERE user_id = ? AND (event_type LIKE "%EXAM%" OR exam_id IS NOT NULL) ORDER BY created_at DESC LIMIT 20', [targetUserId]);
-      const paperActivity = executeQuery(db, 'SELECT * FROM audit_events WHERE user_id = ? AND event_type LIKE "%PAPER%" ORDER BY created_at DESC LIMIT 20', [targetUserId]);
-      const translationActivity = executeQuery(db, 'SELECT * FROM audit_events WHERE user_id = ? AND event_type LIKE "%TRANSLAT%" ORDER BY created_at DESC LIMIT 20', [targetUserId]);
-      const securityIncidents = executeQuery(db, 'SELECT * FROM security_events WHERE user_id = ? AND org_id = ? ORDER BY timestamp DESC LIMIT 20', [targetUserId, orgId]);
-      const printActivity = executeQuery(db, 'SELECT id, copy_id, exam_id, centre_id, printed_at, status FROM print_copies WHERE operator_user_id = ? ORDER BY printed_at DESC LIMIT 20', [targetUserId]);
-
-      return res.json({
-        user,
-        recentSessions,
-        devices,
-        roleActivity,
-        examActivity,
-        paperActivity,
-        translationActivity,
-        securityIncidents,
-        printActivity,
-      });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Device Activity
-  app.get('/api/audit/device-activity', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-
-      const devices = executeQuery(
-        db,
-        `SELECT d.id, d.device_uuid, d.user_id, d.org_id, d.device_name, d.device_model,
-                d.operating_system, d.os_version, COALESCE(d.browser_os, '') as browser_info, d.browser_os, d.ip_address, d.status,
-                d.created_at as first_seen,
-                COALESCE(d.last_seen_at, d.last_authenticated_at, d.created_at) as last_seen,
-                COALESCE(d.auth_failures, 0) as auth_failures,
-                u.full_name as user_name, u.email as user_email, u.role,
-                (SELECT COUNT(*) FROM security_events se WHERE se.device_id = d.id OR se.ip_address = d.ip_address) as security_events_count
-         FROM trusted_devices d
-         LEFT JOIN users u ON d.user_id = u.id
-         WHERE d.org_id = ?
-         ORDER BY d.created_at DESC`,
-        [orgId]
-      );
-
-      return res.json({ devices });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Device Audit History
-  app.get('/api/audit/device-history/:deviceId', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-      const deviceId = req.params.deviceId;
-
-      const events = executeQuery(db, 'SELECT * FROM audit_events WHERE org_id = ? AND device_id = ? ORDER BY created_at DESC LIMIT 50', [orgId, deviceId]);
-      const securityEvents = executeQuery(db, 'SELECT * FROM security_events WHERE org_id = ? AND device_id = ? ORDER BY timestamp DESC LIMIT 50', [orgId, deviceId]);
-
-      return res.json({ events, securityEvents });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Paper Security Overview
-  app.get('/api/audit/paper-security', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-
-      const exams = executeQuery(db, 'SELECT * FROM examinations WHERE org_id = ? ORDER BY created_at DESC', [orgId]);
-      const papers: any[] = [];
-
-      for (const e of exams) {
-        const versions = executeQuery(db, 'SELECT id, version_code, status FROM paper_versions WHERE exam_id = ?', [e.id]);
-        const enc = executeQuery(db, 'SELECT * FROM encrypted_papers WHERE exam_id = ? LIMIT 1', [e.id])[0];
-        const shares = enc ? executeQuery(db, 'SELECT COUNT(*) as c, MAX(threshold) as th FROM key_shares WHERE paper_version_id = ?', [enc.paper_version_id])[0] : null;
-        const totalPrinted = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM print_copies WHERE exam_id = ?', [e.id])[0]?.c || 0);
-        const quotaViolations = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM security_events WHERE exam_id = ? AND (event_type LIKE "%PRINT%" OR details_json LIKE "%quota%")', [e.id])[0]?.c || 0);
-        const earlyUnlock = executeQuery(db, 'SELECT id FROM early_unlock_requests WHERE exam_id = ? AND status = "PENDING"', [e.id]).length > 0;
-
-        const unlockDateTime = new Date(`${e.exam_date}T${e.unlock_time}:00`);
-        const isUnlocked = isNaN(unlockDateTime.getTime()) ? true : Date.now() >= unlockDateTime.getTime();
-
-        papers.push({
-          examId: e.id,
-          examName: e.name,
-          subject: e.subject,
-          category: e.category,
-          examStatus: e.status,
-          versionsCount: versions.length,
-          encrypted: !!enc,
-          algorithm: enc ? 'AES-256-GCM' : undefined,
-          checksumSha256: enc?.checksum_sha256,
-          encryptedAt: enc?.encrypted_at,
-          shamirSharesCount: Number(shares?.c || 0),
-          shamirThreshold: Number(shares?.th || 3),
-          examDate: e.exam_date,
-          examTime: e.exam_time,
-          unlockTime: e.unlock_time,
-          isUnlocked,
-          earlyUnlockPending: earlyUnlock,
-          maxCopies: Number(e.max_copies || 500),
-          totalPrinted,
-          printQuotaViolations: quotaViolations,
-        });
-      }
-
-      return res.json({ papers });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Security Events & Threat Metrics with Timeline
-  app.get('/api/security/events', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-
       const events = executeQuery(
         db,
-        `SELECT se.*, u.full_name as user_name, u.email as user_email
-         FROM security_events se
-         LEFT JOIN users u ON se.user_id = u.id
-         WHERE se.org_id = ? OR se.org_id IS NULL
-         ORDER BY se.timestamp DESC
-         LIMIT 100`,
-        [orgId]
+        'SELECT * FROM audit_events WHERE org_id = ? OR org_id IS NULL ORDER BY created_at DESC LIMIT 200',
+        [req.user!.org_id]
+      );
+      return res.json({ events });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Security Events & Threat Metrics
+  app.get('/api/security/events', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const db = await getDb();
+      const events = executeQuery(
+        db,
+        'SELECT * FROM security_events WHERE org_id = ? OR org_id IS NULL ORDER BY timestamp DESC LIMIT 100',
+        [req.user!.org_id]
       );
 
       const criticalCount = events.filter(e => e.severity === 'CRITICAL' && !e.resolved).length;
       const highCount = events.filter(e => e.severity === 'HIGH' && !e.resolved).length;
       const averageRisk = events.length > 0
-        ? Math.round((events.reduce((a: number, b: any) => a + (b.risk_score || 0), 0) / events.length) * 100) / 100
+        ? Math.round((events.reduce((a, b) => a + (b.risk_score || 0), 0) / events.length) * 100) / 100
         : 0.05;
 
       return res.json({
@@ -11703,318 +12001,74 @@ async function startServer() {
     }
   });
 
-  // Transition Security Event Status along Investigation Timeline
-  app.post('/api/security/events/:id/transition', authenticateToken, requireRole(['ORG_OWNER', 'AUDITOR']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-      const eventId = req.params.id;
-      const { status, notes } = req.body;
-
-      const validStatuses = ['DETECTED', 'ALERTED', 'OPEN', 'INVESTIGATING', 'ACTION_TAKEN', 'RESOLVED', 'DISMISSED'];
-      if (!validStatuses.includes(status)) {
-        return res.status(400).json({ error: 'Invalid security event status.' });
-      }
-
-      const existing = executeQuery(db, 'SELECT * FROM security_events WHERE id = ? AND (org_id = ? OR org_id IS NULL)', [eventId, orgId])[0];
-      if (!existing) return res.status(404).json({ error: 'Security event not found in organization.' });
-
-      const isResolved = status === 'RESOLVED' || status === 'DISMISSED' ? 1 : 0;
-      const now = new Date().toISOString();
-
-      executeRun(
-        db,
-        'UPDATE security_events SET status = ?, resolved = ?, resolved_by = ?, resolved_at = ?, resolution_notes = ? WHERE id = ?',
-        [status, isResolved, req.user!.id, now, notes || '', eventId]
-      );
-
-      await logAuditEvent({
-        event_type: 'SECURITY_EVENT_STATUS_TRANSITION',
-        event_category: 'SECURITY',
-        severity: 'INFO',
-        user_id: req.user!.id,
-        user_email: req.user!.email,
-        role: req.user!.role,
-        org_id: orgId,
-        details: { eventId, from: existing.status, to: status, notes },
-      });
-
-      const updated = executeQuery(db, 'SELECT * FROM security_events WHERE id = ?', [eventId])[0];
-      return res.json({ message: `Security event transitioned to ${status}.`, event: updated });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
   // Resolve Security Alert
   app.post('/api/security/resolve-event', authenticateToken, requireRole(['ORG_OWNER', 'AUDITOR']), async (req: Request, res: Response) => {
     try {
-      const { event_id, notes } = req.body;
+      const { event_id } = req.body;
       const db = await getDb();
-      const orgId = req.user!.org_id;
-
-      const now = new Date().toISOString();
-      executeRun(
-        db,
-        'UPDATE security_events SET resolved = 1, status = "RESOLVED", resolved_by = ?, resolved_at = ?, resolution_notes = ? WHERE id = ? AND (org_id = ? OR org_id IS NULL)',
-        [req.user!.id, now, notes || 'Resolved by auditor', event_id, orgId]
-      );
-
-      await logAuditEvent({
-        event_type: 'SECURITY_EVENT_RESOLVED',
-        event_category: 'SECURITY',
-        severity: 'INFO',
-        user_id: req.user!.id,
-        user_email: req.user!.email,
-        role: req.user!.role,
-        org_id: orgId,
-        details: { event_id, resolved_at: now },
-      });
-
+      executeRun(db, 'UPDATE security_events SET resolved = 1 WHERE id = ?', [event_id]);
       return res.json({ message: 'Security incident resolved and archived.' });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }
   });
 
-  // Security Evidence Vault
-  app.get('/api/audit/evidence', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
+  // Record Paper Screen Capture / Violation Event (Threat scoring + Audit ledger integration)
+  app.post('/api/security/paper-violation', async (req: Request, res: Response) => {
     try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
+      const {
+        eventType,
+        paperId,
+        examId,
+        examType,
+        severity = 'HIGH',
+        riskScore = 85,
+        deviceId,
+        details,
+      } = req.body || {};
 
-      const rows = executeQuery(
-        db,
-        `SELECT se.*, u.full_name as user_name, u.email as user_email, e.name as exam_name
-         FROM security_evidence se
-         LEFT JOIN users u ON se.user_id = u.id
-         LEFT JOIN examinations e ON se.exam_id = e.id
-         WHERE se.org_id = ?
-         ORDER BY se.captured_at DESC
-         LIMIT 100`,
-        [orgId]
-      );
+      const userId = (req as any).user?.id || 'ANONYMOUS';
+      const userRole = (req as any).user?.role || 'UNKNOWN';
+      const orgId = (req as any).user?.org_id || null;
+      const ipAddress = req.ip || '127.0.0.1';
 
-      const evidence = rows.map((r: any) => {
-        let integrity_status: 'VALID' | 'TAMPERED' = 'VALID';
-        if (r.image_data) {
-          const calcHash = crypto.createHash('sha256').update(r.image_data).digest('hex');
-          integrity_status = calcHash === r.hash ? 'VALID' : 'TAMPERED';
-        }
-        return {
-          ...r,
-          integrity_status,
-        };
-      });
-
-      return res.json({ evidence });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Watermark Forensic Investigation
-  app.post('/api/audit/watermark/investigate', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-      const { leak_source_type, input_reference, extracted_signature } = req.body;
-
-      if (!leak_source_type) {
-        return res.status(400).json({ error: 'leak_source_type is required' });
-      }
-
-      const cleanSig = (extracted_signature || '').trim();
-      let status: 'VERIFIED' | 'TAMPERED' | 'NOT_RECOVERABLE' = 'NOT_RECOVERABLE';
-      let resolvedRecord: any = null;
-
-      if (cleanSig) {
-        const copyRows = executeQuery(
-          db,
-          `SELECT pc.*, e.name as exam_name, e.subject as exam_subject, e.category as exam_category,
-                  pv.version_code as paper_version, ec.centre_name, ec.centre_code,
-                  u.full_name as operator_name, u.email as operator_email
-           FROM print_copies pc
-           JOIN examinations e ON pc.exam_id = e.id
-           LEFT JOIN paper_versions pv ON pc.paper_version_id = pv.id
-           LEFT JOIN examination_centres ec ON (pc.centre_id = ec.id OR pc.centre_id = ec.centre_code)
-           LEFT JOIN users u ON pc.operator_user_id = u.id
-           WHERE e.org_id = ? AND (pc.copy_id = ? OR pc.tx_hash = ? OR pc.tx_hash LIKE ? OR pc.id = ?)
-           LIMIT 1`,
-          [orgId, cleanSig, cleanSig, `%${cleanSig}%`, cleanSig]
-        );
-
-        if (copyRows.length > 0) {
-          resolvedRecord = copyRows[0];
-          status = 'VERIFIED';
-        } else if (cleanSig.startsWith('COPY-') || cleanSig.startsWith('0x')) {
-          status = 'TAMPERED';
-        }
-      }
-
-      const invId = `WINV-${uuidv4().substring(0, 8).toUpperCase()}`;
-      const nowIso = new Date().toISOString();
-
-      executeRun(
-        db,
-        `INSERT INTO watermark_investigations (
-          id, org_id, investigator_user_id, investigator_role, leak_source_type,
-          input_reference, extracted_signature, status, resolved_exam_id, resolved_paper_id,
-          resolved_paper_version, resolved_copy_id, resolved_centre_id, resolved_device_id,
-          resolved_print_tx, resolved_details_json, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          invId,
-          orgId,
-          req.user!.id,
-          req.user!.role,
-          leak_source_type,
-          input_reference || null,
-          cleanSig || null,
-          status,
-          resolvedRecord?.exam_id || null,
-          resolvedRecord?.paper_version_id || null,
-          resolvedRecord?.paper_version || null,
-          resolvedRecord?.copy_id || null,
-          resolvedRecord?.centre_id || null,
-          resolvedRecord?.device_id || null,
-          resolvedRecord?.tx_hash || null,
-          resolvedRecord ? JSON.stringify(resolvedRecord) : null,
-          nowIso,
-        ]
-      );
-
-      await logAuditEvent({
-        event_type: 'LEAK_INVESTIGATION_CREATED',
-        event_category: 'FORENSICS',
-        severity: status === 'VERIFIED' ? 'CRITICAL' : 'HIGH',
-        user_id: req.user!.id,
-        user_email: req.user!.email,
-        role: req.user!.role,
-        org_id: orgId,
-        details: { invId, leak_source_type, status, resolvedCopy: resolvedRecord?.copy_id },
-      });
-
-      const invRow = executeQuery(db, 'SELECT * FROM watermark_investigations WHERE id = ?', [invId])[0];
-      return res.json({
-        investigation: {
-          ...invRow,
-          resolved_exam_name: resolvedRecord?.exam_name,
-          resolved_centre_name: resolvedRecord?.centre_name,
-          resolved_operator_name: resolvedRecord?.operator_name,
-          resolved_operator_email: resolvedRecord?.operator_email,
+      await logSecurityEvent({
+        event_type: eventType || 'SCREEN_CAPTURE_OR_VIOLATION_ATTEMPT',
+        severity: severity as any,
+        user_id: userId,
+        org_id: orgId || undefined,
+        ip_address: ipAddress,
+        details: {
+          riskScore: Number(riskScore) || 85,
+          paperId,
+          examId,
+          examType,
+          deviceId,
+          ...details,
         },
       });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
 
-  // Watermark Investigations Ledger
-  app.get('/api/audit/watermark/investigations', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-
-      const investigations = executeQuery(
-        db,
-        `SELECT wi.*, u.full_name as investigator_name, e.name as resolved_exam_name, ec.centre_name as resolved_centre_name
-         FROM watermark_investigations wi
-         LEFT JOIN users u ON wi.investigator_user_id = u.id
-         LEFT JOIN examinations e ON wi.resolved_exam_id = e.id
-         LEFT JOIN examination_centres ec ON wi.resolved_centre_id = ec.id
-         WHERE wi.org_id = ?
-         ORDER BY wi.created_at DESC
-         LIMIT 100`,
-        [orgId]
-      );
-
-      return res.json({ investigations });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
-
-  // Audit Report Summary & KPIs
-  app.get('/api/audit/reports/summary', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-      const { date_from, date_to } = req.query;
-
-      let dateFilter = '';
-      const params: any[] = [orgId];
-      if (date_from) {
-        dateFilter += ' AND created_at >= ?';
-        params.push(String(date_from));
-      }
-      if (date_to) {
-        dateFilter += ' AND created_at <= ?';
-        params.push(String(date_to));
-      }
-
-      const totalEvents = Number(executeQuery(db, `SELECT COUNT(*) as c FROM audit_events WHERE org_id = ? ${dateFilter}`, params)[0]?.c || 0);
-      const successfulLogins = Number(executeQuery(db, `SELECT COUNT(*) as c FROM audit_events WHERE org_id = ? AND event_type IN ("LOGIN_SUCCESS", "USER_LOGIN") ${dateFilter}`, params)[0]?.c || 0);
-      const failedLogins = Number(executeQuery(db, `SELECT COUNT(*) as c FROM audit_events WHERE org_id = ? AND event_type IN ("LOGIN_FAILED", "FAILED_LOGIN") ${dateFilter}`, params)[0]?.c || 0);
-      const unauthorizedAttempts = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM security_events WHERE org_id = ? AND event_type LIKE "%UNAUTHORIZED%"', [orgId])[0]?.c || 0);
-      const securityEventsCount = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM security_events WHERE org_id = ?', [orgId])[0]?.c || 0);
-      const highCriticalEvents = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM security_events WHERE org_id = ? AND severity IN ("HIGH", "CRITICAL")', [orgId])[0]?.c || 0);
-      const deviceEvents = Number(executeQuery(db, `SELECT COUNT(*) as c FROM audit_events WHERE org_id = ? AND event_type LIKE "%DEVICE%" ${dateFilter}`, params)[0]?.c || 0);
-      const proctoringEvents = Number(executeQuery(db, `SELECT COUNT(*) as c FROM audit_events WHERE org_id = ? AND event_type LIKE "%PROCTOR%" ${dateFilter}`, params)[0]?.c || 0);
-      const printEvents = Number(executeQuery(db, `SELECT COUNT(*) as c FROM audit_events WHERE org_id = ? AND event_type LIKE "%PRINT%" ${dateFilter}`, params)[0]?.c || 0);
-      const watermarkInvCount = Number(executeQuery(db, 'SELECT COUNT(*) as c FROM watermark_investigations WHERE org_id = ?', [orgId])[0]?.c || 0);
-
-      const catRows = executeQuery(db, `SELECT event_category, COUNT(*) as c FROM audit_events WHERE org_id = ? ${dateFilter} GROUP BY event_category`, params);
-      const byCategory: Record<string, number> = {};
-      catRows.forEach((r: any) => { byCategory[r.event_category || 'SYSTEM'] = Number(r.c); });
-
-      const sevRows = executeQuery(db, `SELECT severity, COUNT(*) as c FROM audit_events WHERE org_id = ? ${dateFilter} GROUP BY severity`, params);
-      const bySeverity: Record<string, number> = {};
-      sevRows.forEach((r: any) => { bySeverity[r.severity || 'INFO'] = Number(r.c); });
-
-      return res.json({
-        totalEvents,
-        successfulLogins,
-        failedLogins,
-        unauthorizedAttempts,
-        securityEvents: securityEventsCount,
-        highCriticalEvents,
-        deviceEvents,
-        proctoringEvents,
-        printEvents,
-        watermarkInvestigations: watermarkInvCount,
-        byCategory,
-        bySeverity,
-        generatedAt: new Date().toISOString(),
+      await logAuditEvent({
+        event_type: eventType || 'SCREEN_CAPTURE_OR_VIOLATION_ATTEMPT',
+        user_id: userId,
+        role: userRole,
+        org_id: orgId || undefined,
+        exam_id: examId,
+        device_id: deviceId,
+        ip_address: ipAddress,
+        status: 'WARNING',
+        details: {
+          paperId,
+          examType,
+          riskScore,
+          violationDetails: details,
+        },
       });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
-    }
-  });
 
-  // Export Audit Report Data
-  app.get('/api/audit/reports/export', authenticateToken, requireRole(['AUDITOR', 'ORG_OWNER']), async (req: Request, res: Response) => {
-    try {
-      const db = await getDb();
-      const orgId = req.user!.org_id;
-      const { date_from, date_to } = req.query;
-
-      let sql = 'SELECT * FROM audit_events WHERE org_id = ?';
-      const params: any[] = [orgId];
-      if (date_from) {
-        sql += ' AND created_at >= ?';
-        params.push(String(date_from));
-      }
-      if (date_to) {
-        sql += ' AND created_at <= ?';
-        params.push(String(date_to));
-      }
-      sql += ' ORDER BY created_at DESC LIMIT 1000';
-
-      const data = executeQuery(db, sql, params);
-      return res.json({ data, summary: { count: data.length, exportedAt: new Date().toISOString() } });
-    } catch (e: any) {
-      return res.status(500).json({ error: e.message });
+      return res.json({ success: true, logged: true });
+    } catch (err: any) {
+      console.error('Error logging paper violation event:', err);
+      return res.status(500).json({ error: err.message || 'Failed to log violation' });
     }
   });
 
@@ -12598,6 +12652,49 @@ async function startServer() {
     }
   });
 
+  // Real-time camera frame security & YOLOv8 proctoring inference
+  app.post(['/api/authority-proctor/detect-frame', '/api/proctor/detect-frame'], async (req: Request, res: Response) => {
+    try {
+      const { frame, annotate } = req.body;
+      if (!frame) {
+        return res.status(400).json({ success: false, error: 'No image frame payload provided' });
+      }
+
+      // Query running YOLOv8 security proctor on port 8000
+      try {
+        const pyRes = await fetch('http://127.0.0.1:8000/api/proctor/detect-frame', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ frame, annotate: annotate ?? true }),
+          signal: AbortSignal.timeout(3500),
+        });
+
+        if (pyRes.ok) {
+          const data = await pyRes.json();
+          return res.json(data);
+        }
+      } catch (svcErr) {
+        // Fallback gracefully if proctoring service is starting
+      }
+
+      return res.json({
+        success: true,
+        telemetry: {
+          timestamp: new Date().toISOString(),
+          status: 'SECURE',
+          threat_level: 'INFO',
+          person_count: 1,
+          phone_detected: false,
+          violations: [],
+          details: { cell_phone_count: 0, fallback: true },
+        },
+      });
+    } catch (e: any) {
+      console.error('Frame detection inference error:', e);
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   // Telemetry event ingestion (face absent, shoulder surfing, window switch, etc.)
   app.post('/api/authority-proctor/events', authenticateToken, async (req: Request, res: Response) => {
     try {
@@ -12652,8 +12749,8 @@ async function startServer() {
         audio_level_db,
       });
 
-      // Check if session was emergency-locked by admin/auditor
-      const rows = executeQuery(db, 'SELECT status, emergency_locked, emergency_lock_reason FROM authority_proctor_sessions WHERE id = ?', [session_id]);
+      // Check if session was emergency-locked by admin/auditor and get warning count
+      const rows = executeQuery(db, 'SELECT status, emergency_locked, emergency_lock_reason, warning_count FROM authority_proctor_sessions WHERE id = ?', [session_id]);
       const sessionState = rows[0] || {};
 
       return res.json({
@@ -12661,7 +12758,279 @@ async function startServer() {
         status: sessionState.status || 'ACTIVE',
         emergency_locked: Boolean(sessionState.emergency_locked),
         emergency_lock_reason: sessionState.emergency_lock_reason || null,
+        warning_count: Number(sessionState.warning_count) || 0,
       });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Voice evidence recording submission to Chief Vigilance & Security Auditor
+  app.post('/api/authority-proctor/voice-evidence', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { session_id, exam_id, audio_data_url, duration_seconds, file_size_bytes, mime_type, warning_number } = req.body;
+      if (!session_id || !audio_data_url) {
+        return res.status(400).json({ error: 'session_id and audio_data_url are required' });
+      }
+      const db = await getDb();
+      const evidence = saveVoiceEvidence(db, {
+        session_id,
+        exam_id,
+        user_id: req.user!.id,
+        user_name: req.user!.full_name,
+        user_role: req.user!.role,
+        audio_data_url,
+        duration_seconds: Number(duration_seconds) || 0,
+        file_size_bytes: Number(file_size_bytes) || 0,
+        mime_type: mime_type || 'audio/webm',
+        warning_number: Number(warning_number) || 0,
+        submitted_by: req.user!.full_name,
+      });
+
+      await logAuditEvent({
+        event_type: 'AUTHORITY_VOICE_EVIDENCE_LOGGED',
+        user_id: req.user!.id,
+        org_id: req.user!.org_id,
+        role: req.user!.role,
+        details: { session_id, evidence_id: evidence.id, duration_seconds },
+      });
+
+      return res.json({ success: true, evidence });
+    } catch (e: any) {
+      console.error('Voice evidence submit error:', e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Issue authoritative warning (Strict max 3 warnings: 1 Amber, 2 Orange, 3 Red lock)
+  app.post('/api/authority-proctor/sessions/warning', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { session_id, reason, details } = req.body;
+      if (!session_id) {
+        return res.status(400).json({ error: 'session_id is required' });
+      }
+      const db = await getDb();
+      const result = issueAuthorityWarning(db, session_id, reason || 'Violation detected', details);
+      return res.json({ success: true, ...result });
+    } catch (e: any) {
+      console.error('Authority proctor issue warning error:', e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Camera snapshot evidence submission
+  app.post('/api/authority-proctor/camera-evidence', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const { session_id, exam_id, image_data_url, file_size_bytes, mime_type, event_type, presence_status, warning_number } = req.body;
+      if (!session_id || !image_data_url) {
+        return res.status(400).json({ error: 'session_id and image_data_url are required' });
+      }
+      const db = await getDb();
+      const evidence = saveCameraEvidence(db, {
+        session_id,
+        exam_id,
+        user_id: req.user!.id,
+        user_name: req.user!.full_name,
+        user_role: req.user!.role,
+        image_data_url,
+        file_size_bytes: Number(file_size_bytes) || 0,
+        mime_type: mime_type || 'image/jpeg',
+        event_type: event_type || 'CAMERA_SNAPSHOT',
+        presence_status: presence_status || 'PRESENT',
+        warning_number: Number(warning_number) || 0,
+        submitted_by: req.user!.full_name,
+        recipient: 'CBI Chief Vigilance & Security Auditor',
+      });
+
+      await logAuditEvent({
+        event_type: 'AUTHORITY_CAMERA_SNAPSHOT_LOGGED',
+        user_id: req.user!.id,
+        org_id: req.user!.org_id,
+        role: req.user!.role,
+        details: { session_id, evidence_id: evidence.id, event_type },
+      });
+
+      return res.json({ success: true, evidence });
+    } catch (e: any) {
+      console.error('Camera evidence submit error:', e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Fetch camera evidence records for session
+  app.get('/api/authority-proctor/sessions/:id/camera-evidence', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id;
+      const db = await getDb();
+      const evidence = getCameraEvidenceBySession(db, sessionId);
+      return res.json({ success: true, evidence });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Fetch voice evidence records for session
+  app.get('/api/authority-proctor/sessions/:id/evidence', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id;
+      const db = await getDb();
+      const evidence = getVoiceEvidenceBySession(db, sessionId);
+      return res.json({ success: true, evidence });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ==========================================
+  // WEBRTC LIVE AUDIO SIGNALING FOR ENCLAVE SESSIONS
+  // ==========================================
+  interface WebRtcSessionSignal {
+    offer?: { sdp: string; type: string; timestamp: number } | null;
+    answer?: { sdp: string; type: string; timestamp: number } | null;
+    translatorCandidates: Array<{ candidate: any; timestamp: number }>;
+    auditorCandidates: Array<{ candidate: any; timestamp: number }>;
+    activeListeners: number;
+    lastUpdated: number;
+  }
+
+  const authorityWebRtcSignals = new Map<string, WebRtcSessionSignal>();
+
+  function getOrCreateSignal(sessionId: string): WebRtcSessionSignal {
+    let sig = authorityWebRtcSignals.get(sessionId);
+    if (!sig) {
+      sig = {
+        offer: null,
+        answer: null,
+        translatorCandidates: [],
+        auditorCandidates: [],
+        activeListeners: 0,
+        lastUpdated: Date.now(),
+      };
+      authorityWebRtcSignals.set(sessionId, sig);
+    }
+    return sig;
+  }
+
+  // Translator publishes SDP offer
+  app.post('/api/authority-proctor/sessions/:id/signal/offer', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id;
+      const { offer } = req.body;
+      if (!offer || !offer.sdp) {
+        return res.status(400).json({ error: 'Valid SDP offer is required' });
+      }
+      const sig = getOrCreateSignal(sessionId);
+      sig.offer = { sdp: offer.sdp, type: offer.type || 'offer', timestamp: Date.now() };
+      sig.answer = null;
+      sig.translatorCandidates = [];
+      sig.auditorCandidates = [];
+      sig.lastUpdated = Date.now();
+      return res.json({ success: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Auditor fetches SDP offer
+  app.get('/api/authority-proctor/sessions/:id/signal/offer', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id;
+      const sig = authorityWebRtcSignals.get(sessionId);
+      return res.json({
+        success: true,
+        offer: sig?.offer || null,
+        activeListeners: sig?.activeListeners || 0,
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Auditor posts SDP answer
+  app.post('/api/authority-proctor/sessions/:id/signal/answer', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id;
+      const { answer } = req.body;
+      if (!answer || !answer.sdp) {
+        return res.status(400).json({ error: 'Valid SDP answer is required' });
+      }
+      const sig = getOrCreateSignal(sessionId);
+      sig.answer = { sdp: answer.sdp, type: answer.type || 'answer', timestamp: Date.now() };
+      sig.activeListeners = Math.max(1, sig.activeListeners);
+      sig.lastUpdated = Date.now();
+      return res.json({ success: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Translator fetches SDP answer
+  app.get('/api/authority-proctor/sessions/:id/signal/answer', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id;
+      const sig = authorityWebRtcSignals.get(sessionId);
+      return res.json({
+        success: true,
+        answer: sig?.answer || null,
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ICE Candidate exchange
+  app.post('/api/authority-proctor/sessions/:id/signal/candidate', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id;
+      const { sender, candidate } = req.body;
+      if (!sender || !candidate) {
+        return res.status(400).json({ error: 'sender and candidate are required' });
+      }
+      const sig = getOrCreateSignal(sessionId);
+      if (sender === 'TRANSLATOR') {
+        sig.translatorCandidates.push({ candidate, timestamp: Date.now() });
+      } else {
+        sig.auditorCandidates.push({ candidate, timestamp: Date.now() });
+      }
+      sig.lastUpdated = Date.now();
+      return res.json({ success: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Fetch ICE Candidates for recipient
+  app.get('/api/authority-proctor/sessions/:id/signal/candidates', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id;
+      const sender = req.query.sender as string;
+      const sig = authorityWebRtcSignals.get(sessionId);
+      if (!sig) {
+        return res.json({ success: true, candidates: [] });
+      }
+      const candidates = sender === 'TRANSLATOR'
+        ? sig.translatorCandidates.map(c => c.candidate)
+        : sig.auditorCandidates.map(c => c.candidate);
+      return res.json({ success: true, candidates });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Stop live audio listening session
+  app.post('/api/authority-proctor/sessions/:id/signal/stop', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id;
+      const sig = authorityWebRtcSignals.get(sessionId);
+      if (sig) {
+        sig.activeListeners = Math.max(0, sig.activeListeners - 1);
+        if (sig.activeListeners === 0) {
+          sig.answer = null;
+          sig.auditorCandidates = [];
+        }
+        sig.lastUpdated = Date.now();
+      }
+      return res.json({ success: true });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }
@@ -12674,6 +13043,7 @@ async function startServer() {
       if (!session_id) {
         return res.status(400).json({ error: 'session_id is required' });
       }
+      authorityWebRtcSignals.delete(session_id);
       const db = await getDb();
       endAuthorityEnclaveSession(db, session_id);
       return res.json({ success: true });
@@ -12737,11 +13107,100 @@ async function startServer() {
         };
       });
 
+      const voiceEvidence = getVoiceEvidenceBySession(db, sessionId);
+      const cameraEvidence = getCameraEvidenceBySession(db, sessionId);
+      const unifiedEvidence = getUnifiedSessionEvidence(db, sessionId);
+
       return res.json({
         success: true,
         session: sessionRows[0],
         events: parsedEvents,
+        evidence: voiceEvidence || [],
+        camera_evidence: cameraEvidence || [],
+        unified_evidence: unifiedEvidence || [],
       });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Auditor Review Actions (Mark Reviewed, Escalate, Close Case)
+  app.post('/api/authority-proctor/sessions/:id/review-action', authenticateToken, requireRole(['ORG_OWNER', 'AUDITOR', 'EXAM_MANAGER']), async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.id;
+      const { action, remarks } = req.body;
+      if (!action || !['MARK_REVIEWED', 'ESCALATE', 'CLOSE_CASE'].includes(action)) {
+        return res.status(400).json({ error: 'Valid action (MARK_REVIEWED, ESCALATE, CLOSE_CASE) is required' });
+      }
+      const db = await getDb();
+      const result = handleAuditorReviewAction(db, sessionId, action, remarks || '', req.user!);
+      await logAuditEvent({
+        event_type: `AUDITOR_${action}_EXECUTED`,
+        user_id: req.user!.id,
+        org_id: req.user!.org_id,
+        role: req.user!.role,
+        details: { session_id: sessionId, action, remarks },
+      });
+      return res.json(result);
+    } catch (e: any) {
+      console.error('Auditor review action error:', e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Secure authenticated evidence stream endpoint
+  app.get('/api/authority-proctor/evidence/:id/file', authenticateToken, async (req: Request, res: Response) => {
+    try {
+      const evidenceId = req.params.id;
+      const db = await getDb();
+
+      // 1. Check camera evidence table
+      const camRows = executeQuery(db, 'SELECT * FROM proctor_camera_evidence WHERE id = ?', [evidenceId]);
+      if (camRows.length > 0) {
+        const ev = camRows[0];
+        if (req.user!.role !== 'AUDITOR' && req.user!.role !== 'ORG_OWNER' && req.user!.role !== 'EXAM_MANAGER' && req.user!.id !== ev.user_id) {
+          return res.status(403).json({ error: 'Unauthorized to view this forensic evidence' });
+        }
+        if (ev.storage_reference && fs.existsSync(ev.storage_reference)) {
+          res.setHeader('Content-Type', ev.mime_type || 'image/jpeg');
+          res.setHeader('Content-Disposition', 'inline');
+          return fs.createReadStream(ev.storage_reference).pipe(res);
+        }
+        if (ev.image_data_url && ev.image_data_url.startsWith('data:')) {
+          const parts = ev.image_data_url.split(',');
+          const mimeMatch = parts[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+          const buffer = Buffer.from(parts[1], 'base64');
+          res.setHeader('Content-Type', mime);
+          res.setHeader('Content-Disposition', 'inline');
+          return res.send(buffer);
+        }
+      }
+
+      // 2. Check voice evidence table
+      const voiceRows = executeQuery(db, 'SELECT * FROM proctor_voice_evidence WHERE id = ?', [evidenceId]);
+      if (voiceRows.length > 0) {
+        const ev = voiceRows[0];
+        if (req.user!.role !== 'AUDITOR' && req.user!.role !== 'ORG_OWNER' && req.user!.role !== 'EXAM_MANAGER' && req.user!.id !== ev.user_id) {
+          return res.status(403).json({ error: 'Unauthorized to access this forensic audio evidence' });
+        }
+        if (ev.storage_reference && fs.existsSync(ev.storage_reference)) {
+          res.setHeader('Content-Type', ev.mime_type || 'audio/webm');
+          res.setHeader('Content-Disposition', 'inline');
+          return fs.createReadStream(ev.storage_reference).pipe(res);
+        }
+        if (ev.audio_data_url && ev.audio_data_url.startsWith('data:')) {
+          const parts = ev.audio_data_url.split(',');
+          const mimeMatch = parts[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : 'audio/webm';
+          const buffer = Buffer.from(parts[1], 'base64');
+          res.setHeader('Content-Type', mime);
+          res.setHeader('Content-Disposition', 'inline');
+          return res.send(buffer);
+        }
+      }
+
+      return res.status(404).json({ error: 'Evidence record not found' });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }
@@ -13437,14 +13896,29 @@ async function startServer() {
 
   const compiledPapersDir = path.join(process.cwd(), 'public', 'compiled_papers');
   if (!fs.existsSync(compiledPapersDir)) fs.mkdirSync(compiledPapersDir, { recursive: true });
-  app.use('/compiled_papers', express.static(compiledPapersDir, {
-    setHeaders: (res, filePath) => {
-      if (filePath.endsWith('.pdf')) {
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'inline');
-      }
-    },
-  }));
+  app.use('/compiled_papers', (req: Request, res: Response, next: any) => {
+    if (req.path.endsWith('.pdf')) {
+      const user = (req as any).user;
+      logAuditEvent({
+        event_type: 'DOWNLOAD_BLOCKED',
+        user_id: user?.id,
+        user_email: user?.email,
+        role: user?.role,
+        device_id: user?.device_id || (req.headers['x-device-fingerprint'] as string) || 'unknown-device',
+        ip_address: req.ip,
+        status: 'BLOCKED',
+        details: {
+          path: req.path,
+          message: 'Direct exam paper PDF download is strictly prohibited.',
+        },
+      });
+      return res.status(403).json({
+        error: 'DOWNLOAD_BLOCKED: Examination paper download is strictly prohibited for security hardening.',
+        code: 'DOWNLOAD_BLOCKED',
+      });
+    }
+    next();
+  }, express.static(compiledPapersDir));
 
   // Diagrams lifted out of an uploaded paper, reused unchanged by the new paper.
   const extractedFiguresDir = path.join(process.cwd(), 'public', 'extracted_figures');
@@ -13676,9 +14150,15 @@ async function startServer() {
     });
   }
 
-  // Start accepting requests before optional database hydration and demo
-  // seeding. Those operations may take a while when PostgreSQL is offline,
-  // but the local SQLite engine can still serve the application.
+  // Connect to MongoDB data layer before opening listener
+  try {
+    await connectDB();
+  } catch (mongoErr: any) {
+    console.error('[ZeroLeak Fatal] MongoDB connection required. Server failed to start:', mongoErr?.message || mongoErr);
+    process.exit(1);
+  }
+
+  // Start accepting requests
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[ZeroLeak Security Engine] Server running on http://0.0.0.0:${PORT}`);
     try {
@@ -13728,6 +14208,8 @@ async function startServer() {
       console.log('[ZeroLeak Startup] 4/6 Cleaning legacy questions...');
       const db = await getDb();
       await initializeCompetitiveSchema(db);
+      initPrintAnywhereSchema(db);
+      initViewOnceSchema(db);
       cleanLegacyDummyQuestions(db);
       saveDb();
       console.log('[ZeroLeak Startup] 5/6 Database initialization complete.');

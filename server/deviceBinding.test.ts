@@ -99,9 +99,8 @@ test('local development auto-approval bypasses the pending approval loop', () =>
 });
 
 test('device authority policy blocks self approval, unauthorized roles, and cross-organization access', () => {
-  assert.equal(canApproveOrRejectDevice({ actorId: 'owner', actorRole: 'ORG_OWNER', actorOrgId: 'org-a', targetUserId: 'user', targetRole: 'EXAM_MANAGER', targetOrgId: 'org-a' }).allowed, true);
-  assert.equal(canApproveOrRejectDevice({ actorId: 'owner', actorRole: 'ORG_OWNER', actorOrgId: 'org-a', targetUserId: 'owner', targetRole: 'ORG_OWNER', targetOrgId: 'org-a' }).reason, 'SELF_APPROVAL_FORBIDDEN');
-  assert.equal(canApproveOrRejectDevice({ actorId: 'manager', actorRole: 'EXAM_MANAGER', actorOrgId: 'org-a', targetUserId: 'user', targetRole: 'TRANSLATOR', targetOrgId: 'org-a' }).allowed, true);
-  assert.equal(canApproveOrRejectDevice({ actorId: 'manager', actorRole: 'EXAM_MANAGER', actorOrgId: 'org-a', targetUserId: 'user', targetRole: 'AUDITOR', targetOrgId: 'org-a' }).reason, 'UNAUTHORIZED_DEVICE_ACCESS');
-  assert.equal(canApproveOrRejectDevice({ actorId: 'auditor', actorRole: 'AUDITOR', actorOrgId: 'org-a', targetUserId: 'user', targetRole: 'TRANSLATOR', targetOrgId: 'org-b' }).reason, 'DEVICE_ORGANIZATION_MISMATCH');
+  assert.equal(canApproveOrRejectDevice({ actorId: 'owner', actorRole: 'ORG_OWNER', actorOrgId: 'org-a', targetUserId: 'user', targetOrgId: 'org-a' }).allowed, true);
+  assert.equal(canApproveOrRejectDevice({ actorId: 'owner', actorRole: 'ORG_OWNER', actorOrgId: 'org-a', targetUserId: 'owner', targetOrgId: 'org-a' }).reason, 'SELF_APPROVAL_FORBIDDEN');
+  assert.equal(canApproveOrRejectDevice({ actorId: 'manager', actorRole: 'EXAM_MANAGER', actorOrgId: 'org-a', targetUserId: 'user', targetOrgId: 'org-a' }).reason, 'UNAUTHORIZED_DEVICE_ACCESS');
+  assert.equal(canApproveOrRejectDevice({ actorId: 'auditor', actorRole: 'AUDITOR', actorOrgId: 'org-a', targetUserId: 'user', targetOrgId: 'org-b' }).reason, 'DEVICE_ORGANIZATION_MISMATCH');
 });

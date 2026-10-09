@@ -47,10 +47,9 @@ export function App() {
     trusted_devices: 'trusted-devices',
     all_examinations: 'all-examinations',
     create_examination: 'create-examination',
-    hierarchy_management: 'hierarchy-management',
-    question_workflow: 'question-workflow',
+    question_workflow: 'competitive-examination',
     question_pools: 'question-pools',
-    blueprint_pattern: 'blueprint-pattern',
+    blueprint_pattern: 'competitive-examination',
     paper_generation: 'paper-generation',
     multi_paper_generator: 'multi-paper-generator',
     paper_versions: 'paper-versions',
@@ -62,20 +61,10 @@ export function App() {
     print_management: 'print-management',
     device_status: 'device-status',
     audit_trail: 'audit-trail',
-    user_activity: 'user-activity',
     login_history: 'login-history',
-    device_activity: 'device-activity',
-    role_activity: 'role-activity',
-    paper_security: 'paper-security',
     paper_events: 'paper-events',
-    encryption_unlock: 'encryption-unlock',
-    print_security: 'print-security',
     printing_events: 'printing-events',
     regeneration_events: 'regeneration-events',
-    proctoring_evidence: 'proctoring-evidence',
-    watermark_investigations: 'watermark-investigations',
-    security_reports: 'security-reports',
-    user_activity_reports: 'user-activity-reports',
     proctor_dashboard: 'proctor-dashboard',
   };
 
@@ -92,6 +81,10 @@ export function App() {
 
   const syncTabFromLocation = () => {
     const hash = window.location.hash.replace(/^#\/?/, '').replace(/^#/, '');
+    if (hash === 'question-workflow' || hash === 'competitive-examination' || hash === 'blueprint-pattern') {
+      setActiveSubTab('question_workflow');
+      return;
+    }
     const matchedTab = (Object.entries(tabToHashMap) as [NavSubTab, string][]).find(([, value]) => value === hash)?.[0];
     const requestedTab = matchedTab === 'proctor_dashboard' && (currentUser?.role === 'ORG_OWNER' || currentUser?.role === 'EXAM_MANAGER')
       ? 'dashboard'
@@ -249,47 +242,27 @@ export function App() {
 
   // Logged-in User Dashboard Workspace
   return (
-    <div className="min-h-screen bg-[#FAFCFA] dark:bg-[#080B11] text-slate-900 dark:text-slate-100 flex flex-col font-['Figtree',sans-serif] selection:bg-[#00cc5f] selection:text-black relative overflow-x-hidden transition-colors duration-300">
-      {/* Background Ambient Glowing Wave Curves & Aurora */}
-      <div
-        className="fixed inset-0 pointer-events-none overflow-hidden z-0"
-        style={{
-          top: '56px',
-          filter: 'blur(10px) drop-shadow(0 0 25px rgba(0,255,119,0.3))',
-          opacity: 0.32,
-        }}
-      >
+    <div
+      className="min-h-screen text-[#102A38] flex flex-col font-['Figtree',sans-serif] selection:bg-[#00A878] selection:text-white relative overflow-x-hidden bg-[#F5F8FA] transition-colors duration-300"
+    >
+      {/* Subtle Enterprise Ambient Tint & Neutral Technical Grid */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        {/* Subtle Blue/Emerald Radial Highlight */}
         <div
-          className="absolute inset-0 w-full h-full"
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[1400px] h-[480px] opacity-60 blur-[150px]"
           style={{
-            backgroundImage: 'url(/curve-secondary.svg)',
-            backgroundRepeat: 'repeat',
-            backgroundPosition: '0 0',
+            background: 'radial-gradient(ellipse at 50% 0%, rgba(0, 168, 120, 0.04) 0%, rgba(38, 114, 184, 0.03) 50%, transparent 80%)',
           }}
         />
+        {/* Barely visible technical dot grid */}
         <div
-          className="absolute inset-0 w-full h-full"
+          className="absolute inset-0 opacity-[0.03]"
           style={{
-            backgroundImage: 'url(/curve-primary.svg)',
-            backgroundRepeat: 'repeat',
-            backgroundPosition: '0 0',
+            backgroundImage: 'radial-gradient(#78909C 1.2px, transparent 1.2px)',
+            backgroundSize: '24px 24px',
           }}
         />
       </div>
-
-      {/* Radiant Mint Ambient Halos (strandsagents.com style) */}
-      <div
-        className="fixed top-0 left-1/4 -translate-x-1/2 w-[900px] h-[500px] pointer-events-none z-0 opacity-40 dark:opacity-20 blur-[130px]"
-        style={{
-          background: 'radial-gradient(circle, rgba(0, 204, 95, 0.28) 0%, rgba(0, 220, 130, 0.12) 50%, transparent 75%)',
-        }}
-      />
-      <div
-        className="fixed bottom-0 right-10 w-[700px] h-[450px] pointer-events-none z-0 opacity-30 dark:opacity-15 blur-[120px]"
-        style={{
-          background: 'radial-gradient(circle, rgba(0, 204, 95, 0.22) 0%, transparent 70%)',
-        }}
-      />
 
       {/* Device Approval Modal */}
       <DeviceApprovalModal
@@ -318,9 +291,9 @@ export function App() {
           onLogout={handleLogout}
         />
 
-        {/* Dynamic Operational Content View */}
-        <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
-          <div className="max-w-6xl mx-auto space-y-6">
+        {/* Dynamic Operational Content View (Scale Increased: 1400px max-width, 28-36px padding) */}
+        <main className="flex-1 p-7 sm:p-8 lg:p-9 overflow-y-auto">
+          <div className="max-w-[1400px] mx-auto space-y-6">
             <ErrorBoundary fallbackTitle="Workspace Interface Interrupted">
               {/* User Profile & Security Settings */}
               {(activeSubTab === 'profile' || activeSubTab === 'security_settings') ? (
@@ -377,18 +350,18 @@ export function App() {
         </main>
       </div>
 
-      {/* Geometric Balance Frosted Glass Footer */}
-      <footer className="h-10 bg-white/50 dark:bg-[#080B11]/50 backdrop-blur-2xl border-t border-slate-200/80 dark:border-white/10 flex items-center justify-between px-6 lg:px-8 text-[11px] text-[#64748B] dark:text-slate-400 font-medium relative z-10">
+      {/* Light Enterprise Security Footer */}
+      <footer className="h-10 bg-white/90 backdrop-blur-md border-t border-[#E5ECE9] flex items-center justify-between px-6 lg:px-8 text-[11px] text-[#5F7074] font-medium relative z-10">
         <div className="flex items-center gap-4">
-          <span className="font-bold text-[#0F172A] dark:text-white uppercase tracking-wider">
+          <span className="font-bold text-[#172A35] uppercase tracking-wider">
             Security: FIPS 140-2 AES-256-GCM / RSA-2048
           </span>
-          <span className="text-slate-300 dark:text-white/20">|</span>
-          <span className="font-mono text-[#475569] dark:text-slate-300">
+          <span className="text-[#CBD8D5]">|</span>
+          <span className="font-mono text-[#5F7074]">
             Immutable Audit Ledger Hash: SHA-256
           </span>
         </div>
-        <p className="text-[#64748B] dark:text-slate-400">ZeroLeak © 2026 Educational Integrity Assurance System</p>
+        <p className="text-[#5F7074]">ZeroLeak © 2026 Educational Integrity Assurance System</p>
       </footer>
     </div>
   );

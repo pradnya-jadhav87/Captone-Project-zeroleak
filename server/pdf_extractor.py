@@ -16,11 +16,17 @@ CRITICAL GUARANTEES:
    - Minimum required context (code, table, passage, diagram) is attached.
 """
 
+import os
+import sys
+import warnings
+
+warnings.filterwarnings("ignore")
+os.environ["PYTHONWARNINGS"] = "ignore"
+
 import argparse
 import base64
 import io
 import json
-import os
 import re
 import shutil
 import sys
@@ -47,9 +53,9 @@ if hasattr(sys.stdin, "reconfigure"):
 # Dependencies
 try:
     try:
-        import fitz  # PyMuPDF
-    except ImportError:
         import pymupdf as fitz
+    except ImportError:
+        import fitz  # PyMuPDF
     FITZ_AVAILABLE = True
 except ImportError:
     fitz = None

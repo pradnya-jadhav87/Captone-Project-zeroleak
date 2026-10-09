@@ -534,7 +534,7 @@ export function buildPatternPaperLatex(input: BuildLatexInput): string {
   const figureFiles = input.figureFiles || {};
 
   const sections = paper.frames
-    .map((frame) => {
+    .map((frame, fIdx) => {
       const marksForMain = Math.min(frame.attemptCount, frame.subQuestions.length) * frame.marksPerSubQuestion;
 
       const items = frame.subQuestions
@@ -573,6 +573,7 @@ export function buildPatternPaperLatex(input: BuildLatexInput): string {
         .join('\n\n');
 
       return [
+        fIdx === 0 ? '' : '\\clearpage',
         `% --- ${frame.questionNumber} ---`,
         '\\noindent',
         `\\textbf{\\large ${frame.questionNumber} ${escapeLatex(frame.instruction)}}` +
@@ -585,7 +586,7 @@ export function buildPatternPaperLatex(input: BuildLatexInput): string {
         '\\vspace{4mm}',
         '\\hrule',
         '\\vspace{3mm}',
-      ].join('\n');
+      ].filter(Boolean).join('\n');
     })
     .join('\n\n');
 
@@ -599,7 +600,7 @@ export function buildPatternPaperLatex(input: BuildLatexInput): string {
   const instructionItems = instructions.map((line, idx) => `  \\item ${escapeLatex(line)}`).join('\n');
 
   return `\\documentclass[11pt,a4paper]{article}
-\\usepackage[top=20mm,bottom=20mm,left=18mm,right=18mm]{geometry}
+\\usepackage[a4paper, left=18mm, right=18mm, top=20mm, bottom=20mm]{geometry}
 \\usepackage{amsmath,amssymb,amsfonts}
 \\usepackage{enumitem}
 \\usepackage{fancyhdr}
@@ -607,6 +608,7 @@ export function buildPatternPaperLatex(input: BuildLatexInput): string {
 \\usepackage{tabularx}
 \\usepackage{array}
 \\usepackage{graphicx}
+\\usepackage[export]{adjustbox}
 \\usepackage{float}
 \\usepackage{microtype}
 \\usepackage{xcolor}
@@ -627,12 +629,9 @@ export function buildPatternPaperLatex(input: BuildLatexInput): string {
 
 \\noindent
 \\begin{tabularx}{\\textwidth}{@{}l X r@{}}
-  \\fbox{\\textbf{Seat No:}\\hspace{3.5cm}} & &
-  \\begin{tabular}{|c|c|}
-    \\hline
-    \\textbf{SET} & \\textbf{${setLetter}} \\\\
-    \\hline
-  \\end{tabular}
+  \\textbf{Seat No.:} \\framebox[2.5cm]{\\vphantom{A}} & 
+  \\centering \\textbf{${title}} & 
+  \\textbf{Set: ${setLetter}} \\\\
 \\end{tabularx}
 
 \\vspace{3mm}

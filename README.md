@@ -161,8 +161,8 @@ cd 0leakexam
 # Node dependencies
 npm install
 
-# Python dependency for PDF extraction
-pip install -r requirements.txt
+# Python dependency for PDF extraction & security monitor (local)
+pip install -r requirements-python.txt
 ```
 
 ### 3. Configure environment
@@ -253,7 +253,7 @@ ZeroLeak comes pre-seeded with all 6 operational role accounts for instant testi
 │   └── components/
 │       ├── workspaces/     # Six role-specific dashboards
 │       └── ...             # Modules: exam, paper, delivery, audit, org
-└── requirements.txt        # Python dependencies
+└── requirements-python.txt # Python dependencies (local)
 ```
 
 ---

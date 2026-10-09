@@ -44,7 +44,19 @@ if (process.env.ELECTRON_RUN_AS_NODE) {
 const http = require('node:http');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
-const { app, BrowserWindow, session, screen } = require('electron');
+const path = require('node:path');
+const { app, BrowserWindow, dialog, session, screen, nativeTheme } = require('electron');
+if (nativeTheme) {
+  nativeTheme.themeSource = 'light';
+}
+
+let ZEROLEAK_LOGO_DATA_URI = '';
+try {
+  const logoPath = path.join(__dirname, '../src/assets/logo-icon.png');
+  if (fs.existsSync(logoPath)) {
+    ZEROLEAK_LOGO_DATA_URI = `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}`;
+  }
+} catch (_) {}
 const { uniqueDownloadPath } = require('./downloadPaths.cjs');
 const { textFromKeyCode } = require('./hostKeys.cjs');
 
@@ -164,8 +176,38 @@ let lastReportDurationMs = 0;
 const PAGE_TRACE_SCRIPT = `(() => {
   if (window.__zeroleakPageTrace) return;
   window.__zeroleakPageTrace = true;
+  window.__zeroleakPendingPickers = window.__zeroleakPendingPickers || [];
   const tell = (what) => { try { console.log('[browser-host] ' + what); } catch (_) {} };
-  for (const name of ['showOpenFilePicker', 'showDirectoryPicker', 'showSaveFilePicker']) {
+
+  window.showOpenFilePicker = function(options) {
+    tell('the page asked for a file: showOpenFilePicker');
+    return new Promise((resolve, reject) => {
+      window.__zeroleakPendingPickers.push({ type: 'file', options, resolve, reject, time: Date.now() });
+      setTimeout(() => {
+        const idx = window.__zeroleakPendingPickers.findIndex(p => p.resolve === resolve);
+        if (idx !== -1) {
+          window.__zeroleakPendingPickers.splice(idx, 1);
+          reject(new DOMException('The user aborted a request.', 'AbortError'));
+        }
+      }, 60000);
+    });
+  };
+
+  window.showDirectoryPicker = function(options) {
+    tell('the page asked for a file: showDirectoryPicker');
+    return new Promise((resolve, reject) => {
+      window.__zeroleakPendingPickers.push({ type: 'directory', options, resolve, reject, time: Date.now() });
+      setTimeout(() => {
+        const idx = window.__zeroleakPendingPickers.findIndex(p => p.resolve === resolve);
+        if (idx !== -1) {
+          window.__zeroleakPendingPickers.splice(idx, 1);
+          reject(new DOMException('The user aborted a request.', 'AbortError'));
+        }
+      }, 60000);
+    });
+  };
+
+  for (const name of ['showSaveFilePicker']) {
     const original = window[name];
     if (typeof original !== 'function') continue;
     try {
@@ -180,11 +222,104 @@ const PAGE_TRACE_SCRIPT = `(() => {
     const nativeClick = HTMLInputElement.prototype.click;
     HTMLInputElement.prototype.click = function (...args) {
       if (String(this.type).toLowerCase() === 'file') {
+        window.__zeroleakFileInput = this;
         tell('the page clicked a file input' + (this.webkitdirectory ? ' (directory)' : ''));
       }
       return nativeClick.apply(this, args);
     };
   } catch (_) { /* as above */ }
+})();`;
+
+/**
+ * Brand injection script: replaces OpenAI / Prism logos and brand text with
+ * ZeroLeak AI and the official ZeroLeak logo inside the streamed page.
+ * Also enforces clean white / light enterprise theme across the page.
+ */
+const ZEROLEAK_BRANDING_SCRIPT = `(() => {
+  const LOGO_DATA = ${JSON.stringify(ZEROLEAK_LOGO_DATA_URI)};
+
+  function applyZeroLeakBranding() {
+    try {
+      // 0. Enforce clean white / light theme
+      if (document.documentElement) {
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.add('light');
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.style.colorScheme = 'light';
+      }
+      if (document.body) {
+        document.body.classList.remove('dark');
+        document.body.classList.add('light');
+        document.body.style.colorScheme = 'light';
+      }
+
+      // 1. Update page title
+      if (document.title && /Prism/i.test(document.title)) {
+        document.title = document.title.replace(/OpenAI\\s*Prism/gi, 'ZeroLeak AI').replace(/Prism/gi, 'ZeroLeak AI');
+      }
+
+      // 2. Replace top-left logo / icon with ZeroLeak logo
+      if (LOGO_DATA) {
+        const svgs = document.querySelectorAll('svg');
+        for (const svg of svgs) {
+          if (svg.dataset.zeroleakHandled) continue;
+          const rect = svg.getBoundingClientRect();
+          // Check if this SVG is in the top-left area (sidebar header or top header)
+          const isTopLeft = (rect.width > 0 && rect.height > 0 && rect.left >= 0 && rect.left <= 90 && rect.top >= 0 && rect.top <= 90);
+          const parentBrand = svg.closest('a[href="/"], [aria-label*="OpenAI" i], [aria-label*="Prism" i], [aria-label*="Home" i]');
+
+          if (isTopLeft || parentBrand) {
+            svg.dataset.zeroleakHandled = 'true';
+            svg.style.display = 'none';
+
+            const parent = svg.parentElement;
+            if (parent && !parent.querySelector('.zeroleak-brand-logo')) {
+              const img = document.createElement('img');
+              img.className = 'zeroleak-brand-logo';
+              img.src = LOGO_DATA;
+              img.alt = 'ZeroLeak AI';
+              const size = Math.max(22, Math.min(32, Math.max(rect.width, rect.height)));
+              img.style.width = size + 'px';
+              img.style.height = size + 'px';
+              img.style.objectFit = 'contain';
+              img.style.display = 'inline-block';
+              img.style.verticalAlign = 'middle';
+              parent.insertBefore(img, svg);
+            }
+          }
+        }
+      }
+
+      // 3. Replace standalone brand text "Prism" / "OpenAI Prism" in headings/sidebar
+      const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const text = node.nodeValue;
+        if (!text) continue;
+        if (/OpenAI\\s*Prism/i.test(text)) {
+          node.nodeValue = text.replace(/OpenAI\\s*Prism/gi, 'ZeroLeak AI');
+        } else if (/\\bPrism\\b/i.test(text)) {
+          const parent = node.parentElement;
+          if (!parent) continue;
+          if (parent.closest('textarea, input, pre, code, .monaco-editor, [contenteditable="true"]')) continue;
+          if (text.trim() === 'Prism' || text.trim() === 'OpenAI Prism') {
+            node.nodeValue = text.replace(/\\bPrism\\b/gi, 'ZeroLeak AI');
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  applyZeroLeakBranding();
+  if (document.body && !window.__zeroleakObserverAttached) {
+    window.__zeroleakObserverAttached = true;
+    const observer = new MutationObserver(() => applyZeroLeakBranding());
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  }
+  if (!window.__zeroleakIntervalAttached) {
+    window.__zeroleakIntervalAttached = true;
+    setInterval(applyZeroLeakBranding, 600);
+  }
 })();`;
 
 /**
@@ -196,7 +331,226 @@ const PAGE_TRACE_SCRIPT = `(() => {
  * object, older ones pass (event, level, message, line, source) - so both shapes
  * are read rather than assumed.
  */
-const reportPageConsole = (contents) => {
+function getMimeType(fileName) {
+  const ext = path.extname(fileName || '').toLowerCase();
+  switch (ext) {
+    case '.zip': return 'application/zip';
+    case '.gz':
+    case '.tgz': return 'application/gzip';
+    case '.tar': return 'application/x-tar';
+    case '.tex': return 'text/x-tex';
+    case '.pdf': return 'application/pdf';
+    case '.png': return 'image/png';
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.bib': return 'text/x-bibtex';
+    case '.cls':
+    case '.sty': return 'text/plain';
+    default: return 'application/octet-stream';
+  }
+}
+
+function collectFilesRecursively(dirPath, rootDir = null) {
+  if (!rootDir) rootDir = dirPath;
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  const results = [];
+  for (const entry of entries) {
+    const full = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...collectFilesRecursively(full, rootDir));
+    } else if (entry.isFile()) {
+      const rel = path.relative(rootDir, full).replace(/\\/g, '/');
+      try {
+        results.push({
+          name: entry.name,
+          relativePath: rel,
+          type: getMimeType(entry.name),
+          base64: fs.readFileSync(full).toString('base64'),
+          lastModified: fs.statSync(full).mtimeMs,
+        });
+      } catch (_) {}
+    }
+  }
+  return results;
+}
+
+const installSelectedFiles = async (contents, files) => {
+  if (!contents || contents.isDestroyed() || !files || files.length === 0) return;
+  const payload = JSON.stringify(files);
+  const script = `(() => {
+    const items = ${payload};
+    const createdFiles = [];
+    const transfer = new DataTransfer();
+
+    for (const item of items) {
+      try {
+        const binary = atob(item.base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: item.type || 'application/octet-stream' });
+        const file = new File([blob], item.name, {
+          type: item.type || 'application/octet-stream',
+          lastModified: item.lastModified || Date.now()
+        });
+        if (item.relativePath) {
+          try {
+            Object.defineProperty(file, 'webkitRelativePath', {
+              value: item.relativePath,
+              writable: false
+            });
+          } catch (_) {}
+        }
+        createdFiles.push(file);
+        transfer.items.add(file);
+      } catch (err) {
+        console.error('[browser-host] failed creating File:', err);
+      }
+    }
+
+    let handled = false;
+
+    // 1. Resolve pending showOpenFilePicker / showDirectoryPicker if any
+    if (window.__zeroleakPendingPickers && window.__zeroleakPendingPickers.length > 0) {
+      const picker = window.__zeroleakPendingPickers.shift();
+      if (picker && picker.resolve) {
+        function makeFileHandle(f) {
+          return {
+            kind: 'file',
+            name: f.name,
+            getFile: async () => f,
+            queryPermission: async () => 'granted',
+            requestPermission: async () => 'granted',
+            isSameEntry: async (other) => other && other.name === f.name,
+          };
+        }
+        if (picker.type === 'directory') {
+          const dirHandle = {
+            kind: 'directory',
+            name: 'project',
+            values: async function* () {
+              for (const f of createdFiles) yield makeFileHandle(f);
+            },
+            entries: async function* () {
+              for (const f of createdFiles) yield [f.name, makeFileHandle(f)];
+            },
+            keys: async function* () {
+              for (const f of createdFiles) yield f.name;
+            },
+            getFileHandle: async (name) => {
+              const found = createdFiles.find(f => f.name === name);
+              if (found) return makeFileHandle(found);
+              throw new DOMException('File not found', 'NotFoundError');
+            },
+            queryPermission: async () => 'granted',
+            requestPermission: async () => 'granted',
+            isSameEntry: async (other) => other === this,
+          };
+          picker.resolve(dirHandle);
+          handled = true;
+        } else {
+          picker.resolve(createdFiles.map(makeFileHandle));
+          handled = true;
+        }
+      }
+    }
+
+    // 2. Feed candidate file inputs (both tracked in-memory input and DOM inputs)
+    const inputsToTry = [];
+    if (window.__zeroleakFileInput) {
+      inputsToTry.push(window.__zeroleakFileInput);
+    }
+    const domInputs = Array.from(document.querySelectorAll('input[type="file"]'));
+    domInputs.forEach(i => {
+      if (!inputsToTry.includes(i)) inputsToTry.push(i);
+    });
+
+    for (const input of inputsToTry) {
+      try {
+        const proto = window.HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, 'files')?.set;
+        if (setter) {
+          setter.call(input, transfer.files);
+        } else {
+          input.files = transfer.files;
+        }
+        input.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true, cancelable: true }));
+        handled = true;
+      } catch (e) {
+        console.error('[browser-host] input update error:', e);
+      }
+    }
+
+    // 3. Trigger Drag & Drop events on drop zones and document
+    const dropTargets = Array.from(document.querySelectorAll('[data-drop-zone], .drop-target, [role="dialog"], [role="main"], main, body'));
+    if (!dropTargets.includes(document.body)) dropTargets.push(document.body);
+
+    for (const target of dropTargets) {
+      try {
+        target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+        target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+        target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+        handled = true;
+      } catch (_) {}
+    }
+
+    try {
+      window.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+      document.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    } catch (_) {}
+
+    return handled || createdFiles.length > 0;
+  })()`;
+  try {
+    const installed = await contents.executeJavaScript(script, true);
+    log(installed ? `installed ${files.length} selected file(s) in the page` : 'no file input or drop target found');
+    announce(`✓ Successfully installed ${files.length} file(s) into project`);
+  } catch (err) {
+    log(`could not install selected files: ${err.message}`);
+    announce(`Failed installing files: ${err.message}`);
+  }
+};
+
+const handleFileInputRequest = async (win, contents, directory) => {
+  if (!contents || contents.isDestroyed()) return;
+  // Inform the web client through status notice so the client browser can open its picker
+  announce(directory ? 'REQUEST_DIRECTORY_PICKER' : 'REQUEST_FILE_PICKER');
+  try {
+    // Note: Do NOT pass win to showOpenDialog, because win is hidden (show: false)
+    // which suppresses modal dialogs in Windows.
+    const result = await dialog.showOpenDialog({
+      title: directory ? 'ZeroLeak AI - Select Folder to Import' : 'ZeroLeak AI - Select Project Archive (.zip, .tar.gz) or File to Import',
+      properties: directory ? ['openDirectory'] : ['openFile', 'multiSelections'],
+      filters: directory ? [] : [
+        { name: 'Archives & LaTeX Files', extensions: ['zip', 'tar.gz', 'tgz', 'gz', 'tar', 'tex', 'pdf'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) return;
+    let files = [];
+    if (directory) {
+      for (const dirPath of result.filePaths) {
+        files.push(...collectFilesRecursively(dirPath));
+      }
+    } else {
+      files = result.filePaths.map(filePath => ({
+        name: path.basename(filePath),
+        type: getMimeType(filePath),
+        base64: fs.readFileSync(filePath).toString('base64'),
+        lastModified: fs.statSync(filePath).mtimeMs,
+      }));
+    }
+    if (files.length > 0) {
+      await installSelectedFiles(contents, files);
+    }
+  } catch (err) {
+    log(`showOpenDialog error: ${err.message}`);
+  }
+};
+
+const reportPageConsole = (contents, win) => {
   contents.on('console-message', (...args) => {
     const first = args[0];
     const detail =
@@ -205,6 +559,13 @@ const reportPageConsole = (contents) => {
         : { level: args[1], message: args[2], lineNumber: args[3], sourceId: args[4] };
     const text = String(detail.message == null ? '' : detail.message);
     if (!text) return;
+    if (
+      text.startsWith('[browser-host] the page clicked a file input') ||
+      text.startsWith('[browser-host] the page asked for a file:')
+    ) {
+      const isDir = text.includes('(directory)') || text.includes('showDirectoryPicker');
+      void handleFileInputRequest(win, contents, isDir);
+    }
     const level = String(detail.level == null ? '' : detail.level);
     const notable =
       text.includes('[browser-host]') ||
@@ -502,10 +863,13 @@ const attachView = (win, contents, { primary = false } = {}) => {
 
   // What the page says, and when it asks for a file. Both are invisible from
   // here otherwise, and both are what a "nothing happens" report is made of.
-  reportPageConsole(contents);
-  contents.on('did-finish-load', () => {
+  reportPageConsole(contents, win);
+  const injectScripts = () => {
     contents.executeJavaScript(PAGE_TRACE_SCRIPT).catch(() => undefined);
-  });
+    contents.executeJavaScript(ZEROLEAK_BRANDING_SCRIPT).catch(() => undefined);
+  };
+  contents.on('did-finish-load', injectScripts);
+  contents.on('dom-ready', injectScripts);
 
   contents.on('paint', (_event, _dirty, image) => {
     // Newest wins: an older frame that is still queued is worthless, and
@@ -771,6 +1135,9 @@ const applyCommand = (command) => {
     case 'input':
       sendInput(contents, command.event);
       return;
+    case 'upload-files':
+      void installSelectedFiles(contents, command.files || []);
+      return;
     case 'ping':
       void report(null);
       return;
@@ -880,6 +1247,7 @@ const createPrimary = () => {
     width: Math.min(WIDTH, workArea.width),
     height: Math.min(HEIGHT, workArea.height),
     show: false,
+    backgroundColor: '#ffffff',
     // Without this the window never renders while hidden, and there would be no
     // frames at all - offscreen rendering and `show: false` are the whole trick.
     paintWhenInitiallyHidden: true,

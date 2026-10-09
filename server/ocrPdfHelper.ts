@@ -61,14 +61,33 @@ export async function extractPdfTextWithOcr(
     // Render pages to PNG using python script
     const scriptPath = path.join(process.cwd(), 'server', 'renderPdfPages.py');
     const renderRes = await new Promise<{ success: boolean; totalPages: number; images: string[] }>((resolve, reject) => {
-      execFile('python', [scriptPath, tmpPdfPath, tmpDir, '130', String(maxPages)], (err, stdout, stderr) => {
-        if (err) return reject(new Error(stderr || err.message));
-        try {
-          resolve(JSON.parse(stdout));
-        } catch (e: any) {
-          reject(new Error(`Failed to parse render output: ${stdout || e.message}`));
+      execFile(
+        'python',
+        [scriptPath, tmpPdfPath, tmpDir, '130', String(maxPages)],
+        {
+          env: {
+            ...process.env,
+            PYTHONWARNINGS: 'ignore',
+            PYTHONUTF8: '1',
+          },
+        },
+        (err, stdout, stderr) => {
+          if (err && !stdout) return reject(new Error(stderr || err.message));
+          try {
+            const stdoutStr = (stdout || '').trim();
+            const startIdx = stdoutStr.indexOf('{');
+            const endIdx = stdoutStr.lastIndexOf('}');
+            if (startIdx !== -1 && endIdx !== -1 && endIdx >= startIdx) {
+              const cleanJson = stdoutStr.slice(startIdx, endIdx + 1);
+              resolve(JSON.parse(cleanJson));
+            } else {
+              throw new Error(`No valid JSON object found in render output: ${stdoutStr}`);
+            }
+          } catch (e: any) {
+            reject(new Error(`Failed to parse render output: ${stdout || stderr || e.message}`));
+          }
         }
-      });
+      );
     });
 
     const pageImages = (renderRes?.images || []).sort();

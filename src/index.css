@@ -1,7 +1,5 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
-
 :root {
   color-scheme: light;
   --header-height: 4rem;
@@ -52,14 +50,9 @@ html {
 body {
   margin: 0;
   min-width: 320px;
-  background: #ffffff;
-  color: #0F172A;
+  background: #F5F8F7;
+  color: #172A35;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-}
-
-html.dark body {
-  background: #0a1713;
-  color: #f2f8f3;
 }
 
 .blueprint-form .field-stack {
@@ -587,125 +580,6 @@ html.dark .cyber-mesh-bg div[class*="bg-emerald-950"] span {
   border-color: #059669;
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
   outline: none;
-}
-
-/* Authority & Competitive Examination forms:
-   Ensure all input fields, textareas, and select dropdowns render clearly visible dark text (#0F172A),
-   readable muted grey placeholders (#6B7280), and white dropdown options with dark text. */
-.authority-management-form input,
-.authority-management-form select,
-.authority-management-form textarea,
-.competitive-workflow-form input,
-.competitive-workflow-form select,
-.competitive-workflow-form textarea,
-.blueprint-form input,
-.blueprint-form select,
-.blueprint-form textarea {
-  color: #0F172A !important;
-  background-color: #FFFFFF !important;
-  border-color: #CBD5E1 !important;
-}
-
-.authority-management-form input::placeholder,
-.authority-management-form textarea::placeholder,
-.competitive-workflow-form input::placeholder,
-.competitive-workflow-form textarea::placeholder,
-.blueprint-form input::placeholder,
-.blueprint-form textarea::placeholder,
-input::placeholder,
-textarea::placeholder {
-  color: #6B7280 !important;
-  opacity: 1 !important;
-}
-
-.authority-management-form select option,
-.competitive-workflow-form select option,
-.blueprint-form select option,
-select option {
-  color: #0F172A !important;
-  background-color: #FFFFFF !important;
-}
-
-.authority-management-form input:disabled,
-.authority-management-form select:disabled,
-.authority-management-form textarea:disabled,
-.authority-management-form input[readonly],
-.authority-management-form textarea[readonly],
-.competitive-workflow-form input:disabled,
-.competitive-workflow-form select:disabled,
-.competitive-workflow-form textarea:disabled,
-.competitive-workflow-form input[readonly],
-.competitive-workflow-form textarea[readonly] {
-  color: #334155 !important;
-  background-color: #F8FAFC !important;
-  opacity: 1 !important;
-}
-
-.authority-management-form input:focus,
-.authority-management-form select:focus,
-.authority-management-form textarea:focus,
-.competitive-workflow-form input:focus,
-.competitive-workflow-form select:focus,
-.competitive-workflow-form textarea:focus {
-  border-color: #047857 !important;
-  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.18) !important;
-  outline: none !important;
-}
-
-/* Ensure white-card form controls remain dark and clearly readable even if html.dark is toggled */
-html.dark .competitive-workflow-form input,
-html.dark .competitive-workflow-form select,
-html.dark .competitive-workflow-form textarea,
-html.dark .blueprint-form input,
-html.dark .blueprint-form select,
-html.dark .blueprint-form textarea,
-html.dark .bg-white input:not([type="checkbox"]):not([type="radio"]),
-html.dark .bg-white select,
-html.dark .bg-white textarea {
-  color: #0F172A !important;
-  background-color: #FFFFFF !important;
-  border-color: #CBD5E1 !important;
-}
-
-html.dark .competitive-workflow-form input::placeholder,
-html.dark .competitive-workflow-form textarea::placeholder,
-html.dark .blueprint-form input::placeholder,
-html.dark .blueprint-form textarea::placeholder,
-html.dark .bg-white input::placeholder,
-html.dark .bg-white textarea::placeholder {
-  color: #6B7280 !important;
-  opacity: 1 !important;
-}
-
-html.dark .competitive-workflow-form select option,
-html.dark .blueprint-form select option,
-html.dark .bg-white select option {
-  color: #0F172A !important;
-  background-color: #FFFFFF !important;
-}
-
-html.dark .authority-management-form input,
-html.dark .authority-management-form select,
-html.dark .authority-management-form textarea {
-  color: #F8FAFC;
-}
-
-html.dark .authority-management-form input::placeholder,
-html.dark .authority-management-form textarea::placeholder {
-  color: #CBD5E1;
-}
-
-html.dark .authority-management-form select option {
-  color: #F8FAFC;
-  background: #0F172A;
-}
-
-html.dark .authority-management-form input:disabled,
-html.dark .authority-management-form select:disabled,
-html.dark .authority-management-form textarea:disabled,
-html.dark .authority-management-form input[readonly],
-html.dark .authority-management-form textarea[readonly] {
-  color: #E2E8F0;
 }
 
 .btn-gradient-emerald {

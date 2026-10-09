@@ -352,7 +352,7 @@ function embedSourceFigure(
   figureNumber: number
 ): void {
   const maxWidth = Math.min(availableWidth - 20, 380);
-  const maxHeight = 240;
+  const maxHeight = 180;
 
   try {
     const image = (doc as any).openImage(buffer);
@@ -360,7 +360,7 @@ function embedSourceFigure(
     const width = Math.round(image.width * scale);
     const height = Math.round(image.height * scale);
 
-    if (doc.y + height > 760) doc.addPage();
+    if (doc.y + height > 720) doc.addPage();
     const x = startX + Math.max(0, (availableWidth - width) / 2);
     doc.image(buffer, x, doc.y, { width, height });
     doc.y += height + 8;
@@ -778,8 +778,11 @@ export function generateSynthesizedPaperPdf(
 
       // 6. RENDER SECTIONS & QUESTIONS
       data.sections.forEach((sec, sIdx) => {
-        // Prevent orphaned section headers near page bottom
-        if (doc.y > 690) {
+        // Dynamic Page Breaks: Strictly separate Component 1 (MCQ / Objective, Q.1)
+        // from descriptive SECTION - I and subsequent sections.
+        if (sIdx > 0) {
+          doc.addPage();
+        } else if (doc.y > 680) {
           doc.addPage();
         }
 
@@ -834,6 +837,9 @@ export function generateSynthesizedPaperPdf(
             figures
           );
 
+          // Save the bottom position of question content so marks rendering doesn't reset doc.y
+          const contentBottomY = doc.y;
+
           // Marks on the right
           if (q.marks) {
             const marksStr = typeof q.marks === 'number' ? `[${q.marks}]` : q.marks.startsWith('[') ? q.marks : `[${q.marks}]`;
@@ -844,6 +850,9 @@ export function generateSynthesizedPaperPdf(
               .text(marksStr, PAGE_LEFT, qY, { width: CONTENT_WIDTH, align: 'right' });
           }
 
+          // Restore cursor to below the content
+          doc.y = Math.max(contentBottomY, doc.y);
+          doc.x = PAGE_LEFT;
           doc.moveDown(0.2);
 
           // Multiple Choice Options (2-Column Grid)
@@ -876,11 +885,14 @@ export function generateSynthesizedPaperPdf(
             const orY = doc.y;
             const orAvailableWidth = q.orMarks ? 425 : 485;
             renderQuestionContentInPdfKit(doc, q.orText, PAGE_LEFT + 30, orAvailableWidth, PAGE_LEFT, CONTENT_WIDTH);
+            const orBottomY = doc.y;
 
             if (q.orMarks) {
               const orMarksStr = typeof q.orMarks === 'number' ? `[${q.orMarks}]` : q.orMarks.startsWith('[') ? q.orMarks : `[${q.orMarks}]`;
               doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#000000').text(orMarksStr, PAGE_LEFT, orY, { width: CONTENT_WIDTH, align: 'right' });
             }
+            doc.y = Math.max(orBottomY, doc.y);
+            doc.x = PAGE_LEFT;
           }
 
           doc.moveDown(0.35);
@@ -897,32 +909,10 @@ export function generateSynthesizedPaperPdf(
         .fillColor('#64748b')
         .text('*** END OF QUESTION PAPER ***', PAGE_LEFT, doc.y, { width: CONTENT_WIDTH, align: 'center' });
 
-      // 8. WATERMARK & PAGE FOOTER ON EVERY BUFFERED PAGE
+      // 8. PAGE FOOTER ON EVERY BUFFERED PAGE
       const totalPages = doc.bufferedPageRange().count;
       for (let p = 0; p < totalPages; p++) {
         doc.switchToPage(p);
-
-        // Visible diagonal watermark behind content: ZEROLEAK | CONFIDENTIAL | SLR-FINAL-04
-        doc.save();
-        doc.fillColor('#94a3b8');
-        doc.fillOpacity(0.12);
-        doc.fontSize(28);
-        doc.font('Helvetica-Bold');
-        doc.rotate(-45, { origin: [doc.page.width / 2, doc.page.height / 2] });
-        const watermarkText = `ZEROLEAK | CONFIDENTIAL | ${meta.paperCode || 'SLR-FINAL-04'}`;
-        doc.text(
-          watermarkText,
-          0,
-          doc.page.height / 2 - 20,
-          {
-            width: doc.page.width,
-            align: 'center',
-            lineBreak: false,
-          }
-        );
-        doc.restore();
-
-        // Footer
         doc
           .fontSize(7.5)
           .font('Helvetica')

@@ -21,7 +21,7 @@ export const ATTESTATION_STATUS = {
 } as const;
 
 export const DEVICE_BOUND_ROLES = new Set(['ORG_OWNER', 'EXAM_MANAGER', 'CENTRE_OPERATOR', 'AUDITOR']);
-export const DEVICE_AUTHORITY_ROLES = new Set(['ORG_OWNER', 'EXAM_MANAGER']);
+export const DEVICE_AUTHORITY_ROLES = new Set(['ORG_OWNER', 'AUDITOR']);
 export const SELF_APPROVAL_BLOCKED_ROLES = new Set(['SME', 'TRANSLATOR', 'CENTRE_OPERATOR', 'EXAM_MANAGER', 'AUDITOR', 'ORG_OWNER']);
 
 export const SETTING_CENTRE_OPERATOR_MAX_ACTIVE = 'CENTRE_OPERATOR_MAX_ACTIVE_DEVICES';
@@ -132,7 +132,6 @@ export function canApproveOrRejectDevice(params: {
   actorRole: string;
   actorOrgId: string;
   targetUserId: string;
-  targetRole?: string;
   targetOrgId: string;
 }): { allowed: boolean; reason?: string } {
   if (params.actorOrgId !== params.targetOrgId) {
@@ -141,15 +140,10 @@ export function canApproveOrRejectDevice(params: {
   if (params.actorId === params.targetUserId) {
     return { allowed: false, reason: 'SELF_APPROVAL_FORBIDDEN' };
   }
-  if (params.actorRole === 'SME' || params.actorRole === 'TRANSLATOR' || params.actorRole === 'CENTRE_OPERATOR' || params.actorRole === 'AUDITOR') {
+  if (params.actorRole === 'SME' || params.actorRole === 'TRANSLATOR' || params.actorRole === 'CENTRE_OPERATOR') {
     return { allowed: false, reason: 'UNAUTHORIZED_DEVICE_ACCESS' };
   }
   if (params.actorRole === 'EXAM_MANAGER') {
-    if (!['TRANSLATOR', 'CENTRE_OPERATOR'].includes(params.targetRole || '')) {
-      return { allowed: false, reason: 'UNAUTHORIZED_DEVICE_ACCESS' };
-    }
-  }
-  if (params.actorRole === 'ORG_OWNER' && !['EXAM_MANAGER', 'AUDITOR'].includes(params.targetRole || '')) {
     return { allowed: false, reason: 'UNAUTHORIZED_DEVICE_ACCESS' };
   }
   if (!canManageOrgDevices(params.actorRole)) {
