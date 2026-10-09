@@ -135,8 +135,22 @@ const PrismChromeWebAuthPane: React.FC<{
   frameKey: number;
   statusRef: React.MutableRefObject<PaneStatus>;
 }> = ({ tab, frameKey, statusRef }) => {
-  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionActive, setSessionActive] = useState(() => {
+    try {
+      return sessionStorage.getItem('zeroleak_prism_session_active') === '1';
+    } catch {
+      return false;
+    }
+  });
   const authWindowRef = useRef<Window | null>(null);
+
+  const activateSession = useCallback(() => {
+    try {
+      sessionStorage.setItem('zeroleak_prism_session_active', '1');
+    } catch {}
+    setSessionActive(true);
+    statusRef.current.onTitle('Prism — AI LaTeX Editor | ZeroLeak AI');
+  }, [statusRef]);
 
   // Detect OAuth completion message from window.opener postMessage callback
   useEffect(() => {
@@ -147,26 +161,24 @@ const PrismChromeWebAuthPane: React.FC<{
           e.data.status === 'success' ||
           e.data.transfer_ready === true)
       ) {
-        setSessionActive(true);
-        statusRef.current.onTitle('Prism — AI LaTeX Editor | ZeroLeak AI');
+        activateSession();
       }
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [statusRef]);
+  }, [activateSession]);
 
   // Poll popup lifecycle to transition to workspace as soon as the user finishes auth
   useEffect(() => {
     if (!authWindowRef.current) return;
     const timer = setInterval(() => {
       if (authWindowRef.current && authWindowRef.current.closed) {
-        setSessionActive(true);
-        statusRef.current.onTitle('Prism — AI LaTeX Editor | ZeroLeak AI');
+        activateSession();
         clearInterval(timer);
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [statusRef]);
+  }, [activateSession]);
 
   const handleLaunchPrism = () => {
     const width = 520;
@@ -243,10 +255,7 @@ const PrismChromeWebAuthPane: React.FC<{
 
           <button
             type="button"
-            onClick={() => {
-              setSessionActive(true);
-              statusRef.current.onTitle('Prism — AI LaTeX Editor | ZeroLeak AI');
-            }}
+            onClick={activateSession}
             className="w-full py-2.5 px-4 rounded-full bg-transparent hover:bg-white/5 text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer border border-transparent hover:border-white/10"
           >
             Already signed in? Open Workspace Directly →

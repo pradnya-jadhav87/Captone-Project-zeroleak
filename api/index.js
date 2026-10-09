@@ -988,11 +988,8 @@ app.get('/api/browser/stream', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.write(`data: ${JSON.stringify({ status: 'READY', url: 'https://prism.openai.com/' })}\n\n`);
-  setTimeout(() => {
-    res.write(`data: ${JSON.stringify({ status: 'ACTIVE', url: 'https://prism.openai.com/' })}\n\n`);
-    res.end();
-  }, 1000);
+  res.write(`data: ${JSON.stringify({ status: { state: 'stopped', reason: 'Web Enclave Mode' } })}\n\n`);
+  res.end();
 });
 
 // Browser Configuration for Chrome Enclave
@@ -1010,8 +1007,22 @@ app.get('/api/browser/config', (req, res) => {
 
 app.get('/api/browser/host/status', (req, res) => {
   res.json({
-    status: { state: 'ready', url: 'https://prism.openai.com/', title: 'Prism — AI LaTeX Editor | ZeroLeak AI' },
-    running: true,
+    status: { state: 'stopped', reason: 'Web Enclave Mode' },
+    running: false,
+  });
+});
+
+app.post('/api/browser/host/start', (req, res) => {
+  res.json({
+    ok: false,
+    reason: 'Streamed browser requires Desktop Shell. Using Web Enclave.',
+    status: { state: 'stopped', reason: 'Web Enclave Mode' },
+  });
+});
+
+app.post('/api/browser/host/stop', (req, res) => {
+  res.json({
+    status: { state: 'stopped', reason: 'Web Enclave Mode' },
   });
 });
 
