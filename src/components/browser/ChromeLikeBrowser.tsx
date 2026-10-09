@@ -244,14 +244,14 @@ const BrowserPane = React.forwardRef<
   // sign-in diagnosis and which tabs reload after signing in - so it has to
   // follow the tab strip, not attach order.
   useEffect(() => {
-    if (!desktopShell || !visible) return;
+    if (!desktopShell && !visible) return;
     safeCall(viewRef.current, 'focus');
   }, [desktopShell, visible]);
 
   useEffect(() => {
     if (!desktopShell && !streamed) {
-      if (tab.url?.includes('prism.openai.com') || tab.url?.includes('zeroleak')) {
-        statusRef.current.onTitle('ZeroLeak AI Copilot');
+      if (tab.url?.includes('prism.openai.com')) {
+        statusRef.current.onTitle('OpenAI Prism');
         statusRef.current.onStop();
       }
     }
@@ -280,17 +280,17 @@ const BrowserPane = React.forwardRef<
       )}
 
       {!desktopShell && !streamed && (
-        tab.url?.includes('prism.openai.com') || tab.url?.includes('zeroleak') ? (
+        tab.url?.includes('zeroleak://studio') ? (
           <EmbeddedPrismStudio key={`${tab.id}:${tab.reloadKey}`} />
         ) : (
           <iframe
             key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
-            src={tab.url || NEW_TAB_URL}
+            src={tab.url || 'https://prism.openai.com/'}
             title={`ZeroLeak tab ${tab.id}`}
             className="w-full h-full border-0 bg-white"
             onLoad={() => {
               statusRef.current.onStop();
-              statusRef.current.onTitle(tab.title || '');
+              statusRef.current.onTitle(tab.title || 'OpenAI Prism');
             }}
             allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation; storage-access; identity-credentials-get"
             sandbox={PANE_SANDBOX_FLAGS}
@@ -382,8 +382,8 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
 }) => {
   const [tabs, setTabs] = useState<BrowserTab[]>(() => {
     const tab = createTab(initialUrl);
-    if (initialUrl?.includes('prism.openai.com') || initialUrl?.includes('zeroleak')) {
-      tab.title = 'ZeroLeak AI Copilot';
+    if (initialUrl?.includes('prism.openai.com')) {
+      tab.title = 'OpenAI Prism';
       tab.isLoading = false;
     }
     return [tab];
@@ -829,6 +829,15 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
           </div>
 
           {toolbarExtra}
+
+          <button
+            type="button"
+            onClick={() => onOpenExternal(activeUrl)}
+            title="Open in new window"
+            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer flex items-center shrink-0"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
         </form>
       </div>
 
@@ -942,7 +951,7 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
               className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-base shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
             >
               <ZeroLeakLogo variant="icon" imgHeightClass="h-5 w-auto" />
-              Open ZeroLeak AI
+              Open OpenAI Prism
             </button>
           </div>
         )}
