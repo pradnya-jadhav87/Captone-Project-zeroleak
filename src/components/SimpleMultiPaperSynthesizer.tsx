@@ -582,6 +582,19 @@ export const SimpleMultiPaperSynthesizer: React.FC<SimpleMultiPaperSynthesizerPr
     };
   }, [generating, stage]);
 
+  // Synchronize LaTeX edited in Embedded Prism AI Studio
+  useEffect(() => {
+    const handleLatexSync = (e: any) => {
+      if (e?.detail?.latex) {
+        setGeneratedLatex(e.detail.latex);
+      }
+    };
+    window.addEventListener('zeroleak:paper-latex-updated', handleLatexSync);
+    return () => {
+      window.removeEventListener('zeroleak:paper-latex-updated', handleLatexSync);
+    };
+  }, []);
+
   // Compilation & PDF Download State
   const [compiling, setCompiling] = useState(false);
   const [compiledPdfUrl, setCompiledPdfUrl] = useState<string | null>(null);

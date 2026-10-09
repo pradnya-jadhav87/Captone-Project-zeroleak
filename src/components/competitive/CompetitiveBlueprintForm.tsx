@@ -1043,7 +1043,7 @@ export const CompetitiveBlueprintForm = ({
         }
       );
       if (resp && resp.success && resp.paper) {
-        setGenerationSteps((prev: string[]) => [
+        setGenerationSteps(prev => [
           ...prev,
           isTranslationEnabled
             ? `✓ Original English paper generated and all ${resp.paper.totalQuestions} questions assigned to ${selectedLanguage} Translator.`

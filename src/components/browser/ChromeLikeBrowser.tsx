@@ -26,6 +26,7 @@ import {
   type StreamedBrowserStatus,
 } from '../../api';
 import { StreamedBrowserSurface } from './StreamedBrowserSurface';
+import { EmbeddedPrismStudio } from './EmbeddedPrismStudio';
 import { ZeroLeakLogo } from '../ZeroLeakLogo';
 import { PANE_PARTITION, PANE_SANDBOX_FLAGS } from '../../utils/prismAuth';
 import {
@@ -270,30 +271,8 @@ const BrowserPane = React.forwardRef<
       )}
 
       {!desktopShell && !streamed && (
-        tab.url?.includes('prism.openai.com') ? (
-          <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-b from-slate-50 to-white text-center">
-            <div className="max-w-md p-6 bg-white rounded-2xl border border-slate-200 shadow-xl space-y-4">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto shadow-xs">
-                <Sparkles className="w-7 h-7 text-emerald-600" />
-              </div>
-              <div className="space-y-1.5">
-                <h3 className="text-base font-bold text-slate-900">ZeroLeak AI & OpenAI Prism</h3>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  OpenAI Prism prevents embedded iframe display due to its browser security policy (<code className="bg-slate-100 px-1 py-0.5 rounded text-[11px]">frame-ancestors 'none'</code>). You can launch Prism in a dedicated window, or use the integrated Multi-Paper AI Synthesizer directly.
-                </p>
-              </div>
-              <div className="flex flex-col gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => window.open('https://prism.openai.com/', '_blank', 'noopener,noreferrer')}
-                  className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer transition-all"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  <span>Launch OpenAI Prism in New Window</span>
-                </button>
-              </div>
-            </div>
-          </div>
+        tab.url?.includes('prism.openai.com') || tab.url?.includes('zeroleak') || !tab.url || tab.url === 'about:blank' ? (
+          <EmbeddedPrismStudio />
         ) : (
           <iframe
             key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
