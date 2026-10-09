@@ -573,6 +573,31 @@ You can use the **Insert into Editor** button below to paste this into your pape
 
   return (
     <div className="w-full h-full flex flex-col bg-[#F8FAFC] text-slate-800 select-text overflow-hidden font-sans">
+      {/* Informative Status Banner for Official Prism vs In-Project Studio */}
+      <div className="bg-slate-900 border-b border-slate-800 px-3 sm:px-5 py-2 flex flex-wrap items-center justify-between gap-2.5 text-xs text-slate-300 shrink-0">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>
+            <strong className="text-white">ZeroLeak AI & LaTeX Studio:</strong> In-project examination synthesis & typesetting active without external login.
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-slate-400 hidden sm:inline">
+            Official OpenAI Prism requires a direct browser tab:
+          </span>
+          <a
+            href="https://prism.openai.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] rounded-lg flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+            title="Open official OpenAI Prism in a new browser tab (supported sign-in flow)"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Open Official OpenAI Prism ↗</span>
+          </a>
+        </div>
+      </div>
+
       {/* ================= TOP STUDIO CONTROLS BAR ================= */}
       <div className="bg-white border-b border-slate-200 px-3 sm:px-5 py-2.5 flex flex-wrap items-center justify-between gap-2.5 shadow-2xs shrink-0">
         <div className="flex items-center gap-2.5">

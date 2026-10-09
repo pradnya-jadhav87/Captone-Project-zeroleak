@@ -280,12 +280,12 @@ const BrowserPane = React.forwardRef<
       )}
 
       {!desktopShell && !streamed && (
-        tab.url?.includes('zeroleak://studio') ? (
+        (tab.url?.includes('zeroleak://studio') || tab.url?.includes('prism.openai.com') || !tab.url) ? (
           <EmbeddedPrismStudio key={`${tab.id}:${tab.reloadKey}`} />
         ) : (
           <iframe
             key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
-            src={tab.url || 'https://prism.openai.com/'}
+            src={tab.url}
             title={`ZeroLeak tab ${tab.id}`}
             className="w-full h-full border-0 bg-white"
             onLoad={() => {
