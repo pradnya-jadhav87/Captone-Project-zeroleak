@@ -50,6 +50,7 @@ interface OpenAIPrismBrowserModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialUrl?: string;
+  showChrome?: boolean;
 }
 
 /**
@@ -106,6 +107,7 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
   isOpen,
   onClose,
   initialUrl = PRISM_SIGN_IN_URL,
+  showChrome,
 }) => {
   /** The URL of whichever tab the browser reports as active. */
   const [activeUrl, setActiveUrl] = useState<string>(initialUrl);
@@ -739,7 +741,7 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
             beforeNavigate={handleBeforeNavigate}
             reloadSignal={reloadSignal}
             onOpenExternal={handleOpenExternal}
-            chrome={false}
+            chrome={showChrome ?? desktopShell}
           />
           {downloadNotice && (
             <div className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-lg rounded-lg border border-emerald-800/70 bg-emerald-950/95 px-3 py-2 text-[11px] text-emerald-100 shadow-lg">
