@@ -1,0 +1,19 @@
+# Python scripts and requirements (executed locally or on dedicated proctoring hosts)
+requirements-python.txt
+*.py
+*.pt
+models/
+storage/
+
+# Desktop / Electron files
+electron/
+
+# Test suites & fixtures
+tests/
+test_results/
+scratch/
+
+# Local logs & database files
+*.sqlite*
+*.log
+

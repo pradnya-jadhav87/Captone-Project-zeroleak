@@ -1,0 +1,86 @@
+node_modules/
+build/
+dist/
+coverage/
+# The ngrok agent is a 33MB binary downloaded per machine, never a source file.
+.ngrok/
+.DS_Store
+*.log
+.env
+.env.local
+.env.production
+.env.*
+.env*.local
+!.env.example
+__pycache__/
+*.py[cod]
+.vite/
+0leakexam-main/
+# Nested embedded clone of this project — has its own .git, breaks git clone
+# (gitlink without .gitmodules) on Netlify. Never commit it.
+0leakexam/
+
+# Local database & temp files
+*.db
+*.sqlite
+*.sqlite*
+*.tmp
+
+# Generated question crops from PDF processing
+public/questions/*
+!public/questions/.gitkeep
+!public/questions/paper1/
+!public/questions/paper2/
+!public/questions/paper3/
+public/papers/*
+!public/papers/.gitkeep
+
+# Scratch and temporary work
+scratch/
+
+# Server RSA keypair that seals examination papers. A private key is never a
+# source file: commit it and every stored paper is readable by anyone.
+.zeroleak-server-key.pem
+*.server-key.pem
+
+# Claude Code local settings — contains a live API token, never commit
+.claude/settings.local.json
+.claude/*.local.json
+
+# Model weights and artifacts
+/models/
+NaviDC-OCR/outputs/
+*.safetensors
+*.bin
+*.pt
+.cache/
+public/competitive_visuals/*
+!public/competitive_visuals/.gitkeep
+
+# Generated questions and test suites
+test_results/
+output/
+tests/synthetic_data/
+tests/reports/
+tests/manual/
+public/uploads/
+.freebuff/
+public/compiled_papers/
+public/extracted_figures/
+public/generated_papers/
+*.traineddata
+*.tmp
+*.sqlite*
+ollama-*.mts
+server/probe_*.ts
+server/test_*.ts
+test_*.py
+test_*.cjs
+tests/role_counts.ts
+tests/test_insert_debug.ts
+storage/evidence/images/*
+!storage/evidence/images/.gitkeep
+storage/evidence/audio/*
+!storage/evidence/audio/.gitkeep
+
+
