@@ -657,7 +657,7 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
              */}
             <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm pl-2 border-l border-slate-800">
               <Sparkles className="w-4 h-4 text-emerald-400" />
-              <span>Prism</span>
+              <span>ZeroLeak</span>
             </div>
           </div>
 
@@ -665,8 +665,8 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
 
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Status indicator */}
-            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-medium text-slate-600 shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-[11px] font-medium text-slate-200 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>{desktopShell ? 'Desktop Native' : streamedBrowser.ready ? 'Live Browser' : 'ZeroLeak AI Studio'}</span>
             </div>
             <button

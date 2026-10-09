@@ -345,7 +345,7 @@ export const EmbeddedPrismStudio: React.FC = () => {
     {
       role: 'assistant',
       content:
-        '👋 Welcome to the **ZeroLeak AI Prism Studio**! I can help you generate examination questions, synthesize Solapur University 14 MCQs, format LaTeX equations, or structure Section I & II theory questions. What would you like to build?',
+        '👋 Welcome to the **ZeroLeak AI Studio**! I can help you generate examination questions, synthesize Solapur University 14 MCQs, format LaTeX equations, or structure Section I & II theory questions. What would you like to build?',
     },
   ]);
   const [promptInput, setPromptInput] = useState<string>('');
@@ -582,7 +582,7 @@ You can use the **Insert into Editor** button below to paste this into your pape
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight">
-                ZeroLeak — Prism AI & LaTeX Studio
+                ZeroLeak AI & LaTeX Studio
               </h2>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -590,7 +590,7 @@ You can use the **Insert into Editor** button below to paste this into your pape
               </span>
             </div>
             <p className="text-[11px] text-slate-500 hidden sm:block">
-              Prism AI Question Synthesizer • Solapur University 70M Pattern • 14 MCQs • Sections I & II
+              ZeroLeak AI Question Synthesizer • Solapur University 70M Pattern • 14 MCQs • Sections I & II
             </p>
           </div>
         </div>
@@ -635,7 +635,7 @@ You can use the **Insert into Editor** button below to paste this into your pape
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden md:inline">Prism AI Copilot</span>
+            <span className="hidden md:inline">ZeroLeak AI Copilot</span>
           </button>
         </div>
 
@@ -735,7 +735,7 @@ You can use the **Insert into Editor** button below to paste this into your pape
                   <Sparkles className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900">Prism AI Copilot</h3>
+                  <h3 className="text-xs font-bold text-slate-900">ZeroLeak AI Copilot</h3>
                   <p className="text-[10px] text-slate-500">Autonomous Question & LaTeX Synthesizer</p>
                 </div>
               </div>
