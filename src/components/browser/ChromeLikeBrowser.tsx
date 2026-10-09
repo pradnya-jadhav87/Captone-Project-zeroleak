@@ -292,6 +292,7 @@ const BrowserPane = React.forwardRef<
             // Without these, Prism's own window.open() for the OAuth popup returns null
             // and the provider reports openai-provider-validation-failed.
             sandbox={PANE_SANDBOX_FLAGS}
+            referrerPolicy="no-referrer"
             onLoad={() => {
               statusRef.current.onStop();
               statusRef.current.onTitle(tab.title || 'OpenAI Prism');

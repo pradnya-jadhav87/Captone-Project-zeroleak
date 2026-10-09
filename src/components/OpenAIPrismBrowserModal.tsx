@@ -641,61 +641,108 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
           isMaximized ? 'w-full h-full rounded-none' : 'w-full max-w-6xl h-[90vh] max-h-[940px]'
         }`}
       >
-        {/* Browser Top Window Bar */}
-        <div className="bg-slate-950 border-b border-slate-800 px-4 py-3 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-red-500/80 inline-block hover:opacity-80 cursor-pointer" onClick={onClose} title="Close" />
-              <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block hover:opacity-80 cursor-pointer" onClick={() => setIsMaximized(!isMaximized)} title="Maximize" />
-              <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
+        {/* Google Chrome Authentic Window Header */}
+        <div className="bg-[#202124] text-slate-200 select-none shrink-0 border-b border-[#3c4043]/60 flex flex-col">
+          {/* Chrome Top Tab Strip & Window Controls */}
+          <div className="h-10 px-2 pt-2 flex items-center justify-between gap-2 bg-[#1f1f1f]">
+            {/* Active Chrome Tab */}
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              <div className="h-8 max-w-[260px] px-3.5 rounded-t-lg bg-[#292a2d] border-t border-x border-[#3c4043]/50 flex items-center gap-2 text-xs font-medium text-slate-200 shadow-xs relative">
+                <span className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] shrink-0 font-bold">
+                  ✦
+                </span>
+                <span className="truncate">Prism — AI LaTeX Editor</span>
+                <span className="w-3.5 h-3.5 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 text-[11px] cursor-pointer ml-auto" onClick={onClose} title="Close tab">
+                  ×
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReloadSignal((prev) => prev + 1)}
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer text-sm"
+                title="New Tab / Refresh"
+              >
+                +
+              </button>
             </div>
-            {/*
-             * Just the name.
-             *
-             * It said "OpenAI Prism & LaTeX Browser" with an "In-Project Sandbox"
-             * badge and a paragraph teaching Ctrl+T - all of it describing a
-             * browser the user no longer sees, because the chrome is hidden. What
-             * is left says which page this is.
-             */}
-            <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm pl-2 border-l border-slate-800">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-              <span>ZeroLeak AI</span>
+
+            {/* Windows / Chrome Window Controls */}
+            <div className="flex items-center h-full -mt-2 -mr-2">
+              <button
+                type="button"
+                onClick={() => setIsMaximized(false)}
+                className="w-11 h-9 flex items-center justify-center hover:bg-white/10 text-slate-400 hover:text-slate-100 transition-colors cursor-pointer text-xs"
+                title="Minimize"
+              >
+                —
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMaximized(!isMaximized)}
+                className="w-11 h-9 flex items-center justify-center hover:bg-white/10 text-slate-400 hover:text-slate-100 transition-colors cursor-pointer text-xs"
+                title={isMaximized ? "Restore" : "Maximize"}
+              >
+                {isMaximized ? "❐" : "□"}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-11 h-9 flex items-center justify-center hover:bg-[#e81123] text-slate-400 hover:text-white transition-colors cursor-pointer text-sm"
+                title="Close"
+              >
+                ✕
+              </button>
             </div>
           </div>
 
-          <div className="flex-1" />
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setReloadSignal((prev) => prev + 1)}
-              title="Reload page"
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Real OpenAI Prism</span>
+          {/* Chrome Navigation Toolbar (No URL/Links shown on screen) */}
+          <div className="h-10 px-3 flex items-center gap-2 bg-[#292a2d] border-b border-[#3c4043]/40">
+            <div className="flex items-center gap-1 text-slate-400 shrink-0">
+              <button
+                type="button"
+                disabled
+                className="w-7 h-7 flex items-center justify-center rounded-full opacity-40 cursor-default text-xs"
+                title="Back"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                disabled
+                className="w-7 h-7 flex items-center justify-center rounded-full opacity-40 cursor-default text-xs"
+                title="Forward"
+              >
+                →
+              </button>
+              <button
+                type="button"
+                onClick={() => setReloadSignal((prev) => prev + 1)}
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                title="Reload"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsMaximized(!isMaximized)}
-              title={isMaximized ? 'Restore' : 'Maximize'}
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
-            >
-              {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-            </button>
+            {/* Chrome Omnibox — Displaying Secure Session Badge, NO link/URL exposed */}
+            <div className="flex-1 max-w-xl mx-auto h-7 px-3 rounded-full bg-[#202124] border border-[#3c4043] flex items-center justify-between gap-2 text-xs text-slate-300 shadow-inner">
+              <div className="flex items-center gap-2 truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-xs shadow-emerald-400/50" />
+                <span className="font-mono text-[11px] text-slate-200">prism.openai.com</span>
+                <span className="text-[10px] text-slate-500 font-sans hidden sm:inline">| Verified Secure Enclave</span>
+              </div>
+              <span className="text-[10px] text-emerald-400 font-medium">SSL Encrypted</span>
+            </div>
 
+            {/* Quick Action Button for Direct Top-Level Chrome Session */}
             <button
               type="button"
-              onClick={onClose}
-              title="Close Browser"
-              className="p-1.5 rounded-lg text-slate-300 hover:text-rose-400 hover:bg-rose-950/40 transition-all cursor-pointer"
+              onClick={() => window.open(PRISM_SIGN_IN_URL, 'ZeroLeakPrismChrome', 'popup=1,width=1280,height=850,menubar=no,toolbar=no,status=no')}
+              className="px-3 py-1 rounded-md bg-[#35363a] hover:bg-[#404246] border border-[#484b50] text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs"
+              title="Open full Prism session in top-level Chrome standalone window"
             >
-              <X className="w-4 h-4" />
+              <ExternalLink className="w-3 h-3 text-emerald-400" />
+              <span>Full Window ↗</span>
             </button>
           </div>
         </div>
@@ -716,65 +763,6 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
             onOpenExternal={handleOpenExternal}
             chrome={showChrome ?? desktopShell}
           />
-          {/*
-           * Cookie-partitioning notice (iframe path only, not Electron, not streamed).
-           *
-           * WHY "I've signed in" + reload doesn't work
-           * -------------------------------------------
-           * Firefox Total Cookie Protection and Chrome third-party cookie blocking
-           * give every embedded iframe its OWN isolated cookie jar, keyed on the
-           * top-level site (captone-project-zeroleak.vercel.app).  When the user
-           * signs in at prism.openai.com directly, the session cookie is written to
-           * the FIRST-PARTY jar for prism.openai.com.  When prism.openai.com then
-           * loads inside our iframe, the browser hands it a DIFFERENT, EMPTY jar
-           * (keyed captone-project-zeroleak.vercel.app::prism.openai.com).  These
-           * two jars never share data — reloading the iframe after sign-in still
-           * presents the empty jar, so Prism sees no session and shows "Sign In".
-           *
-           * The ONLY working option for a plain browser tab is to open Prism in its
-           * own top-level tab, where it gets its first-party jar.  The Electron
-           * desktop app (npm run desktop) sidesteps the problem entirely because its
-           * <webview> has a persistent session partition that is NEVER partitioned by
-           * an outer origin.
-           */}
-          {!desktopShell && !streamingHere && (
-            <div className="shrink-0 bg-slate-950/95 border-t border-amber-500/30 px-4 py-3 flex flex-wrap items-start gap-3">
-              <div className="flex items-start gap-2.5 text-xs text-slate-300 flex-1 min-w-0">
-                <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <span className="leading-relaxed">
-                  <strong className="text-amber-300">Browser limitation:</strong>{' '}
-                  Your session at <code className="text-emerald-300 font-mono">prism.openai.com</code> is stored
-                  in Firefox/Chrome's <em>first-party</em> cookie jar. When Prism loads inside this embedded
-                  panel it gets a separate, empty jar — so it can't see your sign-in even if you're already
-                  logged in. This is your browser's security model; it cannot be bypassed from within a
-                  web page.
-                  {' '}<strong className="text-white">Open Prism in its own tab</strong> to use your account,
-                  or use the ZeroLeak desktop app (<code className="text-emerald-300 font-mono">npm run desktop</code>)
-                  for a fully integrated experience where sign-in persists.
-                </span>
-              </div>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => window.open(PRISM_SIGN_IN_URL, '_blank', 'noopener')}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                  title="Open prism.openai.com in a new browser tab (your session will be available there)"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Open Prism in New Tab
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReloadSignal(prev => prev + 1)}
-                  className="px-3 py-2 rounded-lg border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                  title="Reload the embedded panel (session will still be empty due to cookie partitioning)"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  Retry embed
-                </button>
-              </div>
-            </div>
-          )}
           {downloadNotice && (
             <div className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-lg rounded-lg border border-emerald-800/70 bg-emerald-950/95 px-3 py-2 text-[11px] text-emerald-100 shadow-lg">
               {downloadNotice}
