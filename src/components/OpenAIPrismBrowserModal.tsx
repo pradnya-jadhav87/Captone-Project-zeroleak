@@ -676,19 +676,9 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
             </button>
 
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <span>Real OpenAI Prism</span>
             </div>
-
-            <button
-              type="button"
-              onClick={() => handleOpenExternal('https://prism.openai.com/')}
-              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-              title="Open real OpenAI Prism in a dedicated window"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Launch Prism Window ↗</span>
-            </button>
 
             <button
               type="button"
@@ -712,23 +702,6 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
 
         {/* Web Viewport Area */}
         <div className="flex-1 w-full bg-slate-950 overflow-hidden flex flex-col">
-          <div className="bg-emerald-950/95 border-b border-emerald-500/40 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5 text-xs text-white shrink-0 shadow-md">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>
-                <strong>Real OpenAI Prism Active:</strong> To bypass browser third-party frame cookie errors (<code className="text-emerald-200 bg-emerald-900/60 px-1 py-0.5 rounded text-[11px] font-mono">openai-provider-validation-failed</code>), use the dedicated window:
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleOpenExternal('https://prism.openai.com/')}
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
-              title="Launch Real Prism in a dedicated top-level window"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Launch Dedicated Prism Window ↗</span>
-            </button>
-          </div>
           <ChromeLikeBrowser
             desktopShell={desktopShell}
             initialUrl={initialUrl}

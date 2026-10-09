@@ -94,10 +94,7 @@ export const PaperGenerationModule: React.FC<PaperGenProps> = ({ currentUser, on
 
         <button
           type="button"
-          onClick={() => {
-            window.open('https://prism.openai.com/', 'OpenAIPrismApp', 'width=1280,height=850,menubar=no,toolbar=no,location=yes,status=no');
-            setShowPrismBrowser(true);
-          }}
+          onClick={() => setShowPrismBrowser(true)}
           className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 bg-gradient-to-r from-[#00A878] to-[#00B8D9] hover:from-[#009166] hover:to-[#00a3c2] text-white shadow-md shadow-[#00A878]/25 border border-[#00C98B]/30 transition-all cursor-pointer shrink-0 hover:-translate-y-0.5"
           title="Open Real OpenAI Prism"
         >

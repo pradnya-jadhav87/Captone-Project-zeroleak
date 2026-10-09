@@ -621,10 +621,7 @@ export const TranslatorWorkspace: React.FC<TranslatorWorkspaceProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => {
-                    window.open('https://prism.openai.com/', 'OpenAIPrismApp', 'width=1280,height=850,menubar=no,toolbar=no,location=yes,status=no');
-                    setShowPrismBrowser(true);
-                  }}
+                  onClick={() => setShowPrismBrowser(true)}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white shadow-xs border border-purple-400/30 transition-all cursor-pointer shrink-0"
                   title="Open Real OpenAI Prism"
                 >
@@ -1424,10 +1421,7 @@ export const TranslatorWorkspace: React.FC<TranslatorWorkspaceProps> = ({
 
               <button
                 type="button"
-                onClick={() => {
-                  window.open('https://prism.openai.com/', 'OpenAIPrismApp', 'width=1280,height=850,menubar=no,toolbar=no,location=yes,status=no');
-                  setShowPrismBrowser(true);
-                }}
+                onClick={() => setShowPrismBrowser(true)}
                 className="px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white shadow-xs border border-purple-400/30 transition-all cursor-pointer shrink-0"
                 title="Open Real OpenAI Prism"
               >
