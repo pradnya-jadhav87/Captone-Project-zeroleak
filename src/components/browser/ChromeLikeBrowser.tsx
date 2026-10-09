@@ -259,120 +259,225 @@ const PRISM_OS_LATEX = `\\documentclass[11pt,a4paper]{article}
 
 \\begin{document}
 
+% ==========================================
+% PAGE 1: TITLE, INSTRUCTIONS & MCQs 1 to 5
+% ==========================================
 \\begin{center}
     {\\large \\textbf{PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR}}\\\\[3pt]
     {\\textbf{FACULTY OF SCIENCE \\& TECHNOLOGY}}\\\\[2pt]
-    {\\textbf{T.Y. B.Tech. (Semester II) Examination --- OPERATING SYSTEMS}}\\\\[2pt]
-    \\textbf{Day \\& Date:} Saturday, 17-05-2025 \\hfill \\textbf{Max. Marks: 70}\\\\
-    \\textbf{Time:} 10:00 AM to 01:00 PM (3 Hours) \\hfill \\textbf{Course Code: BTN04605}
+    {\\textbf{T. Y. (B.Tech.) (Electronics Engineering) (Semester - II) (New) (CBCS) Examination: March/April - 2026}}\\\\[2pt]
+    {\\large \\textbf{Operating Systems (BTN04605)}}\\\\[2pt]
+    \\textbf{Day \\& Date:} Monday, 25-05-2026 \\hfill \\textbf{Max. Marks: 70}\\\\
+    \\textbf{Time:} 10:00 AM To 01:00 PM \\hfill \\textbf{Course Code: BTN04605}
 \\end{center}
 
 \\noindent\\rule{\\linewidth}{0.8pt}
 
-\\noindent \\textbf{General Instructions:}
+\\noindent \\textbf{Instructions:}
 \\begin{enumerate}[label=\\textbf{\\arabic*)}]
-    \\item Question 1 is compulsory and should be completed in the first 30 minutes.
-    \\item In Questions 2 to 5, follow the choice specified for each question.
-    \\item Figures to the right indicate full marks. Assume suitable data if necessary.
-    \\item Draw neat, labeled diagrams wherever required.
+    \\item Q. No. 1 is compulsory. It should be solved in the first 30 minutes in Answer Book Page no 03 (Starting page of the Answer Book). Each question carries one mark.
+    \\item Don't forget to Mention question paper set (P/Q/R/S) on top of page.
+    \\item Figures to the right indicate full marks.
+    \\item Assume suitable data if necessary.
 \\end{enumerate}
 
 \\noindent\\rule{\\linewidth}{0.5pt}
 
 \\begin{center}
-    {\\large \\textbf{SECTION --- I}}
+    {\\large \\textbf{MCQ / OBJECTIVE TYPE QUESTIONS}} \\hfill \\textbf{[Duration: 30 Minutes]} \\hfill \\textbf{[14 Marks]}
 \\end{center}
 
-\\noindent \\textbf{Q.1 Choose the correct alternative for each of the following:} \\hfill \\textbf{[14 Marks]}
+\\noindent \\textbf{Q.1 Choose the correct answer:} \\hfill \\textbf{[14 Marks]}
 
 \\begin{enumerate}[label=\\textbf{\\arabic*)}]
-    \\item In the many-to-one threading model, if a thread makes a blocking system call, what occurs?
+    \\item In the Many to One model, if a thread makes a blocking system call \\underline{\\hspace{2cm}}.
     \\begin{enumerate}[label=(\\alph*)]
-        \\item Only that individual thread blocks
-        \\item The entire process blocks completely (Correct)
-        \\item A new thread is immediately spawned
-        \\item Kernel panic occurs
+        \\item the entire process will be blocked (Correct)
+        \\item a part of the process will stay blocked, with the rest running
+        \\item the entire process will run
+        \\item None of these
     \\end{enumerate}
 
-    \\item Which system call suspends a parent process until one of its child processes terminates?
+    \\item What is the primary purpose of cooperating processes in an operating system?
     \\begin{enumerate}[label=(\\alph*)]
-        \\item \\texttt{fork()}
-        \\item \\texttt{exec()}
-        \\item \\texttt{wait()} (Correct)
-        \\item \\texttt{exit()}
+        \\item To enhance CPU scheduling algorithms
+        \\item To share system resources and data among multiple processes (Correct)
+        \\item To reduce the number of system calls
+        \\item To improve disk access speed
     \\end{enumerate}
 
-    \\item Round-robin CPU scheduling is categorized as which type of scheduling algorithm?
+    \\item A parent process calling \\underline{\\hspace{2cm}} system call will be suspended until children processes terminate.
     \\begin{enumerate}[label=(\\alph*)]
+        \\item fork
+        \\item wait (Correct)
+        \\item exit
+        \\item exec
+    \\end{enumerate}
+
+    \\item To ensure difficulties do not arise in the readers - writers problem, \\underline{\\hspace{2cm}} are given exclusive access to the shared object.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item readers
+        \\item writers (Correct)
+        \\item both a) and b)
+        \\item None of these
+    \\end{enumerate}
+
+    \\item Round robin scheduling falls under the category of : \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Non preemptive scheduling
         \\item Preemptive scheduling (Correct)
-        \\item Non-preemptive scheduling
-        \\item Static priority scheduling
-        \\item First-Come First-Served scheduling
-    \\end{enumerate}
-
-    \\item A process that is continually denied access to the CPU/resources it requires is experiencing:
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item Deadlock
-        \\item Starvation (Correct)
-        \\item Thrashing
-        \\item Aging
-    \\end{enumerate}
-
-    \\item Which page replacement algorithm suffers from Belady's Anomaly?
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item Optimal Algorithm (OPT)
-        \\item Least Recently Used (LRU)
-        \\item First-In First-Out (FIFO) (Correct)
-        \\item Least Frequently Used (LFU)
-    \\end{enumerate}
-
-    \\item In Dijkstra's Banker's Algorithm for deadlock avoidance, if a Safe State exists, the system is:
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item Completely free from deadlock (Correct)
-        \\item In immediate deadlock
-        \\item Experiencing resource starvation
-        \\item Thrashing
-    \\end{enumerate}
-
-    \\item The Translation Lookaside Buffer (TLB) in virtual memory hardware caches:
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item Virtual page number to physical frame translations (Correct)
-        \\item Secondary storage disk blocks
-        \\item CPU general-purpose registers
-        \\item Open file descriptors
+        \\item both a) and b)
+        \\item None of these
     \\end{enumerate}
 \\end{enumerate}
 
-\\vspace{8pt}
-\\noindent \\textbf{Q.2 Attempt any three of the following:} \\hfill \\textbf{[12 Marks]}
+\\newpage
+
+% ==========================================
+% PAGE 2: MCQs 6 to 14
+% ==========================================
+\\noindent \\textbf{Q.1 (Continued) Choose the correct answer:}
+
+\\begin{enumerate}[label=\\textbf{\\arabic*)}, resume]
+    \\item The entry of all the PCBs of the current processes is in: \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Process Register
+        \\item Program Counter
+        \\item Process Table (Correct)
+        \\item Process Unit
+    \\end{enumerate}
+
+    \\item In a batch processing environment, what is a job queue?
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item A queue that stores processes waiting for CPU time
+        \\item A queue that stores user input for processing
+        \\item A queue that stores jobs awaiting execution (Correct)
+        \\item A queue that stores output data from completed processes
+    \\end{enumerate}
+
+    \\item The circular wait condition can be prevented by \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item defining a linear ordering of resource types (Correct)
+        \\item using thread
+        \\item using pipes
+        \\item All of the mentioned
+    \\end{enumerate}
+
+    \\item A problem encountered in multitasking when a process is permanently denied necessary resources is called \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item deadlock
+        \\item starvation (Correct)
+        \\item inversion
+        \\item aging
+    \\end{enumerate}
+
+    \\item The \\underline{\\hspace{2cm}} is used as an index into the page table.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item frame bit
+        \\item page number (Correct)
+        \\item page offset
+        \\item frame offset
+    \\end{enumerate}
+
+    \\item Paging increases the \\underline{\\hspace{2cm}} time.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item waiting
+        \\item execution
+        \\item context - switch (Correct)
+        \\item All of the mentioned
+    \\end{enumerate}
+
+    \\item \\underline{\\hspace{2cm}} is generally faster than \\underline{\\hspace{2cm}} and \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item first fit, best fit, worst fit (Correct)
+        \\item best fit, first fit, worst fit
+        \\item worst fit, best fit, first fit
+        \\item None of the mentioned
+    \\end{enumerate}
+
+    \\item File attributes consist of \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item name
+        \\item type
+        \\item identifier
+        \\item All of the mentioned (Correct)
+    \\end{enumerate}
+
+    \\item Which process is busy swapping pages in and out.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Division
+        \\item External Fragmentation
+        \\item Thrashing (Correct)
+        \\item Compaction
+    \\end{enumerate}
+\\end{enumerate}
+
+\\newpage
+
+% ==========================================
+% PAGE 3: SECTION - I (Q.2 & Q.3 with Table)
+% ==========================================
+\\begin{center}
+    {\\large \\textbf{SECTION --- I}} \\hfill \\textbf{[Max. Marks: 56]}
+\\end{center}
+
+\\noindent \\textbf{Q.2 Attempt the following. (Any Four)} \\hfill \\textbf{[16 Marks]}
 \\begin{enumerate}[label=\\textbf{\\alph*)}]
-    \\item Explain the components of a Process Control Block (PCB) with an illustrative block diagram.
-    \\item Compare user-level threads and kernel-level threads with trade-offs.
-    \\item Describe the four Coffman conditions necessary for a Deadlock to occur.
-    \\item Differentiate between Round Robin (RR) and Shortest Job First (SJF) scheduling.
+    \\item Analyze bounded buffer problem as classical problems of synchronization.
+    \\item Write a short note on multiprogramming operating systems.
+    \\item Explain the shared memory systems of interprocess communication.
+    \\item Discuss the role of the process control block (PCB) in process management. Explain the information typically stored in a PCB.
+    \\item Explain the difference between non-preemptive and preemptive scheduling algorithms. Discuss the advantages and disadvantages of each approach in terms of system responsiveness and fairness.
 \\end{enumerate}
 
-\\vspace{8pt}
-\\noindent \\textbf{Q.3 Algorithmic Derivation:} \\hfill \\textbf{[08 Marks]}\\\\
-Explain Peterson's Algorithm for mutual exclusion between two cooperating processes. Prove how it satisfies Mutual Exclusion, Progress, and Bounded Waiting.
+\\vspace{10pt}
+\\noindent \\textbf{Q.3 Attempt the following. (Any Two)} \\hfill \\textbf{[12 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Explain process creation and termination operations in detail.
+    \\item Define thread. Describe the three multithreading models with suitable diagram.
+    \\item Consider four processes P1, P2, P3, and P4 with their priority and CPU burst in milliseconds:
+    
+    \\begin{center}
+    \\begin{tabular}{|c|c|c|}
+    \\hline
+    \\textbf{Process} & \\textbf{CPU burst time (ms)} & \\textbf{Priority} \\\\
+    \\hline
+    P1 & 10 & 4 \\\\
+    P2 & 5 & 3 \\\\
+    P3 & 2 & 1 \\\\
+    P4 & 3 & 2 \\\\
+    \\hline
+    \\end{tabular}
+    \\end{center}
+    
+    How these processes will be scheduled according to priority scheduling algorithm? Compute the average waiting time and average turnaround time.
+\\end{enumerate}
 
-\\noindent\\rule{\\linewidth}{0.5pt}
+\\newpage
 
+% ==========================================
+% PAGE 4: SECTION - II (Q.4 & Q.5 with c)
+% ==========================================
 \\begin{center}
     {\\large \\textbf{SECTION --- II}}
 \\end{center}
 
-\\noindent \\textbf{Q.4 Attempt any three of the following:} \\hfill \\textbf{[12 Marks]}
+\\noindent \\textbf{Q.4 Answer the following. (Any Four)} \\hfill \\textbf{[16 Marks]}
 \\begin{enumerate}[label=\\textbf{\\alph*)}]
-    \\item Explain Demand Paging and detail the complete step-by-step Page Fault handling procedure.
-    \\item Differentiate between Internal and External Fragmentation. How does Paging solve external fragmentation?
-    \\item Compare Contiguous, Linked, and Indexed File Allocation methods.
-    \\item Explain FCFS, SSTF, SCAN, and C-SCAN Disk Scheduling algorithms with illustrations.
+    \\item Elaborate terms swapping and paging. Compare swapping and paging.
+    \\item Explain various methods for recovery from deadlock.
+    \\item What is page fault? How is it handled by OS?
+    \\item What is resource allocation graph in OS? What are the different elements of RAG? How is RAG utilized to decide about presence of deadlock?
+    \\item What are the drawbacks of paging? Describe segmentation mechanism in OS.
 \\end{enumerate}
 
-\\vspace{8pt}
-\\noindent \\textbf{Q.5 Memory Management Problem:} \\hfill \\textbf{[08 Marks]}\\\\
-Given page reference string: $7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1$ with 3 allocated physical frames. Calculate the total number of page faults using (i) FIFO Page Replacement and (ii) LRU Page Replacement.
+\\vspace{10pt}
+\\noindent \\textbf{Q.5 Answer the following. (Any Two)} \\hfill \\textbf{[12 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Explain FIFO and optimal page replacement algorithm in detail.
+    \\item Explain various free space management approaches in OS.
+    \\item What is internal and external fragmentation in OS? Differentiate between internal and external fragmentation. \\hfill \\textbf{[6 Marks]}
+\\end{enumerate}
 
 \\end{document}`;
 
@@ -396,33 +501,114 @@ export interface PicturePage {
   height: number;
 }
 
-interface ParsedLatexDoc {
-  isPictureMode: boolean;
-  picturePages: PicturePage[];
-  university?: string;
-  faculty?: string;
-  examTitle?: string;
-  dayDate?: string;
-  time?: string;
-  maxMarks?: string;
-  paperCode?: string;
-  instructions: string[];
-  sections: {
-    title?: string;
-    questions: {
-      number?: string;
-      title: string;
-      marks?: string;
-      options?: string[];
-      details?: string;
-    }[];
-  }[];
+export interface TabularData {
+  headers: string[];
+  rows: string[][];
+}
+
+export function parseTabular(raw: string): TabularData | null {
+  const match = raw.match(/\\begin\{tabular\}\{[^}]*\}([\s\S]*?)\\end\{tabular\}/i);
+  if (!match) return null;
+  const content = match[1];
+  const rawRows = content
+    .split(/\\\\|\\cr/)
+    .map((r) => r.replace(/\\(?:hline|toprule|midrule|bottomrule)/g, '').trim())
+    .filter((r) => r.length > 0);
+
+  if (rawRows.length === 0) return null;
+
+  const parsed = rawRows.map((r) =>
+    r.split('&').map((cell) =>
+      cell
+        .replace(/\\textbf\{([^}]+)\}/g, '$1')
+        .replace(/[{}]/g, '')
+        .trim(),
+    ),
+  );
+
+  return {
+    headers: parsed[0] || [],
+    rows: parsed.slice(1),
+  };
+}
+
+export const AcademicTable: React.FC<{ data: TabularData }> = ({ data }) => {
+  if (!data || data.headers.length === 0) return null;
+  return (
+    <div className="my-3 overflow-x-auto flex justify-center">
+      <table className="min-w-[280px] max-w-full border-collapse border border-black text-center text-[10.5px] font-serif shadow-2xs">
+        <thead>
+          <tr className="bg-slate-100/90">
+            {data.headers.map((h, i) => (
+              <th key={i} className="border border-black px-3 py-1.5 font-bold">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.rows.map((row, rIdx) => (
+            <tr key={rIdx} className={rIdx % 2 === 1 ? 'bg-slate-50/60' : 'bg-white'}>
+              {row.map((cell, cIdx) => (
+                <td key={cIdx} className="border border-black px-3 py-1.5">
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+export interface StandardQuestion {
+  number?: string;
+  title: string;
+  marks?: string;
+  options?: string[];
+  details?: string;
+  table?: TabularData;
+}
+
+export interface StandardSection {
+  title?: string;
+  questions: StandardQuestion[];
+}
+
+export interface StandardPage {
+  pageNumber: number;
+  header?: {
+    university?: string;
+    faculty?: string;
+    examTitle?: string;
+    dayDate?: string;
+    time?: string;
+    maxMarks?: string;
+    paperCode?: string;
+  };
+  instructions?: string[];
+  sections: StandardSection[];
   rawParagraphs: string[];
 }
 
+interface ParsedLatexDoc {
+  isPictureMode: boolean;
+  picturePages: PicturePage[];
+  standardPages: StandardPage[];
+}
+
 function parseLatexPicture(latex: string): PicturePage[] {
-  let chunks = latex.split(/(?=\\begin\{picture\}|\\clearpage|\\newpage)/i);
-  if (chunks.length === 0) chunks = [latex];
+  let rawChunks = latex.split(/(?=\\begin\{picture\}|\\clearpage|\\newpage|\\pagebreak|%+\s*(?:---+\s*)?PAGE\s*\d+)/i);
+  if (rawChunks.length === 0) rawChunks = [latex];
+
+  const chunks: string[] = [];
+  rawChunks.forEach((chunk) => {
+    const sub = chunk.split(/(?<=\\end\{picture\})/i);
+    sub.forEach((s) => {
+      if (s.trim().length > 0) chunks.push(s);
+    });
+  });
 
   const pages: PicturePage[] = [];
 
@@ -475,30 +661,36 @@ function parseLatexPicture(latex: string): PicturePage[] {
 
     if (items.length === 0) return;
 
-    let minY = items[0].y;
-    for (const it of items) {
-      if (it.y < minY) minY = it.y;
-    }
-
     const isNegativeY = items.some((it) => it.y < 0);
 
+    // Group items into rows comparing absolute Y coordinates to reconcile +/- signs
     const linesMap = new Map<number, typeof items>();
     for (const it of items) {
+      const targetY = isNegativeY ? -Math.abs(it.y) : it.y;
       let matchedY: number | null = null;
       for (const key of linesMap.keys()) {
-        if (Math.abs(key - it.y) < 3.5) {
+        if (Math.abs(key - targetY) < 3.5) {
           matchedY = key;
           break;
         }
       }
       if (matchedY === null) {
-        matchedY = it.y;
+        matchedY = targetY;
         linesMap.set(matchedY, []);
       }
       linesMap.get(matchedY)!.push(it);
     }
 
     const sortedY = Array.from(linesMap.keys()).sort((a, b) => b - a);
+
+    // Determine visual bounds from top of page
+    const allVisualTops = sortedY.map((y) => (isNegativeY ? Math.abs(y) : Math.max(0, 842 - y)));
+    const minVisualTop = Math.min(...allVisualTops);
+    const maxVisualTop = Math.max(...allVisualTops);
+    const contentSpan = maxVisualTop - minVisualTop;
+
+    // Coordinate Auto-Framing: If content starts lower than 80px down, normalize top margin to 40px
+    const topOffset = minVisualTop > 80 ? minVisualTop - 40 : 0;
 
     const lines: PictureLine[] = sortedY.map((y) => {
       const row = linesMap.get(y)!;
@@ -528,6 +720,10 @@ function parseLatexPicture(latex: string): PicturePage[] {
             text: it.text,
           };
         } else {
+          // If there is a noticeable word boundary gap, preserve space
+          if (gap > 3 && !curSegment.text.endsWith(' ') && !it.text.startsWith(' ')) {
+            curSegment.text += ' ';
+          }
           curSegment.text += it.text;
           if (it.isBold) curSegment.isBold = true;
           if (it.isItalic) curSegment.isItalic = true;
@@ -535,7 +731,8 @@ function parseLatexPicture(latex: string): PicturePage[] {
       }
       segments.push(curSegment);
 
-      const top = isNegativeY ? Math.abs(y) : Math.max(0, 842 - y);
+      const rawTop = isNegativeY ? Math.abs(y) : Math.max(0, 842 - y);
+      const top = Math.max(20, Math.round(rawTop - topOffset));
 
       return {
         y,
@@ -545,7 +742,12 @@ function parseLatexPicture(latex: string): PicturePage[] {
       };
     });
 
-    const pageHeight = Math.max(842, isNegativeY ? Math.abs(minY) + 70 : 842);
+    // Dynamic height calculation: fragments get natural card height; full pages get standard 842px
+    const pageHeight =
+      contentSpan < 450 && lines.length < 15
+        ? Math.max(300, Math.min(842, contentSpan + 140))
+        : 842;
+
     pages.push({ lines, height: pageHeight });
   });
 
@@ -556,15 +758,19 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
   const result: ParsedLatexDoc = {
     isPictureMode: false,
     picturePages: [],
-    instructions: [],
-    sections: [],
-    rawParagraphs: [],
+    standardPages: [],
   };
 
   if (!latex || !latex.trim()) return result;
 
-  // Mode 1: Check for \put(x,y) or \begin{picture}
-  if (latex.includes('\\put')) {
+  // Decide mode: Check frequency of \put vs questions/sections
+  const putMatches = latex.match(/\\put\s*\(/g);
+  const putCount = putMatches ? putMatches.length : 0;
+  const questionMatches = latex.match(/(?:\\textbf\{\s*Q\.\s*\d+|\\section\*?\{)/g);
+  const questionCount = questionMatches ? questionMatches.length : 0;
+
+  // If predominant picture mode (e.g. converted PDF pages, Mathpix output)
+  if (putCount > 0 && questionCount === 0) {
     const pages = parseLatexPicture(latex);
     if (pages.length > 0) {
       result.isPictureMode = true;
@@ -573,14 +779,14 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
     }
   }
 
-  // Mode 2 & 3: Standard Academic & General LaTeX AST parser
+  // Standard Academic & Hybrid LaTeX AST parser
   const lines = latex.split('\n');
   const bodyLines: string[] = [];
   let inPreamble = true;
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed.startsWith('%')) continue;
+    if (trimmed.startsWith('%') && !trimmed.includes('PAGE')) continue;
     if (trimmed.includes('\\begin{document}')) {
       inPreamble = false;
       continue;
@@ -595,185 +801,205 @@ function parseLatexDocument(latex: string): ParsedLatexDoc {
 
   const cleanBody = (bodyLines.length > 0 ? bodyLines : lines).join('\n');
 
-  // Extract University name
+  // Extract global University header metadata
   const univMatch =
     cleanBody.match(/\\textbf\{([^}]+UNIVERSITY[^}]*)\}/i) ||
     cleanBody.match(/([A-Z\s]{8,}UNIVERSITY[A-Z\s,]*)/i);
-  if (univMatch && univMatch[1]) {
-    result.university = univMatch[1]
-      .replace(/\\\[.*?\]/g, '')
-      .replace(/\\\\/g, '')
-      .replace(/\\large/g, '')
-      .trim();
-  }
+  const globalUniversity = univMatch && univMatch[1]
+    ? univMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/\\large/g, '').trim()
+    : undefined;
 
-  // Extract Faculty
   const facMatch =
     cleanBody.match(/\\textbf\{([^}]+FACULTY[^}]*)\}/i) ||
     cleanBody.match(/(FACULTY OF [^\\\n}]+)/i);
-  if (facMatch && facMatch[1]) {
-    result.faculty = facMatch[1]
-      .replace(/\\\[.*?\]/g, '')
-      .replace(/\\\\/g, '')
-      .replace(/\\&/g, '&')
-      .trim();
-  }
+  const globalFaculty = facMatch && facMatch[1]
+    ? facMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/\\&/g, '&').trim()
+    : undefined;
 
-  // Extract Examination title
   const examMatch =
     cleanBody.match(
       /\\textbf\{([^}]+(?:Examination|B\.Tech|T\.Y\.|M\.Tech|Engineering|Diploma)[^}]*)\}/i,
     ) || cleanBody.match(/((?:B\.Tech|T\.Y\.|Examination)[^\\\n}]+)/i);
-  if (examMatch && examMatch[1]) {
-    result.examTitle = examMatch[1]
-      .replace(/\\\[.*?\]/g, '')
-      .replace(/\\\\/g, '')
-      .replace(/---/g, '—')
-      .replace(/\\&/g, '&')
-      .trim();
-  }
+  const globalExamTitle = examMatch && examMatch[1]
+    ? examMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/---/g, '—').replace(/\\&/g, '&').trim()
+    : undefined;
 
-  // Extract Max Marks
-  const marksMatch =
-    cleanBody.match(/Max\.\s*Marks:\s*(\d+)/i) ||
-    cleanBody.match(/Marks:\s*(\d+)/i);
-  if (marksMatch) {
-    result.maxMarks = marksMatch[1];
-  }
+  const marksMatch = cleanBody.match(/Max\.\s*Marks:\s*(\d+)/i) || cleanBody.match(/Marks:\s*(\d+)/i);
+  const globalMaxMarks = marksMatch ? marksMatch[1] : undefined;
 
-  // Extract Paper Code
   const codeMatch = cleanBody.match(/(?:Paper|Course)\s*Code:\s*([A-Za-z0-9\-_]+)/i);
-  if (codeMatch) {
-    result.paperCode = codeMatch[1];
-  }
+  const globalPaperCode = codeMatch ? codeMatch[1] : undefined;
 
-  // Extract Time
   const timeMatch = cleanBody.match(/Time:\s*([0-9\s:AMPMapm.\-–—()Hours]+)/i);
-  if (timeMatch) {
-    result.time = timeMatch[1].replace(/\\hfill.*/, '').replace(/\\\\/, '').trim();
-  }
+  const globalTime = timeMatch ? timeMatch[1].replace(/\\hfill.*/, '').replace(/\\\\/, '').trim() : undefined;
 
-  // Extract Day & Date
   const dateMatch = cleanBody.match(/Day\s*\\?&\s*Date:\s*([^\\}\n]+)/i);
-  if (dateMatch) {
-    result.dayDate = dateMatch[1].replace(/\\hfill.*/, '').replace(/\\\\/, '').trim();
-  }
+  const globalDayDate = dateMatch ? dateMatch[1].replace(/\\hfill.*/, '').replace(/\\\\/, '').trim() : undefined;
 
-  // Extract Instructions
+  // Extract instructions
+  const globalInstructions: string[] = [];
   const instBlockMatch = cleanBody.match(/Instructions[^:]*:\s*\\begin\{enumerate\}([\s\S]*?)\\end\{enumerate\}/i);
   if (instBlockMatch) {
     const rawItems = instBlockMatch[1].split(/\\item\s+/).slice(1);
-    result.instructions = rawItems.map((it, idx) => `${idx + 1}) ${it.replace(/\\end\{enumerate\}.*/, '').trim()}`);
-  } else if (result.university || result.examTitle) {
-    result.instructions = [
+    rawItems.forEach((it, idx) => {
+      const cleanInst = it.replace(/\\end\{enumerate\}.*/, '').trim();
+      if (cleanInst) globalInstructions.push(`${idx + 1}) ${cleanInst}`);
+    });
+  } else if (globalUniversity || globalExamTitle) {
+    globalInstructions.push(
       '1) All questions are compulsory. Figures to the right indicate full marks.',
       '2) Question 1 is compulsory. Follow specified choices for other questions.',
       '3) Draw neat diagrams wherever required.',
-    ];
+    );
   }
 
-  // Split into Sections
-  const rawSections = cleanBody.split(/(?=\\section|SECTION\s*---\s*[I|V|X]+|SECTION\s*-\s*[I|V|X]+)/i);
+  // Split into multiple pages if \newpage, \clearpage, or \pagebreak exists
+  const rawPages = cleanBody.split(/(?:\\newpage|\\clearpage|\\pagebreak)/i);
 
-  rawSections.forEach((secChunk) => {
-    const secTrimmed = secChunk.trim();
-    if (!secTrimmed) return;
+  rawPages.forEach((pageChunk, pageIndex) => {
+    const chunkTrim = pageChunk.trim();
+    if (!chunkTrim) return;
 
-    let secTitle = '';
-    const titleMatch = secTrimmed.match(/(?:\\section\*?\{([^}]+)\}|SECTION\s*---?\s*[I|V|X]+[^}\n\\]*)/i);
-    if (titleMatch) {
-      secTitle = (titleMatch[1] || titleMatch[0])
-        .replace(/\\textbf\{([^}]+)\}/g, '$1')
-        .replace(/\\large/g, '')
-        .replace(/---/g, '—')
-        .replace(/[{}]/g, '')
-        .trim();
-    }
-
-    const currentSection: {
-      title?: string;
-      questions: {
-        number?: string;
-        title: string;
-        marks?: string;
-        options?: string[];
-      }[];
-    } = {
-      title: secTitle,
-      questions: [],
+    const standardPage: StandardPage = {
+      pageNumber: pageIndex + 1,
+      sections: [],
+      rawParagraphs: [],
     };
 
-    // Split questions by \textbf{Q. or \item
-    const qBlocks = secTrimmed.split(/(?=(?:\\noindent\s*)?\\textbf\{\s*Q\.\s*\d+)/i);
+    // Header & Instructions on Page 1
+    if (pageIndex === 0 && (globalUniversity || globalFaculty || globalExamTitle)) {
+      standardPage.header = {
+        university: globalUniversity,
+        faculty: globalFaculty,
+        examTitle: globalExamTitle,
+        dayDate: globalDayDate,
+        time: globalTime,
+        maxMarks: globalMaxMarks,
+        paperCode: globalPaperCode,
+      };
+      standardPage.instructions = globalInstructions;
+    }
 
-    qBlocks.forEach((qChunk) => {
-      const qTrim = qChunk.trim();
-      if (!qTrim) return;
+    // Split sections within this page
+    const rawSections = chunkTrim.split(/(?=\\section|SECTION\s*---\s*[I|V|X]+|SECTION\s*-\s*[I|V|X]+)/i);
 
-      const qHeaderMatch = qTrim.match(/(?:\\noindent\s*)?\\textbf\{\s*(Q\.\s*\d+[^}]*)\}/i);
-      const marksMatchInQ = qTrim.match(/\[\s*(\d+\s*Marks|\d+)\s*\]/i);
+    rawSections.forEach((secChunk) => {
+      const secTrimmed = secChunk.trim();
+      if (!secTrimmed) return;
 
-      if (qHeaderMatch) {
-        const headerText = qHeaderMatch[1].trim();
-        const items = qTrim.split(/\\item\s+/).slice(1);
+      let secTitle = '';
+      const titleMatch = secTrimmed.match(/(?:\\section\*?\{([^}]+)\}|SECTION\s*---?\s*[I|V|X]+[^}\n\\]*)/i);
+      if (titleMatch) {
+        secTitle = (titleMatch[1] || titleMatch[0])
+          .replace(/\\textbf\{([^}]+)\}/g, '$1')
+          .replace(/\\large/g, '')
+          .replace(/---/g, '—')
+          .replace(/[{}]/g, '')
+          .trim();
+      }
 
-        if (items.length > 0) {
-          currentSection.questions.push({
-            title: headerText,
-            marks: marksMatchInQ ? marksMatchInQ[1] : undefined,
-          });
+      const currentSection: StandardSection = {
+        title: secTitle || undefined,
+        questions: [],
+      };
 
-          items.forEach((itemText, iIdx) => {
-            const cleanItem = itemText.trim();
-            const optParts = cleanItem.split(/\\item\s+/).slice(1);
-            const mainText = cleanItem.split(/\\begin\{enumerate\}/)[0].replace(/\\end\{enumerate\}[\s\S]*/, '').trim();
+      // Split questions by \textbf{Q. or \item
+      const qBlocks = secTrimmed.split(/(?=(?:\\noindent\s*)?\\textbf\{\s*Q\.\s*\d+)/i);
 
-            const options: string[] = [];
-            if (optParts.length > 0) {
-              optParts.forEach((opt) => {
-                const optClean = opt.replace(/\\end\{enumerate\}[\s\S]*/, '').replace(/\\item.*/, '').trim();
-                if (optClean) options.push(optClean);
+      qBlocks.forEach((qChunk) => {
+        const qTrim = qChunk.trim();
+        if (!qTrim) return;
+
+        const qHeaderMatch = qTrim.match(/(?:\\noindent\s*)?\\textbf\{\s*(Q\.\s*\d+[^}]*)\}/i);
+        const marksMatchInQ = qTrim.match(/\[\s*(\d+\s*Marks|\d+)\s*\]/i);
+
+        if (qHeaderMatch) {
+          const headerText = qHeaderMatch[1].trim();
+          const items = qTrim.split(/\\item\s+/).slice(1);
+
+          if (items.length > 0) {
+            currentSection.questions.push({
+              title: headerText,
+              marks: marksMatchInQ ? marksMatchInQ[1] : undefined,
+            });
+
+            items.forEach((itemText, iIdx) => {
+              const cleanItem = itemText.trim();
+              const optParts = cleanItem.split(/\\item\s+/).slice(1);
+              const mainText = cleanItem.split(/\\begin\{enumerate\}/)[0].replace(/\\end\{enumerate\}[\s\S]*/, '').trim();
+
+              const options: string[] = [];
+              if (optParts.length > 0) {
+                optParts.forEach((opt) => {
+                  const optClean = opt.replace(/\\end\{enumerate\}[\s\S]*/, '').replace(/\\item.*/, '').trim();
+                  if (optClean) options.push(optClean);
+                });
+              }
+
+              const parsedTab = parseTabular(cleanItem);
+
+              const labelMatch = cleanItem.match(/^([a-z\d]+)\)/i);
+              const itemLabel = labelMatch ? labelMatch[1] : `${iIdx + 1}`;
+
+              const cleanMain = mainText
+                .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
+                .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, '')
+                .trim();
+
+              currentSection.questions.push({
+                number: itemLabel,
+                title: cleanMain || cleanItem,
+                options: options.length > 0 ? options : undefined,
+                table: parsedTab || undefined,
               });
-            }
+            });
+          } else {
+            const parsedTab = parseTabular(qTrim);
+            const descContent = qTrim
+              .replace(/(?:\\noindent\s*)?\\textbf\{\s*Q\.\s*\d+[^}]*\}\s*(?:\\hfill\s*\[\s*[^\]]+\s*\])?/i, '')
+              .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
+              .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, '')
+              .trim();
 
             currentSection.questions.push({
-              number: `${iIdx + 1}`,
-              title: mainText || cleanItem,
-              options: options.length > 0 ? options : undefined,
+              title: headerText + (descContent ? ` ${descContent}` : ''),
+              marks: marksMatchInQ ? marksMatchInQ[1] : undefined,
+              table: parsedTab || undefined,
             });
-          });
-        } else {
-          const descContent = qTrim
-            .replace(/(?:\\noindent\s*)?\\textbf\{\s*Q\.\s*\d+[^}]*\}\s*(?:\\hfill\s*\[\s*[^\]]+\s*\])?/i, '')
+          }
+        } else if (qTrim.startsWith('\\item')) {
+          const itemClean = qTrim.replace(/^\\item\s*/, '').trim();
+          const parsedTab = parseTabular(itemClean);
+          const cleanItemTitle = itemClean
+            .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
+            .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, '')
             .trim();
-          currentSection.questions.push({
-            title: headerText + (descContent ? ` ${descContent}` : ''),
-            marks: marksMatchInQ ? marksMatchInQ[1] : undefined,
-          });
+          if (cleanItemTitle) {
+            currentSection.questions.push({
+              title: cleanItemTitle,
+              table: parsedTab || undefined,
+            });
+          }
         }
-      } else if (qTrim.startsWith('\\item')) {
-        const itemClean = qTrim.replace(/^\\item\s*/, '').trim();
-        if (itemClean) {
-          currentSection.questions.push({
-            title: itemClean,
-          });
-        }
+      });
+
+      if (currentSection.questions.length > 0 || currentSection.title) {
+        standardPage.sections.push(currentSection);
       }
     });
 
-    if (currentSection.questions.length > 0 || currentSection.title) {
-      result.sections.push(currentSection);
+    if (standardPage.sections.length === 0) {
+      const rawParas = chunkTrim
+        .split(/\n\s*\n/)
+        .map((p) => p.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, '').trim())
+        .filter((p) => p.length > 0);
+      standardPage.rawParagraphs = rawParas;
+    }
+
+    if (standardPage.sections.length > 0 || standardPage.rawParagraphs.length > 0 || standardPage.header) {
+      result.standardPages.push(standardPage);
     }
   });
-
-  // If no sections were found, parse raw paragraphs so nothing is dropped
-  if (result.sections.length === 0) {
-    const rawParas = cleanBody
-      .split(/\n\s*\n/)
-      .map((p) => p.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, '').trim())
-      .filter((p) => p.length > 0);
-    result.rawParagraphs = rawParas;
-  }
 
   return result;
 }
@@ -785,7 +1011,7 @@ const DynamicCompiledLatexPreview: React.FC<{
 }> = ({ latex, isCompiling, zoom }) => {
   const parsed = useMemo(() => parseLatexDocument(latex), [latex]);
 
-  // Mode 1: Picture Environment / PDF Layout (with exact 2D coordinates)
+  // Mode 1: Picture Environment / PDF Layout (with auto-framing and exact 2D coordinates)
   if (parsed.isPictureMode && parsed.picturePages.length > 0) {
     return (
       <div
@@ -880,128 +1106,146 @@ const DynamicCompiledLatexPreview: React.FC<{
     );
   }
 
-  // Mode 2: Standard Academic Question Paper
+  // Mode 2: Multi-Page Standard Academic Question Paper
   return (
     <div
-      className="w-full max-w-[590px] bg-white text-black p-8 sm:p-10 rounded-xs shadow-2xl min-h-[840px] text-xs leading-relaxed font-serif relative transition-all border border-slate-300 select-text"
+      className="flex flex-col items-center gap-8 transition-transform"
       style={{
         transform: `scale(${zoom})`,
         transformOrigin: 'top center',
       }}
     >
-      {/* Compiling Spinner Overlay */}
-      {isCompiling && (
-        <div className="absolute inset-0 bg-white/70 backdrop-blur-2xs z-30 flex flex-col items-center justify-center gap-2">
-          <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
-          <span className="text-xs font-mono font-bold text-slate-800">
-            pdfTeX 3.141592653 compiling LaTeX AST...
-          </span>
-        </div>
-      )}
-
-      {/* Official Academic Header */}
-      {(parsed.university || parsed.faculty || parsed.examTitle) && (
-        <div className="text-center mb-5 pb-3 border-b-2 border-black">
-          {parsed.university && (
-            <h3 className="font-bold text-sm tracking-wide uppercase font-serif">
-              {parsed.university}
-            </h3>
-          )}
-          {parsed.faculty && (
-            <p className="text-[11px] font-semibold text-slate-800 tracking-tight mt-0.5">
-              {parsed.faculty}
-            </p>
-          )}
-          {parsed.examTitle && (
-            <p className="text-[11px] font-bold mt-1 text-slate-900">
-              {parsed.examTitle}
-            </p>
+      {parsed.standardPages.map((page, pIdx) => (
+        <div
+          key={pIdx}
+          className="w-[595px] min-h-[842px] bg-white text-black p-8 sm:p-10 rounded-xs shadow-2xl text-xs leading-relaxed font-serif relative transition-all border border-slate-300 select-text flex flex-col justify-between"
+        >
+          {/* Compiling Spinner Overlay */}
+          {isCompiling && pIdx === 0 && (
+            <div className="absolute inset-0 bg-white/70 backdrop-blur-2xs z-30 flex flex-col items-center justify-center gap-2">
+              <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+              <span className="text-xs font-mono font-bold text-slate-800">
+                pdfTeX 3.141592653 compiling LaTeX AST...
+              </span>
+            </div>
           )}
 
-          <div className="flex justify-between items-center text-[10px] text-slate-900 mt-3 pt-1 border-t border-black/40 font-semibold font-sans">
-            <span>{parsed.dayDate || 'Day & Date: Wednesday, 14-05-2026'}</span>
-            <span>Max. Marks: {parsed.maxMarks || '70'}</span>
-          </div>
-          <div className="flex justify-between items-center text-[10px] text-slate-900 font-semibold font-sans mt-0.5">
-            <span>Time: {parsed.time || '3.00 PM to 6.00 PM (3 Hours)'}</span>
-            <span>Paper Code: {parsed.paperCode || 'SLR-VB-602'}</span>
-          </div>
-        </div>
-      )}
+          <div>
+            {/* Academic Header on Page 1 or if page has header */}
+            {page.header && (
+              <div className="text-center mb-5 pb-3 border-b-2 border-black">
+                {page.header.university && (
+                  <h3 className="font-bold text-sm tracking-wide uppercase font-serif">
+                    {page.header.university}
+                  </h3>
+                )}
+                {page.header.faculty && (
+                  <p className="text-[11px] font-semibold text-slate-800 tracking-tight mt-0.5">
+                    {page.header.faculty}
+                  </p>
+                )}
+                {page.header.examTitle && (
+                  <p className="text-[11px] font-bold mt-1 text-slate-900">
+                    {page.header.examTitle}
+                  </p>
+                )}
 
-      {/* General Instructions */}
-      {parsed.instructions.length > 0 && (
-        <div className="mb-5 p-2.5 bg-slate-50 border border-black/20 rounded text-[10px] font-sans space-y-0.5">
-          <p className="font-bold text-black uppercase tracking-wide">Instructions:</p>
-          {parsed.instructions.map((inst, idx) => (
-            <p key={idx} className="text-slate-800">
-              {inst}
-            </p>
-          ))}
-        </div>
-      )}
-
-      {/* Sections and Questions */}
-      <div className="space-y-6">
-        {parsed.sections.length > 0 ? (
-          parsed.sections.map((sec, sIdx) => (
-            <div key={sIdx} className="space-y-3">
-              {sec.title && (
-                <div className="text-center py-1 border-y border-black font-bold uppercase text-xs tracking-wider bg-slate-100/70 my-3">
-                  <span>{sec.title}</span>
+                <div className="flex justify-between items-center text-[10px] text-slate-900 mt-3 pt-1 border-t border-black/40 font-semibold font-sans">
+                  <span>{page.header.dayDate || 'Day & Date: Monday, 25-05-2026'}</span>
+                  <span>Max. Marks: {page.header.maxMarks || '70'}</span>
                 </div>
-              )}
+                <div className="flex justify-between items-center text-[10px] text-slate-900 font-semibold font-sans mt-0.5">
+                  <span>{page.header.time || 'Time: 10:00 AM To 01:00 PM'}</span>
+                  <span>Paper Code: {page.header.paperCode || 'BTN04605'}</span>
+                </div>
+              </div>
+            )}
 
-              <div className="space-y-3.5">
-                {sec.questions.map((q, qIdx) => (
-                  <div key={qIdx} className="space-y-1 text-[11px]">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="font-semibold text-black leading-snug">
-                        {q.number && <span className="font-bold mr-1.5">{q.number})</span>}
-                        <LaTeXText text={q.title} />
-                      </div>
-                      {q.marks && (
-                        <span className="font-bold text-[10px] text-slate-900 shrink-0 font-sans">
-                          [{q.marks}]
-                        </span>
-                      )}
-                    </div>
-
-                    {q.options && q.options.length > 0 && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pl-4 pt-1 text-[10px] text-slate-900">
-                        {q.options.map((opt, oIdx) => (
-                          <div key={oIdx} className="flex items-start gap-1">
-                            <span className="font-semibold text-slate-700">({String.fromCharCode(97 + oIdx)})</span>
-                            <LaTeXText text={opt.replace(/^\([a-d]\)\s*/, '')} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+            {/* General Instructions */}
+            {page.instructions && page.instructions.length > 0 && (
+              <div className="mb-5 p-2.5 bg-slate-50 border border-black/20 rounded text-[10px] font-sans space-y-0.5">
+                <p className="font-bold text-black uppercase tracking-wide">Instructions:</p>
+                {page.instructions.map((inst, idx) => (
+                  <p key={idx} className="text-slate-800">
+                    {inst}
+                  </p>
                 ))}
               </div>
-            </div>
-          ))
-        ) : parsed.rawParagraphs.length > 0 ? (
-          <div className="space-y-3 text-[11px] leading-relaxed">
-            {parsed.rawParagraphs.map((para, pIdx) => (
-              <p key={pIdx}>
-                <LaTeXText text={para} />
-              </p>
-            ))}
-          </div>
-        ) : (
-          <div className="py-8 text-center text-slate-500 font-mono text-xs">
-            LaTeX document compiled with 0 errors.
-          </div>
-        )}
-      </div>
+            )}
 
-      {/* Academic End-of-Paper Footer */}
-      <div className="mt-12 pt-4 border-t border-black text-center text-[10px] font-sans text-slate-600 flex items-center justify-between">
-        <span>*** END OF QUESTION PAPER ***</span>
-        <span className="font-mono text-[9px]">SOLAPUR UNIVERSITY • ZEROLEAK</span>
-      </div>
+            {/* Sections and Questions */}
+            <div className="space-y-5">
+              {page.sections.map((sec, sIdx) => (
+                <div key={sIdx} className="space-y-3">
+                  {sec.title && (
+                    <div className="text-center py-1 border-y border-black font-bold uppercase text-xs tracking-wider bg-slate-100/70 my-2">
+                      <span>{sec.title}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-3.5">
+                    {sec.questions.map((q, qIdx) => (
+                      <div key={qIdx} className="space-y-1 text-[11px]">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="font-semibold text-black leading-snug">
+                            {q.number && <span className="font-bold mr-1.5">{q.number})</span>}
+                            <LaTeXText text={q.title} />
+                          </div>
+                          {q.marks && (
+                            <span className="font-bold text-[10px] text-slate-900 shrink-0 font-sans">
+                              [{q.marks}]
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Render academic table if question has table */}
+                        {q.table && <AcademicTable data={q.table} />}
+
+                        {/* Render details if present */}
+                        {q.details && !q.table && (
+                          <div className="text-[10.5px] text-slate-800 pl-3 leading-relaxed">
+                            <LaTeXText text={q.details} />
+                          </div>
+                        )}
+
+                        {/* Options for MCQs */}
+                        {q.options && q.options.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pl-4 pt-1 text-[10px] text-slate-900">
+                            {q.options.map((opt, oIdx) => (
+                              <div key={oIdx} className="flex items-start gap-1">
+                                <span className="font-semibold text-slate-700">({String.fromCharCode(97 + oIdx)})</span>
+                                <LaTeXText text={opt.replace(/^\([a-d]\)\s*/, '')} />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {page.sections.length === 0 && page.rawParagraphs.length > 0 && (
+                <div className="space-y-3 text-[11px] leading-relaxed">
+                  {page.rawParagraphs.map((para, paraIdx) => (
+                    <p key={paraIdx}>
+                      <LaTeXText text={para} />
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Academic Page Footer */}
+          <div className="mt-8 pt-3 border-t border-black/30 flex justify-between items-center text-[9px] font-sans text-slate-600">
+            <span className="font-mono">SOLAPUR UNIVERSITY • ZEROLEAK</span>
+            <span>
+              Page {pIdx + 1} of {parsed.standardPages.length}
+            </span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
@@ -1316,14 +1560,26 @@ const PrismChromeWebAuthPane: React.FC<{
               <button
                 type="button"
                 onClick={() => {
+                  setLatexDoc(PRISM_OS_LATEX);
+                  setIsCompiling(true);
+                  setTimeout(() => setIsCompiling(false), 300);
+                }}
+                className="text-[11px] text-emerald-300 hover:text-emerald-200 font-semibold px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 transition-colors cursor-pointer"
+                title="Load Complete 4-Page Operating Systems (BTN04605) Paper"
+              >
+                OS (BTN04605) Paper
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                   setLatexDoc(PRISM_DEFAULT_LATEX);
                   setIsCompiling(true);
                   setTimeout(() => setIsCompiling(false), 300);
                 }}
-                className="text-[11px] text-slate-300 hover:text-emerald-300 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-                title="Load Sample Examination Template"
+                className="text-[11px] text-slate-300 hover:text-white px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                title="Load Applied Cryptography Template"
               >
-                Sample Template
+                Cryptography
               </button>
               <button
                 type="button"

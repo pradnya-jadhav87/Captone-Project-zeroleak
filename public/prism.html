@@ -326,6 +326,225 @@
 
 \\end{document}`;
 
+    const PRISM_OS_LATEX = `\\documentclass[11pt,a4paper]{article}
+\\usepackage[margin=0.75in]{geometry}
+\\usepackage{amsmath,amssymb}
+\\usepackage{graphicx}
+\\usepackage{array}
+\\usepackage{enumitem}
+
+\\begin{document}
+
+\\begin{center}
+    {\\large \\textbf{PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR}}\\\\[3pt]
+    {\\textbf{FACULTY OF SCIENCE \\& TECHNOLOGY}}\\\\[2pt]
+    {\\textbf{T. Y. (B.Tech.) (Electronics Engineering) (Semester - II) (New) (CBCS) Examination: March/April - 2026}}\\\\[2pt]
+    {\\large \\textbf{Operating Systems (BTN04605)}}\\\\[2pt]
+    \\textbf{Day \\& Date:} Monday, 25-05-2026 \\hfill \\textbf{Max. Marks: 70}\\\\
+    \\textbf{Time:} 10:00 AM To 01:00 PM \\hfill \\textbf{Course Code: BTN04605}
+\\end{center}
+
+\\noindent\\rule{\\linewidth}{0.8pt}
+
+\\noindent \\textbf{Instructions:}
+\\begin{enumerate}[label=\\textbf{\\arabic*)}]
+    \\item Q. No. 1 is compulsory. It should be solved in the first 30 minutes in Answer Book Page no 03 (Starting page of the Answer Book). Each question carries one mark.
+    \\item Don't forget to Mention question paper set (P/Q/R/S) on top of page.
+    \\item Figures to the right indicate full marks.
+    \\item Assume suitable data if necessary.
+\\end{enumerate}
+
+\\noindent\\rule{\\linewidth}{0.5pt}
+
+\\begin{center}
+    {\\large \\textbf{MCQ / OBJECTIVE TYPE QUESTIONS}} \\hfill \\textbf{[Duration: 30 Minutes]} \\hfill \\textbf{[14 Marks]}
+\\end{center}
+
+\\noindent \\textbf{Q.1 Choose the correct answer:} \\hfill \\textbf{[14 Marks]}
+
+\\begin{enumerate}[label=\\textbf{\\arabic*)}]
+    \\item In the Many to One model, if a thread makes a blocking system call \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item the entire process will be blocked (Correct)
+        \\item a part of the process will stay blocked, with the rest running
+        \\item the entire process will run
+        \\item None of these
+    \\end{enumerate}
+
+    \\item What is the primary purpose of cooperating processes in an operating system?
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item To enhance CPU scheduling algorithms
+        \\item To share system resources and data among multiple processes (Correct)
+        \\item To reduce the number of system calls
+        \\item To improve disk access speed
+    \\end{enumerate}
+
+    \\item A parent process calling \\underline{\\hspace{2cm}} system call will be suspended until children processes terminate.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item fork
+        \\item wait (Correct)
+        \\item exit
+        \\item exec
+    \\end{enumerate}
+
+    \\item To ensure difficulties do not arise in the readers - writers problem, \\underline{\\hspace{2cm}} are given exclusive access to the shared object.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item readers
+        \\item writers (Correct)
+        \\item both a) and b)
+        \\item None of these
+    \\end{enumerate}
+
+    \\item Round robin scheduling falls under the category of : \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Non preemptive scheduling
+        \\item Preemptive scheduling (Correct)
+        \\item both a) and b)
+        \\item None of these
+    \\end{enumerate}
+\\end{enumerate}
+
+\\newpage
+
+\\noindent \\textbf{Q.1 (Continued) Choose the correct answer:}
+
+\\begin{enumerate}[label=\\textbf{\\arabic*)}, resume]
+    \\item The entry of all the PCBs of the current processes is in: \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Process Register
+        \\item Program Counter
+        \\item Process Table (Correct)
+        \\item Process Unit
+    \\end{enumerate}
+
+    \\item In a batch processing environment, what is a job queue?
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item A queue that stores processes waiting for CPU time
+        \\item A queue that stores user input for processing
+        \\item A queue that stores jobs awaiting execution (Correct)
+        \\item A queue that stores output data from completed processes
+    \\end{enumerate}
+
+    \\item The circular wait condition can be prevented by \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item defining a linear ordering of resource types (Correct)
+        \\item using thread
+        \\item using pipes
+        \\item All of the mentioned
+    \\end{enumerate}
+
+    \\item A problem encountered in multitasking when a process is permanently denied necessary resources is called \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item deadlock
+        \\item starvation (Correct)
+        \\item inversion
+        \\item aging
+    \\end{enumerate}
+
+    \\item The \\underline{\\hspace{2cm}} is used as an index into the page table.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item frame bit
+        \\item page number (Correct)
+        \\item page offset
+        \\item frame offset
+    \\end{enumerate}
+
+    \\item Paging increases the \\underline{\\hspace{2cm}} time.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item waiting
+        \\item execution
+        \\item context - switch (Correct)
+        \\item All of the mentioned
+    \\end{enumerate}
+
+    \\item \\underline{\\hspace{2cm}} is generally faster than \\underline{\\hspace{2cm}} and \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item first fit, best fit, worst fit (Correct)
+        \\item best fit, first fit, worst fit
+        \\item worst fit, best fit, first fit
+        \\item None of the mentioned
+    \\end{enumerate}
+
+    \\item File attributes consist of \\underline{\\hspace{2cm}}.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item name
+        \\item type
+        \\item identifier
+        \\item All of the mentioned (Correct)
+    \\end{enumerate}
+
+    \\item Which process is busy swapping pages in and out.
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Division
+        \\item External Fragmentation
+        \\item Thrashing (Correct)
+        \\item Compaction
+    \\end{enumerate}
+\\end{enumerate}
+
+\\newpage
+
+\\begin{center}
+    {\\large \\textbf{SECTION --- I}} \\hfill \\textbf{[Max. Marks: 56]}
+\\end{center}
+
+\\noindent \\textbf{Q.2 Attempt the following. (Any Four)} \\hfill \\textbf{[16 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Analyze bounded buffer problem as classical problems of synchronization.
+    \\item Write a short note on multiprogramming operating systems.
+    \\item Explain the shared memory systems of interprocess communication.
+    \\item Discuss the role of the process control block (PCB) in process management. Explain the information typically stored in a PCB.
+    \\item Explain the difference between non-preemptive and preemptive scheduling algorithms. Discuss the advantages and disadvantages of each approach in terms of system responsiveness and fairness.
+\\end{enumerate}
+
+\\vspace{10pt}
+\\noindent \\textbf{Q.3 Attempt the following. (Any Two)} \\hfill \\textbf{[12 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Explain process creation and termination operations in detail.
+    \\item Define thread. Describe the three multithreading models with suitable diagram.
+    \\item Consider four processes P1, P2, P3, and P4 with their priority and CPU burst in milliseconds:
+    
+    \\begin{center}
+    \\begin{tabular}{|c|c|c|}
+    \\hline
+    \\textbf{Process} & \\textbf{CPU burst time (ms)} & \\textbf{Priority} \\\\
+    \\hline
+    P1 & 10 & 4 \\\\
+    P2 & 5 & 3 \\\\
+    P3 & 2 & 1 \\\\
+    P4 & 3 & 2 \\\\
+    \\hline
+    \\end{tabular}
+    \\end{center}
+    
+    How these processes will be scheduled according to priority scheduling algorithm? Compute the average waiting time and average turnaround time.
+\\end{enumerate}
+
+\\newpage
+
+\\begin{center}
+    {\\large \\textbf{SECTION --- II}}
+\\end{center}
+
+\\noindent \\textbf{Q.4 Answer the following. (Any Four)} \\hfill \\textbf{[16 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Elaborate terms swapping and paging. Compare swapping and paging.
+    \\item Explain various methods for recovery from deadlock.
+    \\item What is page fault? How is it handled by OS?
+    \\item What is resource allocation graph in OS? What are the different elements of RAG? How is RAG utilized to decide about presence of deadlock?
+    \\item What are the drawbacks of paging? Describe segmentation mechanism in OS.
+\\end{enumerate}
+
+\\vspace{10pt}
+\\noindent \\textbf{Q.5 Answer the following. (Any Two)} \\hfill \\textbf{[12 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Explain FIFO and optimal page replacement algorithm in detail.
+    \\item Explain various free space management approaches in OS.
+    \\item What is internal and external fragmentation in OS? Differentiate between internal and external fragmentation. \\hfill \\textbf{[6 Marks]}
+\\end{enumerate}
+
+\\end{document}`;
+
     let isAuthenticated = sessionStorage.getItem('zeroleak_prism_auth') === 'true';
 
     function launchRealPrismWindow() {
@@ -357,78 +576,116 @@
       renderApp();
     }
 
-    function parsePictureLatex(chunk) {
-      const items = [];
-      const regex = /\\put\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s*\{/g;
-      let match;
-      while ((match = regex.exec(chunk)) !== null) {
-        const x = parseFloat(match[1]);
-        const y = parseFloat(match[2]);
-        const startIdx = match.index + match[0].length;
-        let depth = 1;
-        let endIdx = startIdx;
-        while (depth > 0 && endIdx < chunk.length) {
-          if (chunk[endIdx] === '{') depth++;
-          else if (chunk[endIdx] === '}') depth--;
-          endIdx++;
-        }
-        const rawContent = chunk.substring(startIdx, endIdx - 1);
-        const fsMatch = rawContent.match(/\\fontsize\{([\d.]+)\}/);
-        const fontSize = fsMatch ? parseFloat(fsMatch[1]) : 11;
-        const isBold = /\\textbf|\\bfseries|\{ptm\}\{b\}/.test(rawContent);
-        const isItalic = /\\textit|\\itshape|\{ptm\}\{it\}/.test(rawContent);
-        const text = rawContent
-          .replace(/\\fontsize\{[^}]*\}\{[^}]*\}/g, '')
-          .replace(/\\usefont\{[^}]*\}\{[^}]*\}\{[^}]*\}\{[^}]*\}/g, '')
-          .replace(/\\selectfont/g, '')
-          .replace(/\\color\{[^}]*\}/g, '')
-          .replace(/\\vphantom\{[^}]*\}/g, '')
-          .replace(/\\rule\{[^}]*\}\{[^}]*\}/g, '')
-          .replace(/[{}]/g, '');
-        items.push({ x, y, fontSize, isBold, isItalic, text });
-      }
-      if (items.length === 0) return null;
+    function parseTabularHtml(raw) {
+      const match = raw.match(/\\begin\{tabular\}\{[^}]*\}([\s\S]*?)\\end\{tabular\}/i);
+      if (!match) return null;
+      const content = match[1];
+      const rows = content.split(/\\\\|\\cr/).map(r => r.replace(/\\(?:hline|toprule|midrule|bottomrule)/g, '').trim()).filter(r => r.length > 0);
+      if (rows.length === 0) return null;
+      const parsedRows = rows.map(r => r.split('&').map(cell => cell.replace(/\\textbf\{([^}]+)\}/g, '$1').replace(/[{}]/g, '').trim()));
+      let html = '<div style="margin:12px 0;display:flex;justify-content:center;overflow-x:auto;"><table style="border-collapse:collapse;border:1px solid #000;text-align:center;font-size:11px;">';
+      parsedRows.forEach((r, rIdx) => {
+        html += `<tr style="${rIdx === 0 ? 'background:#f1f5f9;font-weight:bold;' : rIdx % 2 === 1 ? 'background:#f8fafc;' : ''}">`;
+        r.forEach(cell => {
+          html += `<td style="border:1px solid #000;padding:4px 10px;">${escapeHtml(cell)}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</table></div>';
+      return html;
+    }
 
-      let minY = items[0].y;
-      for (const it of items) if (it.y < minY) minY = it.y;
-      const isNegativeY = items.some(it => it.y < 0);
-
-      const linesMap = new Map();
-      for (const it of items) {
-        let matchedY = null;
-        for (const key of linesMap.keys()) {
-          if (Math.abs(key - it.y) < 3.5) { matchedY = key; break; }
-        }
-        if (matchedY === null) { matchedY = it.y; linesMap.set(matchedY, []); }
-        linesMap.get(matchedY).push(it);
-      }
-
-      const sortedY = Array.from(linesMap.keys()).sort((a, b) => b - a);
-      const lines = sortedY.map(y => {
-        const row = linesMap.get(y);
-        row.sort((a, b) => a.x - b.x);
-        const segments = [];
-        let cur = { x: row[0].x, fontSize: row[0].fontSize, isBold: row[0].isBold, isItalic: row[0].isItalic, text: row[0].text };
-        for (let i = 1; i < row.length; i++) {
-          const it = row[i];
-          const estWidth = cur.text.length * cur.fontSize * 0.52;
-          const gap = it.x - (cur.x + estWidth);
-          if (gap > 20) {
-            segments.push(cur);
-            cur = { x: it.x, fontSize: it.fontSize, isBold: it.isBold, isItalic: it.isItalic, text: it.text };
-          } else {
-            cur.text += it.text;
-            if (it.isBold) cur.isBold = true;
-            if (it.isItalic) cur.isItalic = true;
-          }
-        }
-        segments.push(cur);
-        const top = isNegativeY ? Math.abs(y) : Math.max(0, 842 - y);
-        return { y, top, segments };
+    function parsePicturePages(code) {
+      let rawChunks = code.split(/(?=\\begin\{picture\}|\\clearpage|\\newpage|\\pagebreak|%+\s*(?:---+\s*)?PAGE\s*\d+)/i);
+      if (rawChunks.length === 0) rawChunks = [code];
+      const chunks = [];
+      rawChunks.forEach(chunk => {
+        const sub = chunk.split(/(?<=\\end\{picture\})/i);
+        sub.forEach(s => { if (s.trim().length > 0) chunks.push(s); });
       });
 
-      const pageHeight = Math.max(842, isNegativeY ? Math.abs(minY) + 70 : 842);
-      return { lines, height: pageHeight };
+      const pages = [];
+      chunks.forEach(chunk => {
+        if (!chunk.includes('\\put')) return;
+        const items = [];
+        const regex = /\\put\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s*\{/g;
+        let match;
+        while ((match = regex.exec(chunk)) !== null) {
+          const x = parseFloat(match[1]);
+          const y = parseFloat(match[2]);
+          const startIdx = match.index + match[0].length;
+          let depth = 1;
+          let endIdx = startIdx;
+          while (depth > 0 && endIdx < chunk.length) {
+            if (chunk[endIdx] === '{') depth++;
+            else if (chunk[endIdx] === '}') depth--;
+            endIdx++;
+          }
+          const rawContent = chunk.substring(startIdx, endIdx - 1);
+          const fsMatch = rawContent.match(/\\fontsize\{([\d.]+)\}/);
+          const fontSize = fsMatch ? parseFloat(fsMatch[1]) : 11;
+          const isBold = /\\textbf|\\bfseries|\{ptm\}\{b\}/.test(rawContent);
+          const isItalic = /\\textit|\\itshape|\{ptm\}\{it\}/.test(rawContent);
+          const text = rawContent
+            .replace(/\\fontsize\{[^}]*\}\{[^}]*\}/g, '')
+            .replace(/\\usefont\{[^}]*\}\{[^}]*\}\{[^}]*\}\{[^}]*\}/g, '')
+            .replace(/\\selectfont/g, '')
+            .replace(/\\color\{[^}]*\}/g, '')
+            .replace(/\\vphantom\{[^}]*\}/g, '')
+            .replace(/\\rule\{[^}]*\}\{[^}]*\}/g, '')
+            .replace(/[{}]/g, '');
+          items.push({ x, y, fontSize, isBold, isItalic, text });
+        }
+        if (items.length === 0) return;
+
+        const isNegativeY = items.some(it => it.y < 0);
+        const linesMap = new Map();
+        for (const it of items) {
+          const targetY = isNegativeY ? -Math.abs(it.y) : it.y;
+          let matchedY = null;
+          for (const key of linesMap.keys()) {
+            if (Math.abs(key - targetY) < 3.5) { matchedY = key; break; }
+          }
+          if (matchedY === null) { matchedY = targetY; linesMap.set(matchedY, []); }
+          linesMap.get(matchedY).push(it);
+        }
+
+        const sortedY = Array.from(linesMap.keys()).sort((a, b) => b - a);
+        const allVisualTops = sortedY.map(y => (isNegativeY ? Math.abs(y) : Math.max(0, 842 - y)));
+        const minVisualTop = Math.min(...allVisualTops);
+        const maxVisualTop = Math.max(...allVisualTops);
+        const contentSpan = maxVisualTop - minVisualTop;
+        const topOffset = minVisualTop > 80 ? minVisualTop - 40 : 0;
+
+        const lines = sortedY.map(y => {
+          const row = linesMap.get(y);
+          row.sort((a, b) => a.x - b.x);
+          const segments = [];
+          let cur = { x: row[0].x, fontSize: row[0].fontSize, isBold: row[0].isBold, isItalic: row[0].isItalic, text: row[0].text };
+          for (let i = 1; i < row.length; i++) {
+            const it = row[i];
+            const estWidth = cur.text.length * cur.fontSize * 0.52;
+            const gap = it.x - (cur.x + estWidth);
+            if (gap > 20) {
+              segments.push(cur);
+              cur = { x: it.x, fontSize: it.fontSize, isBold: it.isBold, isItalic: it.isItalic, text: it.text };
+            } else {
+              if (gap > 3 && !cur.text.endsWith(' ') && !it.text.startsWith(' ')) cur.text += ' ';
+              cur.text += it.text;
+              if (it.isBold) cur.isBold = true;
+              if (it.isItalic) cur.isItalic = true;
+            }
+          }
+          segments.push(cur);
+          const rawTop = isNegativeY ? Math.abs(y) : Math.max(0, 842 - y);
+          const top = Math.max(20, Math.round(rawTop - topOffset));
+          return { y, top, segments };
+        });
+
+        const pageHeight = contentSpan < 450 && lines.length < 15 ? Math.max(300, Math.min(842, contentSpan + 140)) : 842;
+        pages.push({ lines, height: pageHeight });
+      });
+      return pages;
     }
 
     function compileLatexLive() {
@@ -450,95 +707,122 @@
         return;
       }
 
-      // Check for \put picture mode
-      if (code.includes('\\put')) {
-        const pageData = parsePictureLatex(code);
-        if (pageData && pageData.lines.length > 0) {
-          let html = `<div class="paper-sheet" style="position:relative;min-height:${pageData.height}px;height:${pageData.height}px;padding:0;overflow:hidden;">`;
-          pageData.lines.forEach(l => {
-            html += `<div style="position:absolute;top:${l.top}px;left:0;right:0;line-height:1;">`;
-            l.segments.forEach(s => {
-              const weight = s.isBold ? 'font-weight:bold;' : '';
-              const style = s.isItalic ? 'font-style:italic;' : '';
-              html += `<span style="position:absolute;left:${s.x}px;font-size:${s.fontSize}px;color:#000;white-space:pre;${weight}${style}">${escapeHtml(s.text)}</span>`;
+      const putMatches = code.match(/\\put\s*\(/g);
+      const putCount = putMatches ? putMatches.length : 0;
+      const questionMatches = code.match(/(?:\\textbf\{\s*Q\.\s*\d+|\\section\*?\{)/g);
+      const questionCount = questionMatches ? questionMatches.length : 0;
+
+      // Picture mode
+      if (putCount > 0 && questionCount === 0) {
+        const pages = parsePicturePages(code);
+        if (pages.length > 0) {
+          let html = '<div style="display:flex;flex-direction:column;gap:32px;align-items:center;width:100%;">';
+          pages.forEach((p, pIdx) => {
+            html += `<div class="paper-sheet" style="position:relative;min-height:${p.height}px;height:${p.height}px;padding:0;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.5);">`;
+            p.lines.forEach(l => {
+              html += `<div style="position:absolute;top:${l.top}px;left:0;right:0;line-height:1;">`;
+              l.segments.forEach(s => {
+                const weight = s.isBold ? 'font-weight:bold;' : '';
+                const style = s.isItalic ? 'font-style:italic;' : '';
+                html += `<span style="position:absolute;left:${s.x}px;font-size:${s.fontSize}px;color:#000;white-space:pre;${weight}${style}">${escapeHtml(s.text)}</span>`;
+              });
+              html += `</div>`;
             });
-            html += `</div>`;
+            html += `
+              <div style="position:absolute;bottom:12px;left:30px;right:30px;border-top:1px solid rgba(0,0,0,0.2);display:flex;justify-content:space-between;font-size:9px;color:#64748b;font-family:sans-serif;padding-top:6px;">
+                <span>SOLAPUR UNIVERSITY • ZEROLEAK</span>
+                <span>Page ${pIdx + 1} of ${pages.length}</span>
+              </div>
+            </div>`;
           });
-          html += `
-            <div style="position:absolute;bottom:12px;left:30px;right:30px;border-top:1px solid rgba(0,0,0,0.2);display:flex;justify-content:space-between;font-size:9px;color:#64748b;font-family:sans-serif;padding-top:6px;">
-              <span>SOLAPUR UNIVERSITY • ZEROLEAK</span>
-              <span>Page 1 of 1</span>
-            </div>
-          </div>`;
+          html += '</div>';
           preview.innerHTML = html;
           return;
         }
       }
 
-      // Standard / Structured LaTeX Mode
-      let univ = (code.match(/\\textbf\{([^}]+UNIVERSITY[^}]*)\}/i) || code.match(/([A-Z\s]{8,}UNIVERSITY[A-Z\s,]*)/i) || [])[1] || '';
-      let fac = (code.match(/\\textbf\{([^}]+FACULTY[^}]*)\}/i) || code.match(/(FACULTY OF [^\\\n}]+)/i) || [])[1] || '';
-      let exam = (code.match(/\\textbf\{([^}]+(?:Examination|B\.Tech|T\.Y\.|M\.Tech|Engineering|Diploma)[^}]*)\}/i) || code.match(/((?:B\.Tech|T\.Y\.|Examination)[^\\\n}]+)/i) || [])[1] || '';
+      // Multi-Page Standard Mode
+      const rawPages = code.split(/(?:\\newpage|\\clearpage|\\pagebreak)/i);
+      let globalUniv = (code.match(/\\textbf\{([^}]+UNIVERSITY[^}]*)\}/i) || code.match(/([A-Z\s]{8,}UNIVERSITY[A-Z\s,]*)/i) || [])[1] || '';
+      let globalFac = (code.match(/\\textbf\{([^}]+FACULTY[^}]*)\}/i) || code.match(/(FACULTY OF [^\\\n}]+)/i) || [])[1] || '';
+      let globalExam = (code.match(/\\textbf\{([^}]+(?:Examination|B\.Tech|T\.Y\.|M\.Tech|Engineering|Diploma)[^}]*)\}/i) || code.match(/((?:B\.Tech|T\.Y\.|Examination)[^\\\n}]+)/i) || [])[1] || '';
       let marks = (code.match(/Max\.\s*Marks:\s*(\d+)/i) || code.match(/Marks:\s*(\d+)/i) || [])[1] || '';
       let codeMatch = (code.match(/(?:Paper|Course)\s*Code:\s*([A-Za-z0-9\-_]+)/i) || [])[1] || '';
       let timeMatch = (code.match(/Time:\s*([0-9\s:AMPMapm.\-–—()Hours]+)/i) || [])[1] || '';
       let dateMatch = (code.match(/Day\s*\\?&\s*Date:\s*([^\\}\n]+)/i) || [])[1] || '';
 
-      // Clean macros
-      univ = univ.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '').trim();
-      fac = fac.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '').trim();
-      exam = exam.replace(/\\[a-zA-Z]+/g, '').replace(/---/g, '—').replace(/[{}]/g, '').trim();
+      globalUniv = globalUniv.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '').trim();
+      globalFac = globalFac.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '').trim();
+      globalExam = globalExam.replace(/\\[a-zA-Z]+/g, '').replace(/---/g, '—').replace(/[{}]/g, '').trim();
 
-      // Extract questions / sections
-      const qMatches = code.match(/\\textbf\{\s*(Q\.\s*\d+[^}]*)\}([\s\S]*?)(?=(?:\\textbf\{\s*Q\.\s*\d+)|\\end\{document\}|$)/gi) || [];
+      let pagesHtml = '<div style="display:flex;flex-direction:column;gap:32px;align-items:center;width:100%;">';
 
-      let innerContent = '';
-      if (qMatches.length > 0) {
-        qMatches.forEach(qBlock => {
-          const title = (qBlock.match(/\\textbf\{\s*(Q\.\s*\d+[^}]*)\}/i) || [])[1] || 'Question';
-          const body = qBlock.replace(/\\textbf\{\s*Q\.\s*\d+[^}]*\}/i, '').replace(/\\hfill\s*\[\s*[^\]]+\s*\]/i, '').trim();
-          innerContent += `
-            <div style="margin-top:14px;border-bottom:1px solid #f1f5f9;padding-bottom:10px;">
-              <div style="font-weight:bold;font-size:12px;color:#0f172a;">${escapeHtml(title)}</div>
-              <div style="margin-top:4px;font-size:11px;color:#334155;line-height:1.6;">${formatLatexBody(body)}</div>
+      rawPages.forEach((pageCode, pIdx) => {
+        const pageTrim = pageCode.trim();
+        if (!pageTrim) return;
+
+        let headerHtml = '';
+        if (pIdx === 0 && (globalUniv || globalFac || globalExam)) {
+          headerHtml = `
+            <div style="text-align:center;margin-bottom:14px;border-bottom:2px solid #000;padding-bottom:8px;">
+              ${globalUniv ? `<div style="font-weight:bold;font-size:13px;text-transform:uppercase;">${escapeHtml(globalUniv)}</div>` : ''}
+              ${globalFac ? `<div style="font-size:11px;font-weight:600;color:#334155;">${escapeHtml(globalFac)}</div>` : ''}
+              ${globalExam ? `<div style="font-weight:bold;font-size:11px;margin-top:2px;">${escapeHtml(globalExam)}</div>` : ''}
+              <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:8px;border-top:1px solid #cbd5e1;padding-top:4px;">
+                <span>${dateMatch ? escapeHtml(dateMatch.trim()) : 'Day & Date: Examination Day'}</span>
+                <span>Max. Marks: ${marks || '70'}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:2px;">
+                <span>Time: ${timeMatch ? escapeHtml(timeMatch.trim()) : '3 Hours'}</span>
+                <span>Paper Code: ${codeMatch || 'EXAM-CODE'}</span>
+              </div>
             </div>
           `;
-        });
-      } else {
-        // Plain paragraphs
-        const lines = code.split(/\n\s*\n/).map(l => l.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, '').trim()).filter(l => l.length > 0);
-        innerContent = lines.map(p => `<p style="margin-bottom:10px;font-size:11px;color:#334155;line-height:1.6;">${escapeHtml(p)}</p>`).join('');
-      }
+        }
 
-      let headerHtml = '';
-      if (univ || fac || exam) {
-        headerHtml = `
-          <div style="text-align:center;margin-bottom:14px;border-bottom:2px solid #000;padding-bottom:8px;">
-            ${univ ? `<div style="font-weight:bold;font-size:13px;text-transform:uppercase;">${escapeHtml(univ)}</div>` : ''}
-            ${fac ? `<div style="font-size:11px;font-weight:600;color:#334155;">${escapeHtml(fac)}</div>` : ''}
-            ${exam ? `<div style="font-weight:bold;font-size:11px;margin-top:2px;">${escapeHtml(exam)}</div>` : ''}
-            <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:8px;border-top:1px solid #cbd5e1;padding-top:4px;">
-              <span>${dateMatch ? escapeHtml(dateMatch.trim()) : 'Day & Date: Examination Day'}</span>
-              <span>Max. Marks: ${marks || '70'}</span>
+        const qMatches = pageTrim.match(/\\textbf\{\s*(Q\.\s*\d+[^}]*)\}([\s\S]*?)(?=(?:\\textbf\{\s*Q\.\s*\d+)|\\end\{document\}|$)/gi) || [];
+        let innerContent = '';
+
+        if (qMatches.length > 0) {
+          qMatches.forEach(qBlock => {
+            const title = (qBlock.match(/\\textbf\{\s*(Q\.\s*\d+[^}]*)\}/i) || [])[1] || 'Question';
+            const tableHtml = parseTabularHtml(qBlock);
+            const cleanBody = qBlock
+              .replace(/\\textbf\{\s*Q\.\s*\d+[^}]*\}/i, '')
+              .replace(/\\hfill\s*\[\s*[^\]]+\s*\]/i, '')
+              .replace(/\\begin\{tabular\}[\s\S]*?\\end\{tabular\}/gi, '')
+              .replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/gi, '')
+              .trim();
+
+            innerContent += `
+              <div style="margin-top:14px;border-bottom:1px solid #f1f5f9;padding-bottom:10px;">
+                <div style="font-weight:bold;font-size:12px;color:#0f172a;">${escapeHtml(title)}</div>
+                <div style="margin-top:4px;font-size:11px;color:#334155;line-height:1.6;">${formatLatexBody(cleanBody)}</div>
+                ${tableHtml || ''}
+              </div>
+            `;
+          });
+        } else {
+          const lines = pageTrim.split(/\n\s*\n/).map(l => l.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, '').trim()).filter(l => l.length > 0);
+          innerContent = lines.map(p => `<p style="margin-bottom:10px;font-size:11px;color:#334155;line-height:1.6;">${escapeHtml(p)}</p>`).join('');
+        }
+
+        pagesHtml += `
+          <div class="paper-sheet" style="min-height:842px;display:flex;flex-direction:column;justify-content:space-between;">
+            <div>
+              ${headerHtml}
+              ${innerContent}
             </div>
-            <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:2px;">
-              <span>Time: ${timeMatch ? escapeHtml(timeMatch.trim()) : '3 Hours'}</span>
-              <span>Paper Code: ${codeMatch || 'EXAM-CODE'}</span>
+            <div style="margin-top:20px;border-top:1px solid #000;padding-top:6px;display:flex;justify-content:space-between;font-size:9px;color:#64748b;font-family:sans-serif;">
+              <span>SOLAPUR UNIVERSITY • ZEROLEAK</span>
+              <span>Page ${pIdx + 1} of ${rawPages.length}</span>
             </div>
           </div>
         `;
-      }
+      });
 
-      preview.innerHTML = `
-        <div class="paper-sheet">
-          ${headerHtml}
-          ${innerContent || '<p style="color:#64748b;text-align:center;padding:20px;">Document compiled with 0 errors.</p>'}
-          <div style="margin-top:20px;border-top:1px solid #000;padding-top:6px;display:flex;justify-content:space-between;font-size:9px;color:#64748b;font-family:sans-serif;">
-            <span>*** END OF QUESTION PAPER ***</span>
-            <span>SOLAPUR UNIVERSITY • ZEROLEAK</span>
-          </div>
-        </div>
-      `;
+      pagesHtml += '</div>';
+      preview.innerHTML = pagesHtml;
     }
 
     function escapeHtml(str) {
@@ -592,8 +876,9 @@
               </div>
               <div style="display:flex;align-items:center;gap:8px;">
                 <button class="btn-sub" style="margin:0;padding:6px 12px;background:#059669;color:#fff;font-weight:600;" onclick="compileLatexLive()">▶ Compile LaTeX</button>
+                <button class="btn-sub" style="margin:0;padding:6px 12px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#34d399;font-weight:600;" onclick="document.getElementById('latexEditor').value = PRISM_OS_LATEX; compileLatexLive();">OS (BTN04605) Paper</button>
+                <button class="btn-sub" style="margin:0;padding:6px 12px;" onclick="document.getElementById('latexEditor').value = DEFAULT_LATEX; compileLatexLive();">Cryptography</button>
                 <button class="btn-sub" style="margin:0;padding:6px 12px;" onclick="document.getElementById('latexEditor').value = ''; compileLatexLive();">Clear</button>
-                <button class="btn-sub" style="margin:0;padding:6px 12px;" onclick="document.getElementById('latexEditor').value = DEFAULT_LATEX; compileLatexLive();">Sample Template</button>
                 <button class="btn-sub" style="margin:0;padding:6px 12px;" onclick="window.print()">Print</button>
                 <button class="btn-sub" style="margin:0;padding:6px 12px;color:#f87171;" onclick="doSignOut()">Sign out</button>
               </div>
