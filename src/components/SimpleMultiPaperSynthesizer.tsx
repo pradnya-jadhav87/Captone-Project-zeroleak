@@ -1562,9 +1562,12 @@ export const SimpleMultiPaperSynthesizer: React.FC<SimpleMultiPaperSynthesizerPr
 
               <button
                 type="button"
-                onClick={() => setShowPrismBrowser(true)}
+                onClick={() => {
+                  window.open('https://prism.openai.com/', 'OpenAIPrismApp', 'width=1280,height=850,menubar=no,toolbar=no,location=yes,status=no');
+                  setShowPrismBrowser(true);
+                }}
                 className="px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 bg-gradient-to-r from-[#00A878] to-[#00B8D9] hover:opacity-95 text-white shadow-md shadow-[#00A878]/30 transition-all cursor-pointer group shrink-0"
-                title="Open ZeroLeak AI Assistant"
+                title="Open Real OpenAI Prism"
               >
                 <Sparkles className="w-4 h-4 text-emerald-100 group-hover:scale-110 transition-transform duration-300" />
                 <span>ZeroLeak AI</span>
