@@ -336,8 +336,18 @@ export const AuthoritySurveillanceDashboard: React.FC<AuthoritySurveillanceDashb
     if (showLoading) setLoading(true);
     try {
       const res = await api.authorityProctor.getSurveillanceDashboard();
-      setMetrics(res.metrics);
-      setSessions(res.sessions || []);
+      if (res?.metrics) {
+        setMetrics(res.metrics);
+      } else {
+        const sessList = Array.isArray(res?.sessions) ? res.sessions : [];
+        setMetrics({
+          total_active_sessions: sessList.filter((s: any) => s.status === 'ACTIVE').length,
+          high_risk_sessions: sessList.filter((s: any) => s.leak_risk_level === 'HIGH' || s.leak_risk_level === 'CRITICAL' || s.status === 'FLAGGED_FOR_REVIEW').length,
+          shoulder_surfing_alerts: sessList.filter((s: any) => s.face_status === 'SHOULDER_SURFING_DETECTED').length,
+          locked_sessions: sessList.filter((s: any) => s.status === 'LOCKED' || s.emergency_locked === 1).length,
+        });
+      }
+      setSessions(Array.isArray(res?.sessions) ? res.sessions : []);
       setLastRefreshed(new Date());
     } catch (err: any) {
       console.error('Surveillance dashboard load error:', err);
@@ -508,7 +518,7 @@ export const AuthoritySurveillanceDashboard: React.FC<AuthoritySurveillanceDashb
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold text-slate-900 font-mono">
-              {metrics.total_active_sessions}
+              {metrics?.total_active_sessions ?? 0}
             </span>
             <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -529,7 +539,7 @@ export const AuthoritySurveillanceDashboard: React.FC<AuthoritySurveillanceDashb
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold text-rose-600 font-mono">
-              {metrics.high_risk_sessions}
+              {metrics?.high_risk_sessions ?? 0}
             </span>
             <span className="text-xs text-slate-500">Risk Score ≥ 60</span>
           </div>
@@ -547,7 +557,7 @@ export const AuthoritySurveillanceDashboard: React.FC<AuthoritySurveillanceDashb
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold text-amber-600 font-mono">
-              {metrics.shoulder_surfing_alerts}
+              {metrics?.shoulder_surfing_alerts ?? 0}
             </span>
             <span className="text-xs text-amber-600 font-semibold">2+ Faces Detected</span>
           </div>
@@ -565,7 +575,7 @@ export const AuthoritySurveillanceDashboard: React.FC<AuthoritySurveillanceDashb
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-3xl font-extrabold text-slate-800 font-mono">
-              {metrics.locked_sessions}
+              {metrics?.locked_sessions ?? 0}
             </span>
             <span className="text-xs text-slate-500">Terminated by Admin</span>
           </div>

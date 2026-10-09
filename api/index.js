@@ -995,6 +995,385 @@ app.get('/api/browser/stream', (req, res) => {
   }, 1000);
 });
 
+// ==========================================
+// AUTHORITY PROCTORING & SURVEILLANCE SUITE
+// ==========================================
+
+const authoritySessions = new Map();
+const authorityEvents = new Map();
+const authorityVoiceEvidence = new Map();
+const authorityCameraEvidence = new Map();
+const webrtcOffers = new Map();
+const webrtcAnswers = new Map();
+const webrtcCandidates = new Map();
+
+function getAuthUser(req) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+      const found = DEMO_USERS.find(u => u.id === decoded?.id);
+      if (found) return found;
+      if (decoded?.id) return { ...decoded, full_name: decoded.full_name || decoded.username || 'Authorized User' };
+    } catch {}
+  }
+  return DEMO_USERS[0];
+}
+
+// 1. Start Session
+app.post('/api/authority-proctor/sessions/start', (req, res) => {
+  const { workspace_type, exam_id, verification_snapshot } = req.body || {};
+  const user = getAuthUser(req);
+  const sessionId = `AUTH-SESS-${Date.now().toString(36).toUpperCase()}`;
+  const now = new Date().toISOString();
+  const session = {
+    id: sessionId,
+    user_id: user.id,
+    user_name: user.full_name,
+    user_email: user.email,
+    user_role: user.role,
+    org_id: user.org_id,
+    workspace_type: workspace_type || 'TRANSLATOR',
+    exam_id: exam_id || null,
+    status: 'ACTIVE',
+    camera_status: 'ACTIVE',
+    microphone_status: 'ACTIVE',
+    fullscreen_status: 'ACTIVE',
+    face_status: 'VERIFIED',
+    faces_detected_count: 1,
+    audio_level_db: -40.0,
+    leak_risk_score: 0,
+    leak_risk_level: 'NORMAL',
+    verification_snapshot: verification_snapshot || null,
+    emergency_locked: 0,
+    warning_count: 0,
+    last_heartbeat_at: now,
+    created_at: now,
+    updated_at: now,
+    exam_name: 'National Examination Enclave 2026',
+    camera_evidence_count: verification_snapshot ? 1 : 0,
+    voice_evidence_count: 0,
+    has_camera_evidence: Boolean(verification_snapshot),
+    has_voice_evidence: false,
+  };
+  authoritySessions.set(sessionId, session);
+  return res.json({ success: true, session });
+});
+
+// 2. Real-time frame detection
+app.post(['/api/authority-proctor/detect-frame', '/api/proctor/detect-frame'], (req, res) => {
+  return res.json({
+    success: true,
+    telemetry: {
+      timestamp: new Date().toISOString(),
+      status: 'SECURE',
+      threat_level: 'INFO',
+      person_count: 1,
+      phone_detected: false,
+      violations: [],
+      details: {
+        cell_phone_count: 0,
+        phone_consecutive_frames: 0,
+        multi_person_consecutive_frames: 0,
+        absence_consecutive_frames: 0,
+      },
+    },
+  });
+});
+
+// 3. Proctor Events
+app.post('/api/authority-proctor/events', (req, res) => {
+  const { session_id, event_type, severity, metadata, snapshot_thumbnail } = req.body || {};
+  const eventId = `EVT-${Date.now().toString(36).toUpperCase()}`;
+  const now = new Date().toISOString();
+  const ev = {
+    id: eventId,
+    session_id,
+    event_type,
+    severity: severity || 'LOW',
+    metadata: metadata || {},
+    snapshot_thumbnail: snapshot_thumbnail || null,
+    created_at: now,
+  };
+  const list = authorityEvents.get(session_id) || [];
+  list.push(ev);
+  authorityEvents.set(session_id, list);
+  return res.json({ success: true, eventId, leak_risk_score: 0, leak_risk_level: 'NORMAL' });
+});
+
+// 4. Heartbeat
+app.post('/api/authority-proctor/heartbeat', (req, res) => {
+  const { session_id, camera_status, microphone_status, fullscreen_status, face_status, faces_detected_count, audio_level_db } = req.body || {};
+  const s = authoritySessions.get(session_id);
+  if (s) {
+    if (camera_status) s.camera_status = camera_status;
+    if (microphone_status) s.microphone_status = microphone_status;
+    if (fullscreen_status) s.fullscreen_status = fullscreen_status;
+    if (face_status) s.face_status = face_status;
+    if (faces_detected_count !== undefined) s.faces_detected_count = faces_detected_count;
+    if (audio_level_db !== undefined) s.audio_level_db = audio_level_db;
+    s.last_heartbeat_at = new Date().toISOString();
+    s.updated_at = new Date().toISOString();
+  }
+  return res.json({
+    success: true,
+    status: s?.status || 'ACTIVE',
+    emergency_locked: Boolean(s?.emergency_locked),
+    emergency_lock_reason: s?.emergency_lock_reason || null,
+    warning_count: s?.warning_count || 0,
+  });
+});
+
+// 5. Voice Evidence
+app.post('/api/authority-proctor/voice-evidence', (req, res) => {
+  const { session_id, exam_id, audio_data_url, duration_seconds, warning_number } = req.body || {};
+  const evId = `VOICE-${Date.now().toString(36).toUpperCase()}`;
+  const now = new Date().toISOString();
+  const user = getAuthUser(req);
+  const evidence = {
+    id: evId,
+    session_id,
+    exam_id: exam_id || null,
+    user_id: user.id,
+    user_name: user.full_name,
+    user_role: user.role,
+    audio_data_url: audio_data_url || '',
+    duration_seconds: duration_seconds || 5,
+    warning_number: warning_number || 1,
+    created_at: now,
+  };
+  const list = authorityVoiceEvidence.get(session_id) || [];
+  list.push(evidence);
+  authorityVoiceEvidence.set(session_id, list);
+  const s = authoritySessions.get(session_id);
+  if (s) {
+    s.voice_evidence_count = list.length;
+    s.has_voice_evidence = true;
+  }
+  return res.json({ success: true, evidence });
+});
+
+// 6. Camera Evidence
+app.post('/api/authority-proctor/camera-evidence', (req, res) => {
+  const { session_id, exam_id, image_data_url, event_type, presence_status, warning_number } = req.body || {};
+  const evId = `CAM-${Date.now().toString(36).toUpperCase()}`;
+  const now = new Date().toISOString();
+  const user = getAuthUser(req);
+  const evidence = {
+    id: evId,
+    session_id,
+    exam_id: exam_id || null,
+    user_id: user.id,
+    user_name: user.full_name,
+    user_role: user.role,
+    image_data_url: image_data_url || '',
+    event_type: event_type || 'SECURITY_SNAPSHOT',
+    presence_status: presence_status || 'PRESENT',
+    warning_number: warning_number || 1,
+    created_at: now,
+  };
+  const list = authorityCameraEvidence.get(session_id) || [];
+  list.push(evidence);
+  authorityCameraEvidence.set(session_id, list);
+  const s = authoritySessions.get(session_id);
+  if (s) {
+    s.camera_evidence_count = list.length;
+    s.has_camera_evidence = true;
+  }
+  return res.json({ success: true, evidence });
+});
+
+// 7. Session Warning
+app.post('/api/authority-proctor/sessions/warning', (req, res) => {
+  const { session_id, reason } = req.body || {};
+  const s = authoritySessions.get(session_id);
+  const newCount = Math.min(3, ((s?.warning_count || 0) + 1));
+  if (s) {
+    s.warning_count = newCount;
+    if (newCount >= 3) {
+      s.status = 'LOCKED';
+      s.emergency_locked = 1;
+      s.emergency_lock_reason = 'Maximum violations exceeded (3/3)';
+    }
+  }
+  return res.json({
+    success: true,
+    warning_count: newCount,
+    max_warnings: 3,
+    warnings_remaining: Math.max(0, 3 - newCount),
+    status: s?.status || 'ACTIVE',
+    is_locked: newCount >= 3,
+    message: `Warning #${newCount} issued for: ${reason}`,
+  });
+});
+
+// 8. Surveillance Dashboard
+app.get('/api/authority-proctor/dashboard', (req, res) => {
+  const allSessions = Array.from(authoritySessions.values());
+  if (allSessions.length === 0) {
+    const defaultSession = {
+      id: 'AUTH-SESS-INST-01',
+      user_id: 'usr-translator-01',
+      user_name: 'Prof. Meera Deshmukh (Chief Linguistic Translator)',
+      user_email: 'translator@nbte.edu.in',
+      user_role: 'TRANSLATOR',
+      org_id: 'ORG-ZEROLEAK-NATIONAL',
+      workspace_type: 'TRANSLATOR',
+      exam_id: 'EXAM-2026-CS-NATIONAL',
+      status: 'ACTIVE',
+      camera_status: 'ACTIVE',
+      microphone_status: 'ACTIVE',
+      fullscreen_status: 'ACTIVE',
+      face_status: 'VERIFIED',
+      faces_detected_count: 1,
+      audio_level_db: -42.0,
+      leak_risk_score: 5,
+      leak_risk_level: 'NORMAL',
+      emergency_locked: 0,
+      warning_count: 0,
+      last_heartbeat_at: new Date().toISOString(),
+      created_at: new Date(Date.now() - 3600000).toISOString(),
+      updated_at: new Date().toISOString(),
+      exam_name: 'National Computer Science Examination 2026',
+      camera_evidence_count: 0,
+      voice_evidence_count: 0,
+      has_camera_evidence: false,
+      has_voice_evidence: false,
+    };
+    allSessions.push(defaultSession);
+    authoritySessions.set(defaultSession.id, defaultSession);
+  }
+
+  const totalActive = allSessions.filter(s => s.status === 'ACTIVE').length;
+  const highRisk = allSessions.filter(s => s.leak_risk_level === 'HIGH' || s.leak_risk_level === 'CRITICAL' || s.status === 'FLAGGED_FOR_REVIEW').length;
+  const shoulderSurfingAlerts = allSessions.filter(s => s.face_status === 'SHOULDER_SURFING_DETECTED').length;
+  const lockedSessions = allSessions.filter(s => s.status === 'LOCKED' || s.emergency_locked === 1).length;
+
+  return res.json({
+    success: true,
+    metrics: {
+      total_active_sessions: totalActive,
+      high_risk_sessions: highRisk,
+      shoulder_surfing_alerts: shoulderSurfingAlerts,
+      locked_sessions: lockedSessions,
+    },
+    sessions: allSessions,
+  });
+});
+
+// 9. Session Review
+app.get('/api/authority-proctor/sessions/:id/review', (req, res) => {
+  const sessionId = req.params.id;
+  const s = authoritySessions.get(sessionId) || {
+    id: sessionId,
+    user_name: 'Chief Linguistic Translator',
+    user_role: 'TRANSLATOR',
+    status: 'ACTIVE',
+    leak_risk_level: 'NORMAL',
+    leak_risk_score: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  const events = authorityEvents.get(sessionId) || [];
+  const voice = authorityVoiceEvidence.get(sessionId) || [];
+  const camera = authorityCameraEvidence.get(sessionId) || [];
+  return res.json({
+    success: true,
+    session: s,
+    events,
+    evidence: voice,
+    camera_evidence: camera,
+  });
+});
+
+// 10. Review Action
+app.post('/api/authority-proctor/sessions/:id/review-action', (req, res) => {
+  const sessionId = req.params.id;
+  const { action, remarks } = req.body || {};
+  const s = authoritySessions.get(sessionId);
+  if (s) {
+    if (action === 'ESCALATE') s.status = 'FLAGGED_FOR_REVIEW';
+    else if (action === 'CLOSE_CASE') s.status = 'COMPLETED';
+    s.updated_at = new Date().toISOString();
+  }
+  return res.json({ success: true, message: `Review action ${action} applied successfully.` });
+});
+
+// 11. Emergency Lock
+app.post('/api/authority-proctor/sessions/:id/emergency-lock', (req, res) => {
+  const sessionId = req.params.id;
+  const { reason } = req.body || {};
+  const s = authoritySessions.get(sessionId);
+  if (s) {
+    s.status = 'LOCKED';
+    s.emergency_locked = 1;
+    s.emergency_lock_reason = reason || 'Auditor remote emergency blackout invoked';
+    s.updated_at = new Date().toISOString();
+  }
+  return res.json({
+    success: true,
+    message: 'Authority session emergency-locked to prevent paper leakage.',
+  });
+});
+
+// 12. Evidence Queries
+app.get('/api/authority-proctor/sessions/:id/camera-evidence', (req, res) => {
+  const list = authorityCameraEvidence.get(req.params.id) || [];
+  return res.json({ success: true, evidence: list });
+});
+app.get('/api/authority-proctor/sessions/:id/evidence', (req, res) => {
+  const list = authorityVoiceEvidence.get(req.params.id) || [];
+  return res.json({ success: true, evidence: list });
+});
+
+// 13. WebRTC Signals
+app.post('/api/authority-proctor/sessions/:id/signal/offer', (req, res) => {
+  const { offer } = req.body || {};
+  webrtcOffers.set(req.params.id, offer);
+  return res.json({ success: true });
+});
+app.get('/api/authority-proctor/sessions/:id/signal/offer', (req, res) => {
+  const offer = webrtcOffers.get(req.params.id) || null;
+  return res.json({ success: true, offer });
+});
+app.post('/api/authority-proctor/sessions/:id/signal/answer', (req, res) => {
+  const { answer } = req.body || {};
+  webrtcAnswers.set(req.params.id, answer);
+  return res.json({ success: true });
+});
+app.get('/api/authority-proctor/sessions/:id/signal/answer', (req, res) => {
+  const answer = webrtcAnswers.get(req.params.id) || null;
+  return res.json({ success: true, answer });
+});
+app.post('/api/authority-proctor/sessions/:id/signal/candidate', (req, res) => {
+  const { candidate, role } = req.body || {};
+  const key = `${req.params.id}:${role || 'TRANSLATOR'}`;
+  const list = webrtcCandidates.get(key) || [];
+  list.push(candidate);
+  webrtcCandidates.set(key, list);
+  return res.json({ success: true });
+});
+app.get('/api/authority-proctor/sessions/:id/signal/candidates', (req, res) => {
+  const role = req.query.role || 'TRANSLATOR';
+  const key = `${req.params.id}:${role}`;
+  const candidates = webrtcCandidates.get(key) || [];
+  return res.json({ success: true, candidates });
+});
+app.post('/api/authority-proctor/sessions/:id/signal/stop', (req, res) => {
+  webrtcOffers.delete(req.params.id);
+  webrtcAnswers.delete(req.params.id);
+  return res.json({ success: true });
+});
+app.post('/api/authority-proctor/sessions/end', (req, res) => {
+  const { session_id } = req.body || {};
+  const s = authoritySessions.get(session_id);
+  if (s) {
+    s.status = 'COMPLETED';
+    s.updated_at = new Date().toISOString();
+  }
+  return res.json({ success: true });
+});
+
 // Generic catch-all for missing API endpoints so they never return 405
 app.all('/api/*', (req, res) => {
   res.json({
