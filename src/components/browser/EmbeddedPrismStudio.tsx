@@ -1081,9 +1081,11 @@ You can use the **Insert into Editor** button below to paste this into your pape
       <TransferToPrintingManagerModal
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
-        paperTitle="PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY — APPLIED CRYPTOGRAPHY (SLR-VB-602)"
-        subject="APPLIED CRYPTOGRAPHY & INFORMATION SECURITY"
-        courseCode="SLR-VB-602"
+        paperTitle={latexCode.toLowerCase().includes('cryptography') ? 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY — APPLIED CRYPTOGRAPHY (SLR-VB-602)' : 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)'}
+        subject={latexCode.toLowerCase().includes('cryptography') ? 'APPLIED CRYPTOGRAPHY & INFORMATION SECURITY' : 'OPERATING SYSTEMS'}
+        courseCode={latexCode.toLowerCase().includes('cryptography') ? 'SLR-VB-602' : 'BTN04605'}
+        targetFilename={latexCode.toLowerCase().includes('cryptography') ? 'SLR-VB-602.pdf' : 'OS-1.pdf'}
+        candidateNames={['OS-1.pdf', 'OS-1-1.pdf', 'OS-1-2.pdf', 'OS-1-3.pdf', 'OS-1-4.pdf', 'OS (1).zip', 'Operating_Systems_BTN04605.pdf', 'SLR-VB-602.pdf']}
         totalMarks={70}
         durationHours={3}
         latexSource={latexCode}

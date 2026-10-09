@@ -1335,7 +1335,7 @@ const PrismChromeWebAuthPane: React.FC<{
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [authStep, setAuthStep] = useState(1);
   const [latexDoc, setLatexDoc] = useState(PRISM_DEFAULT_LATEX);
-  const [activeProject, setActiveProject] = useState('Applied Cryptography & Security Paper.tex');
+  const [activeProject, setActiveProject] = useState('T.Y. B.Tech. Operating Systems (BTN04605).tex');
   const [isCompiling, setIsCompiling] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -1741,11 +1741,11 @@ const PrismChromeWebAuthPane: React.FC<{
       <TransferToPrintingManagerModal
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
-        paperTitle={activeProject.replace(/\.tex$/i, '')}
-        subject={activeProject.includes('Operating') || activeProject.includes('OS') ? 'OPERATING SYSTEMS' : 'APPLIED CRYPTOGRAPHY'}
-        courseCode={activeProject.includes('Operating') || activeProject.includes('OS') ? 'BTN04605' : 'SLR-VB-602'}
-        targetFilename={activeProject.includes('OS') || activeProject.includes('Operating') ? 'OS-1.pdf' : 'SLR-VB-602.pdf'}
-        candidateNames={['OS-1.pdf', 'OS-1.tex', 'OS (1).zip', 'OS-1-1.pdf', 'Operating_Systems_BTN04605.pdf']}
+        paperTitle={activeProject.includes('Cryptography') ? 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY — APPLIED CRYPTOGRAPHY (SLR-VB-602)' : 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)'}
+        subject={activeProject.includes('Cryptography') ? 'APPLIED CRYPTOGRAPHY' : 'OPERATING SYSTEMS'}
+        courseCode={activeProject.includes('Cryptography') ? 'SLR-VB-602' : 'BTN04605'}
+        targetFilename={activeProject.includes('Cryptography') ? 'SLR-VB-602.pdf' : 'OS-1.pdf'}
+        candidateNames={['OS-1.pdf', 'OS-1-1.pdf', 'OS-1-2.pdf', 'OS-1-3.pdf', 'OS-1-4.pdf', 'OS (1).zip', 'Operating_Systems_BTN04605.pdf', 'SLR-VB-602.pdf']}
         totalMarks={70}
         durationHours={3}
         latexSource={latexDoc}

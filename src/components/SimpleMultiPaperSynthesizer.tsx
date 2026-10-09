@@ -3082,9 +3082,11 @@ export const SimpleMultiPaperSynthesizer: React.FC<SimpleMultiPaperSynthesizerPr
       <TransferToPrintingManagerModal
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
-        paperTitle={`T.Y. B.Tech. Examination — ${subject || 'OPERATING SYSTEMS'}`}
+        paperTitle={`T.Y. B.Tech. Examination — ${subject || 'OPERATING SYSTEMS'} (BTN04605)`}
         subject={subject || 'OPERATING SYSTEMS'}
         courseCode="BTN04605"
+        targetFilename="OS-1.pdf"
+        candidateNames={['OS-1.pdf', 'OS-1-1.pdf', 'OS-1-2.pdf', 'OS-1-3.pdf', 'OS-1-4.pdf', 'OS (1).zip']}
         totalMarks={totalMarks || 70}
         durationHours={durationHours || 3}
         latexSource={generatedLatex}

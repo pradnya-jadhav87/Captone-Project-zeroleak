@@ -10049,50 +10049,79 @@ async function startServer() {
         matchedName = targetFilename || `document_${Date.now()}.pdf`;
         foundPath = `[Local PC Upload Bridge: ${matchedName}]`;
       } else {
-        // 2. Scan user's PC directories for exact matching file
-        const candidates: string[] = [];
-        if (targetFilename) candidates.push(targetFilename);
-        if (Array.isArray(candidateNames)) candidates.push(...candidateNames);
-        candidates.push('OS-1.pdf', 'OS-1-1.pdf', 'OS-1.tex', 'OS (1).zip', 'OS_Paper_Set1.pdf');
+        // 2. Scan user's PC directories for the absolute LATEST downloaded examination file
+        const dlFolder = path.join(os.homedir(), 'Downloads');
+        if (fs.existsSync(dlFolder)) {
+          try {
+            const dlFiles = fs.readdirSync(dlFolder);
+            const scoredFiles = dlFiles
+              .filter(f => {
+                const lower = f.toLowerCase();
+                return (
+                  lower.endsWith('.pdf') ||
+                  lower.endsWith('.tex') ||
+                  lower.endsWith('.zip')
+                );
+              })
+              .map(f => {
+                const fullP = path.join(dlFolder, f);
+                try {
+                  const stat = fs.statSync(fullP);
+                  return { name: f, path: fullP, mtime: stat.mtimeMs, size: stat.size };
+                } catch {
+                  return null;
+                }
+              })
+              .filter((x): x is { name: string; path: string; mtime: number; size: number } => Boolean(x) && x.size > 0)
+              .sort((a, b) => b.mtime - a.mtime);
 
-        const searchDirs: string[] = [];
-        try {
-          const home = os.homedir();
-          searchDirs.push(path.join(home, 'Downloads'));
-          searchDirs.push(path.join(home, 'Documents'));
-          searchDirs.push(path.join(home, 'Desktop'));
-        } catch {}
-        searchDirs.push(path.join(process.cwd(), 'public', 'compiled_papers'));
-        searchDirs.push(path.join(process.cwd(), 'scratch'));
+            // Specifically look for the latest OS-1 / exam paper in Downloads
+            const latestOs = scoredFiles.find(f => {
+              const lower = f.name.toLowerCase();
+              return lower.startsWith('os-1') || lower.startsWith('os_') || (lower.startsWith('os') && lower.endsWith('.pdf'));
+            }) || scoredFiles.find(f => {
+              const lower = f.name.toLowerCase();
+              return targetFilename && lower === targetFilename.toLowerCase();
+            }) || (scoredFiles.length > 0 && (Date.now() - scoredFiles[0].mtime < 2 * 60 * 60 * 1000) ? scoredFiles[0] : null);
 
-        for (const dir of searchDirs) {
-          if (!fs.existsSync(dir)) continue;
-          for (const cand of candidates) {
-            const p = path.join(dir, cand);
-            if (fs.existsSync(p)) {
-              foundPath = p;
-              matchedName = cand;
-              buffer = fs.readFileSync(p);
-              break;
+            if (latestOs) {
+              foundPath = latestOs.path;
+              matchedName = latestOs.name;
+              buffer = fs.readFileSync(foundPath);
+              console.log(`[ZeroLeak Engine] Successfully ingested latest downloaded document from PC: ${matchedName} (${foundPath})`);
             }
+          } catch (scanErr) {
+            console.warn('[ZeroLeak Engine] Notice while scanning latest downloads:', scanErr);
           }
-          if (foundPath) break;
         }
 
-        // If not found with exact match, check fuzzy/case-insensitive in Downloads
-        if (!foundPath) {
-          const dl = path.join(os.homedir(), 'Downloads');
-          if (fs.existsSync(dl)) {
-            const allFiles = fs.readdirSync(dl);
-            const foundFuzzy = allFiles.find(f => {
-              const lower = f.toLowerCase();
-              return lower === 'os-1.pdf' || lower === 'os-1-1.pdf' || lower === 'os (1).zip' || lower.startsWith('os-1');
-            });
-            if (foundFuzzy) {
-              foundPath = path.join(dl, foundFuzzy);
-              matchedName = foundFuzzy;
-              buffer = fs.readFileSync(foundPath);
+        // Secondary fallback search in standard folders if not found in Downloads
+        if (!buffer) {
+          const candidates: string[] = [];
+          if (targetFilename) candidates.push(targetFilename);
+          if (Array.isArray(candidateNames)) candidates.push(...candidateNames);
+          candidates.push('OS-1.pdf', 'OS-1-1.pdf', 'OS-1.tex', 'OS (1).zip', 'OS_Paper_Set1.pdf');
+
+          const searchDirs = [
+            path.join(os.homedir(), 'Downloads'),
+            path.join(os.homedir(), 'Documents'),
+            path.join(os.homedir(), 'Desktop'),
+            path.join(process.cwd(), 'public', 'compiled_papers'),
+            path.join(process.cwd(), 'scratch'),
+          ];
+
+          for (const dir of searchDirs) {
+            if (!fs.existsSync(dir)) continue;
+            for (const cand of candidates) {
+              const p = path.join(dir, cand);
+              if (fs.existsSync(p)) {
+                foundPath = p;
+                matchedName = cand;
+                buffer = fs.readFileSync(p);
+                break;
+              }
             }
+            if (foundPath) break;
           }
         }
       }

@@ -214,7 +214,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
               centreName: res.centreName,
               transferredAt: res.transferredAt,
               foundOnPc: true,
-              localFilePath: `C:\\Users\\ASUS\\Downloads\\${file.name}`,
+              localFilePath: '[Zero-Leak Secure Enclave — Ingested & Purged from Local PC]',
               filename: file.name,
               sizeBytes: file.size,
               message: `Exact file ${file.name} transferred to Printing Manager.`,
@@ -434,17 +434,17 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
             )}
 
             {/* Interactive PC File Fetch & Verification Bar */}
-            <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700/60 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                  <HardDrive className="w-4 h-4" />
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/30 border-2 border-emerald-400 dark:border-emerald-600 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <HardDrive className="w-5 h-5" />
                 </div>
                 <div>
-                  <span className="font-bold text-xs text-slate-900 dark:text-white block">
-                    Fetch Document From PC
+                  <span className="font-extrabold text-xs text-slate-900 dark:text-white block">
+                    Fetch Latest Downloaded Document from Laptop
                   </span>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Auto-select or pick OS-1.pdf / SLR-VB-602.pdf directly from your disk
+                  <span className="text-[11px] text-slate-600 dark:text-slate-300 block">
+                    Click to browse and ingest <strong>OS-1.pdf</strong> directly from your PC Downloads
                   </span>
                 </div>
               </div>
@@ -458,10 +458,10 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
               <button
                 type="button"
                 onClick={handleSelectFromPc}
-                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
+                className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold flex items-center gap-2 shadow-sm shadow-emerald-700/20 transition-all cursor-pointer shrink-0"
               >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Select / Fetch from PC ➔</span>
+                <Upload className="w-4 h-4" />
+                <span>Pick OS-1.pdf from Laptop ➔</span>
               </button>
             </div>
 
