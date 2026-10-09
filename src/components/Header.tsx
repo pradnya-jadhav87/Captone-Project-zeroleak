@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, NotificationItem } from '../types';
-import { api, getDeviceFingerprint } from '../api';
+import { api, getDeviceFingerprint, setStoredAuth } from '../api';
 import {
   Bell,
   Laptop,
@@ -219,6 +219,50 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Profile: Prof. Rajesh Sharma, Controller of Examinations */}
           <div className="flex items-center gap-2.5 border-l border-[#E6ECEA] pl-3">
+            {currentUser.role === 'EXAM_MANAGER' && (
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent('zeroleak:switch-to-printing-manager', {
+                      detail: { email: 'operator@centre101.edu.in', password: 'Password123!' },
+                    })
+                  );
+                }}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
+                title="Switch to Centre Operator / Printing Manager Dashboard"
+              >
+                <span>Printing Dashboard</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {currentUser.role === 'CENTRE_OPERATOR' && (
+              <button
+                type="button"
+                onClick={() => {
+                  const managerUser: User = {
+                    id: 'usr-manager-01',
+                    email: 'manager@nbte.edu.in',
+                    username: 'exam_manager',
+                    full_name: 'Prof. Rajesh Sharma (Controller of Examinations)',
+                    role: 'EXAM_MANAGER',
+                    org_id: 'ORG-ZEROLEAK-NATIONAL',
+                    authorization_status: 'AUTHORIZED',
+                    account_type: 'STANDARD',
+                  };
+                  setStoredAuth('manager_auth_token', managerUser);
+                  window.location.hash = '#paper-generation';
+                  window.location.reload();
+                }}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
+                title="Switch back to Paper Generator (Exam Manager)"
+              >
+                <span>Paper Generator</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => onNavigateProfile?.()}

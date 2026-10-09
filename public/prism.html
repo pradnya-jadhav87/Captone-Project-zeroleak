@@ -594,6 +594,24 @@
         });
         const data = await res.json();
         if (data && data.success) {
+          try {
+            const existing = JSON.parse(localStorage.getItem('zeroleak_transferred_jobs') || '[]');
+            existing.unshift({
+              id: data.jobId,
+              paperId: 'EXAM-BTN04605-OS',
+              title: 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)',
+              subject: 'OPERATING SYSTEMS',
+              courseCode: 'BTN04605',
+              custodyHash: data.custodyHash,
+              transferredBy: 'Pradnya Jadhav (Paper Authority)',
+              filename: data.filename || 'OS-1.pdf',
+              sizeBytes: data.sizeBytes || 48678,
+              transferredAt: data.transferredAt,
+              localFilePath: data.localFilePath,
+              status: 'READY_FOR_PRINT'
+            });
+            localStorage.setItem('zeroleak_transferred_jobs', JSON.stringify(existing));
+          } catch (e) {}
           alert('✓ Document [' + (data.filename || 'OS-1.pdf') + '] fetched directly from your PC (' + (data.localFilePath || 'Downloads') + ') and securely transferred to Printing Manager (operator@centre101.edu.in)!\n\nCustody Hash: ' + data.custodyHash + '\n\nLocal PC download blocked per Zero-Leak protocol.');
         } else {
           alert('✓ Paper transferred directly to Printing Manager (operator@centre101.edu.in). Local download blocked per Zero-Leak protocol.');

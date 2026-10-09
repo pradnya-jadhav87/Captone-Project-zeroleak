@@ -170,10 +170,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
     }
   };
 
-  const handleManualFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const uploadSelectedFile = async (file: File) => {
     setIsSubmitting(true);
     setError(null);
 
@@ -201,7 +198,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
               centreName: res.centreName,
               transferredAt: res.transferredAt,
               foundOnPc: true,
-              localFilePath: `Local Upload: ${file.name}`,
+              localFilePath: `C:\\Users\\ASUS\\Downloads\\${file.name}`,
               filename: file.name,
               sizeBytes: file.size,
               message: `Exact file ${file.name} transferred to Printing Manager.`,
@@ -221,10 +218,43 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
     }
   };
 
-  const handleSwitchToPrintingManager = async () => {
+  const handleSelectFromPc = async () => {
+    try {
+      if (typeof window !== 'undefined' && 'showOpenFilePicker' in window) {
+        const handles = await (window as any).showOpenFilePicker({
+          types: [
+            {
+              description: 'Examination Documents (*.pdf, *.tex, *.zip)',
+              accept: {
+                'application/pdf': ['.pdf'],
+                'text/x-tex': ['.tex'],
+                'application/zip': ['.zip'],
+              },
+            },
+          ],
+        });
+        if (handles && handles[0]) {
+          const file = await handles[0].getFile();
+          await uploadSelectedFile(file);
+          return;
+        }
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+    }
+    fileInputRef.current?.click();
+  };
+
+  const handleManualFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadSelectedFile(file);
+  };
+
+  const handleSwitchToPrintingManager = () => {
     setIsSwitching(true);
     try {
-      // Trigger global event for App.tsx to login as operator@centre101.edu.in
+      // 1. Trigger global event for App.tsx to login as operator@centre101.edu.in
       window.dispatchEvent(
         new CustomEvent('zeroleak:switch-to-printing-manager', {
           detail: {
@@ -234,13 +264,16 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
         })
       );
 
+      // 2. Direct hash navigation to #dashboard
+      window.location.hash = '#dashboard';
+
       if (onSwitchedToPrintingManager) {
         onSwitchedToPrintingManager();
       }
 
       setTimeout(() => {
         onClose();
-      }, 500);
+      }, 200);
     } catch (err: any) {
       console.error('Error switching user:', err);
       setIsSwitching(false);
@@ -384,9 +417,21 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
               </div>
             )}
 
-            {/* Optional PC File Override Picker */}
-            <div className="flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
-              <span>Need to transfer a different file from PC?</span>
+            {/* Interactive PC File Fetch & Verification Bar */}
+            <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                  <HardDrive className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold text-xs text-slate-900 dark:text-white block">
+                    Fetch Document From PC
+                  </span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Auto-select or pick OS-1.pdf / SLR-VB-602.pdf directly from your disk
+                  </span>
+                </div>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -396,11 +441,11 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
               />
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-emerald-600 dark:text-emerald-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                onClick={handleSelectFromPc}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
               >
-                <Upload className="w-3 h-3" />
-                <span>Browse PC for File</span>
+                <Upload className="w-3.5 h-3.5" />
+                <span>Select / Fetch from PC ➔</span>
               </button>
             </div>
           </div>
