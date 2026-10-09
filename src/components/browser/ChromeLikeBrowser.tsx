@@ -251,7 +251,7 @@ const BrowserPane = React.forwardRef<
   useEffect(() => {
     if (!desktopShell && !streamed) {
       if (tab.url?.includes('prism.openai.com')) {
-        statusRef.current.onTitle('OpenAI Prism');
+        statusRef.current.onTitle('ZeroLeak AI');
         statusRef.current.onStop();
       }
     }
@@ -290,7 +290,7 @@ const BrowserPane = React.forwardRef<
             className="w-full h-full border-0 bg-white"
             onLoad={() => {
               statusRef.current.onStop();
-              statusRef.current.onTitle(tab.title || 'OpenAI Prism');
+              statusRef.current.onTitle(tab.title || 'ZeroLeak AI');
             }}
             allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation; storage-access; identity-credentials-get"
             sandbox={PANE_SANDBOX_FLAGS}
@@ -383,7 +383,7 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
   const [tabs, setTabs] = useState<BrowserTab[]>(() => {
     const tab = createTab(initialUrl);
     if (initialUrl?.includes('prism.openai.com')) {
-      tab.title = 'OpenAI Prism';
+      tab.title = 'ZeroLeak AI';
       tab.isLoading = false;
     }
     return [tab];
@@ -951,7 +951,7 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
               className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-base shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
             >
               <ZeroLeakLogo variant="icon" imgHeightClass="h-5 w-auto" />
-              Open OpenAI Prism
+              Open ZeroLeak AI
             </button>
           </div>
         )}

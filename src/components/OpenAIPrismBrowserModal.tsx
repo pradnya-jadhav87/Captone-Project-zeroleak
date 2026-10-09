@@ -657,7 +657,7 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
              */}
             <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm pl-2 border-l border-slate-800">
               <Sparkles className="w-4 h-4 text-emerald-400" />
-              <span>ZeroLeak AI Browser</span>
+              <span>ZeroLeak AI</span>
             </div>
           </div>
 
@@ -676,10 +676,11 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
             <button
               type="button"
               onClick={() => handleOpenExternal('https://prism.openai.com/')}
-              title="Open in window"
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              title="Open Prism in new window to sign in"
             >
-              <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Sign In / Open Prism</span>
             </button>
 
             <button
