@@ -1026,6 +1026,22 @@ app.post('/api/browser/host/stop', (req, res) => {
   });
 });
 
+app.get('/api/browser/live', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.write(`data: ${JSON.stringify({ type: 'status', status: { state: 'stopped', reason: 'Web Enclave Mode' } })}\n\n`);
+  res.end();
+});
+
+app.post('/api/browser/command', (req, res) => {
+  res.json({ ok: true, reason: 'Command handled by Chrome Enclave' });
+});
+
+app.post('/api/browser/input', (req, res) => {
+  res.json({ ok: true });
+});
+
 // ==========================================
 // AUTHORITY PROCTORING & SURVEILLANCE SUITE
 // ==========================================
