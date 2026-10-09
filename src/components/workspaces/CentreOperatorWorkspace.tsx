@@ -21,7 +21,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { User, Examination, PrintCopy, DynamicWatermarkData, TrustedDevice, PrintAnywhereJob } from '../../types';
-import { api, getDeviceFingerprint, getOrCreateBrowserDeviceIdentity } from '../../api';
+import { api, getDeviceFingerprint, getOrCreateBrowserDeviceIdentity, getLocalTransferredJobs } from '../../api';
 import { NavSubTab } from '../Sidebar';
 import { SecureViewerModal } from '../SecureViewerModal';
 import { PrintRelayPanel } from '../PrintRelayPanel';
@@ -148,9 +148,30 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
   const loadCompetitivePapers = useCallback(async (silent = false) => {
     try {
       const compRes = await api.competitive.getOperatorAssignedPapers();
-      if (compRes && Array.isArray(compRes.papers)) {
-        setCompetitivePapers(compRes.papers);
+      let papers = compRes && Array.isArray(compRes.papers) ? compRes.papers : [];
+
+      if (papers.length === 0) {
+        const localJobs = getLocalTransferredJobs();
+        if (localJobs.length > 0) {
+          papers = localJobs.map(job => ({
+            id: job.paperId || job.id,
+            title: job.title,
+            exam_name: job.title,
+            subject: job.subject || 'OPERATING SYSTEMS',
+            exam_type: 'UNIVERSITY_TRANSFERRED',
+            encryptionStatus: 'UNLOCKED_READY',
+            assignedCentreCode: 'CTR-101',
+            centreName: 'Apex National Engineering Examination Centre 101',
+            total_marks: 70,
+            duration_minutes: 180,
+            isTransferredJob: true,
+            transferredAt: job.transferredAt,
+            custodyHash: job.custodyHash,
+            status: 'READY_FOR_PRINT',
+          }));
+        }
       }
+      setCompetitivePapers(papers);
       if (compRes?.serverTimestampMs) {
         const sMs = Number(compRes.serverTimestampMs);
         setServerClockAnchor({
@@ -245,6 +266,18 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
 
   // Evaluate live server-anchored countdown for a Competitive Exam paper
   const getPaperLiveLockState = (paper: any) => {
+    if (paper.isTransferredJob || paper.encryptionStatus === 'UNLOCKED_READY' || paper.status === 'READY_FOR_PRINT') {
+      return {
+        isBeforeEncryption: false,
+        isLocked: false,
+        canDecryptOrPrint: true,
+        remainingSec: 0,
+        unlockDisplay: 'Unlocked & Ready',
+        encDisplay: 'Secured Enclave',
+        statusBannerText: 'Paper Unlocked & Ready for Physical Print Enclave',
+      };
+    }
+
     const decMs = paper.decryptionTimeIso ? new Date(paper.decryptionTimeIso).getTime() : NaN;
     const encMs = paper.encryptionTimeIso ? new Date(paper.encryptionTimeIso).getTime() : NaN;
     const isBeforeEncryption = !isNaN(encMs) && liveServerNowMs < encMs;
@@ -270,6 +303,13 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
 
   // Decrypt & Unlock Competitive Exam Paper (Server-Side Verified)
   const handleDecryptCompetitivePaper = async (paper: any) => {
+    if (paper.isTransferredJob) {
+      handleOpenSecureViewer({
+        id: paper.id,
+        name: paper.title,
+      } as any);
+      return;
+    }
     setDecryptingPaperId(paper.id);
     setStatusMessage(null);
     try {
@@ -504,6 +544,10 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
 
   // Print Final Competitive Exam Paper (Server-Side Verified + Audit Logged + Triggers Clean Print)
   const handlePrintCompetitivePaper = async (paper: any) => {
+    if (paper.isTransferredJob) {
+      openPrintGate(paper.id, paper.title);
+      return;
+    }
     setPrintingPaperId(paper.id);
     setStatusMessage(null);
     try {
