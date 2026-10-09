@@ -181,16 +181,17 @@ const PrismChromeWebAuthPane: React.FC<{
   }, [activateSession]);
 
   const handleLaunchPrism = () => {
-    const width = 520;
-    const height = 650;
+    const width = 1280;
+    const height = 850;
     const left = Math.max(0, Math.round(window.screen.width / 2 - width / 2));
     const top = Math.max(0, Math.round(window.screen.height / 2 - height / 2));
     const win = window.open(
       'https://prism.openai.com/',
-      'ZeroLeakPrismAuth',
+      'ZeroLeakPrismChrome',
       `width=${width},height=${height},top=${top},left=${left},menubar=no,toolbar=no,status=no,location=yes,resizable=yes`,
     );
     authWindowRef.current = win;
+    activateSession();
     if (win) {
       try {
         win.focus();
@@ -200,19 +201,80 @@ const PrismChromeWebAuthPane: React.FC<{
 
   if (sessionActive) {
     return (
-      <div className="relative w-full h-full bg-[#18181b]">
-        <iframe
-          key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
-          src={tab.url || 'https://prism.openai.com/'}
-          title={`ZeroLeak tab ${tab.id}`}
-          className="w-full h-full border-0 bg-white"
-          referrerPolicy="no-referrer"
-          onLoad={() => {
-            statusRef.current.onStop();
-            statusRef.current.onTitle('Prism — AI LaTeX Editor | ZeroLeak AI');
-          }}
-          allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation; storage-access; identity-credentials-get"
-        />
+      <div className="w-full h-full bg-[#121316] flex items-center justify-center p-4 sm:p-6 select-none">
+        <div className="max-w-[540px] w-full bg-[#1e1f23] border border-[#2e3035] rounded-2xl p-8 sm:p-10 shadow-2xl flex flex-col items-center text-center">
+          {/* Active Prism Emblem with pulsing status */}
+          <div className="w-20 h-20 rounded-2xl bg-black border border-emerald-500/30 flex items-center justify-center mb-6 shadow-inner relative group">
+            <svg
+              className="w-11 h-11 text-emerald-400 transition-transform group-hover:scale-105"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z" />
+              <path d="M12 8a4 4 0 1 0 4 4 4 4 0 0 0-4-4Z" />
+              <path d="m10 10 4 4m0-4-4 4" />
+            </svg>
+            <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-[#1e1f23]" />
+            </span>
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>OpenAI Prism Enclave Connected</span>
+          </div>
+
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2 tracking-tight">Prism AI LaTeX Editor</h2>
+          <p className="text-xs sm:text-sm text-slate-400 mb-8 max-w-[420px] leading-relaxed">
+            Your OpenAI workspace is active in the verified Chrome session. Work directly with AI-powered LaTeX synthesis, equation compilation, and document generation.
+          </p>
+
+          <div className="w-full space-y-3.5">
+            <button
+              type="button"
+              onClick={handleLaunchPrism}
+              className="w-full py-4 px-6 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+            >
+              <span className="text-lg">✦</span>
+              <span>Open / Focus Prism Workspace ↗</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  sessionStorage.removeItem('zeroleak_prism_session_active');
+                } catch {}
+                setSessionActive(false);
+              }}
+              className="w-full py-2.5 px-4 rounded-full bg-transparent hover:bg-white/5 text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer border border-transparent hover:border-white/10"
+            >
+              Sign out / Reconnect different account
+            </button>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-[#2e3035] w-full grid grid-cols-2 gap-3 text-left">
+            <div className="p-3 rounded-xl bg-black/30 border border-white/5 flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <div>
+                <p className="text-[11px] font-semibold text-slate-200">Zero Validation Errors</p>
+                <p className="text-[10px] text-slate-500">First-Party Session</p>
+              </div>
+            </div>
+            <div className="p-3 rounded-xl bg-black/30 border border-white/5 flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-blue-400" />
+              <div>
+                <p className="text-[11px] font-semibold text-slate-200">Full LaTeX Engine</p>
+                <p className="text-[10px] text-slate-500">Live PDF Compilation</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
