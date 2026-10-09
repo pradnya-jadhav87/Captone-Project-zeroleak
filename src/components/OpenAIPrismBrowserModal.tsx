@@ -71,7 +71,7 @@ interface OpenAIPrismBrowserModalProps {
 const MAX_AUTO_STARTS = 3;
 
 const FALLBACK_BOOKMARKS: BrowserBookmark[] = [
-  { id: 'prism', name: 'OpenAI Prism', url: PRISM_SIGN_IN_URL, icon: '✨', group: 'core' },
+  { id: 'prism', name: 'ZeroLeak AI Copilot', url: PRISM_SIGN_IN_URL, icon: '✨', group: 'core' },
 ];
 
 /** What `GET /api/browser/config` answers with, inferred from the client. */

@@ -26,6 +26,7 @@ import {
   type StreamedBrowserStatus,
 } from '../../api';
 import { StreamedBrowserSurface } from './StreamedBrowserSurface';
+import { EmbeddedPrismStudio } from './EmbeddedPrismStudio';
 import { ZeroLeakLogo } from '../ZeroLeakLogo';
 import { PANE_PARTITION, PANE_SANDBOX_FLAGS } from '../../utils/prismAuth';
 import {
@@ -247,6 +248,15 @@ const BrowserPane = React.forwardRef<
     safeCall(viewRef.current, 'focus');
   }, [desktopShell, visible]);
 
+  useEffect(() => {
+    if (!desktopShell && !streamed) {
+      if (tab.url?.includes('prism.openai.com') || tab.url?.includes('zeroleak')) {
+        statusRef.current.onTitle('ZeroLeak AI Copilot');
+        statusRef.current.onStop();
+      }
+    }
+  }, [desktopShell, streamed, tab.url]);
+
   return (
     <div
       ref={hostRef}
@@ -270,17 +280,22 @@ const BrowserPane = React.forwardRef<
       )}
 
       {!desktopShell && !streamed && (
-        <iframe
-          key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
-          src={tab.url || 'https://prism.openai.com/'}
-          title={`ZeroLeak tab ${tab.id}`}
-          className="w-full h-full border-0 bg-white"
-          onLoad={() => {
-            statusRef.current.onStop();
-            statusRef.current.onTitle('OpenAI Prism');
-          }}
-          allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation; storage-access; identity-credentials-get"
-        />
+        tab.url?.includes('prism.openai.com') || tab.url?.includes('zeroleak') ? (
+          <EmbeddedPrismStudio key={`${tab.id}:${tab.reloadKey}`} />
+        ) : (
+          <iframe
+            key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
+            src={tab.url || NEW_TAB_URL}
+            title={`ZeroLeak tab ${tab.id}`}
+            className="w-full h-full border-0 bg-white"
+            onLoad={() => {
+              statusRef.current.onStop();
+              statusRef.current.onTitle(tab.title || '');
+            }}
+            allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation; storage-access; identity-credentials-get"
+            sandbox={PANE_SANDBOX_FLAGS}
+          />
+        )
       )}
     </div>
   );
@@ -365,7 +380,14 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
   streamedStatus,
   chrome = true,
 }) => {
-  const [tabs, setTabs] = useState<BrowserTab[]>(() => [createTab(initialUrl)]);
+  const [tabs, setTabs] = useState<BrowserTab[]>(() => {
+    const tab = createTab(initialUrl);
+    if (initialUrl?.includes('prism.openai.com') || initialUrl?.includes('zeroleak')) {
+      tab.title = 'ZeroLeak AI Copilot';
+      tab.isLoading = false;
+    }
+    return [tab];
+  });
   const [activeId, setActiveId] = useState<string>(() => '');
   const [omnibox, setOmnibox] = useState<string>('');
   const [notice, setNotice] = useState<string | null>(null);
