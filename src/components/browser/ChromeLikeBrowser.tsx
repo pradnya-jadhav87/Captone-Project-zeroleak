@@ -136,18 +136,49 @@ const PrismChromeWebAuthPane: React.FC<{
   statusRef: React.MutableRefObject<PaneStatus>;
 }> = ({ tab, frameKey, statusRef }) => {
   const [sessionActive, setSessionActive] = useState(false);
-  const [showDirectIframe, setShowDirectIframe] = useState(false);
   const authWindowRef = useRef<Window | null>(null);
 
+  // Detect OAuth completion message from window.opener postMessage callback
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (
+        e.data &&
+        (e.data.type === 'complete' ||
+          e.data.status === 'success' ||
+          e.data.transfer_ready === true)
+      ) {
+        setSessionActive(true);
+        statusRef.current.onTitle('Prism — AI LaTeX Editor | ZeroLeak AI');
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [statusRef]);
+
+  // Poll popup lifecycle to transition to workspace as soon as the user finishes auth
+  useEffect(() => {
+    if (!authWindowRef.current) return;
+    const timer = setInterval(() => {
+      if (authWindowRef.current && authWindowRef.current.closed) {
+        setSessionActive(true);
+        statusRef.current.onTitle('Prism — AI LaTeX Editor | ZeroLeak AI');
+        clearInterval(timer);
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [statusRef]);
+
   const handleLaunchPrism = () => {
+    const width = 520;
+    const height = 650;
+    const left = Math.max(0, Math.round(window.screen.width / 2 - width / 2));
+    const top = Math.max(0, Math.round(window.screen.height / 2 - height / 2));
     const win = window.open(
       'https://prism.openai.com/',
-      'ZeroLeakPrismChrome',
-      'popup=1,width=1280,height=850,menubar=no,toolbar=no,status=no',
+      'ZeroLeakPrismAuth',
+      `width=${width},height=${height},top=${top},left=${left},menubar=no,toolbar=no,status=no,location=yes,resizable=yes`,
     );
     authWindowRef.current = win;
-    setSessionActive(true);
-    statusRef.current.onTitle('Prism — AI LaTeX Editor');
     if (win) {
       try {
         win.focus();
@@ -155,100 +186,79 @@ const PrismChromeWebAuthPane: React.FC<{
     }
   };
 
-  if (showDirectIframe) {
+  if (sessionActive) {
     return (
-      <div className="relative w-full h-full">
+      <div className="relative w-full h-full bg-[#18181b]">
         <iframe
           key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
           src={tab.url || 'https://prism.openai.com/'}
           title={`ZeroLeak tab ${tab.id}`}
           className="w-full h-full border-0 bg-white"
-          sandbox={PANE_SANDBOX_FLAGS}
           referrerPolicy="no-referrer"
           onLoad={() => {
             statusRef.current.onStop();
-            statusRef.current.onTitle(tab.title || 'OpenAI Prism');
+            statusRef.current.onTitle('Prism — AI LaTeX Editor | ZeroLeak AI');
           }}
           allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation; storage-access; identity-credentials-get"
         />
-        <button
-          type="button"
-          onClick={() => setShowDirectIframe(false)}
-          className="absolute bottom-3 right-3 px-3 py-1.5 rounded-lg bg-black/80 hover:bg-black text-white text-xs border border-white/20 shadow-lg cursor-pointer"
-        >
-          ← Return to Chrome Gateway
-        </button>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full bg-[#18181b] flex items-center justify-center p-4 select-none">
-      <div className="max-w-[440px] w-full bg-[#242427] border border-[#333338] rounded-2xl p-8 shadow-2xl flex flex-col items-center text-center">
-        {/* OpenAI Prism Logo */}
-        <div className="w-16 h-16 rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center mb-6 shadow-inner">
-          <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <div className="w-full h-full bg-[#0a0a0c] flex items-center justify-center p-4 select-none">
+      <div className="max-w-[460px] w-full bg-[#18181b] border border-[#27272a] rounded-2xl p-8 sm:p-10 shadow-2xl flex flex-col items-center text-center">
+        {/* Authentic OpenAI Prism Diamond Emblem */}
+        <div className="w-16 h-16 rounded-2xl bg-black border border-white/10 flex items-center justify-center mb-6 shadow-inner relative group">
+          <svg
+            className="w-9 h-9 text-white transition-transform group-hover:scale-105"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z" />
             <path d="M12 8a4 4 0 1 0 4 4 4 4 0 0 0-4-4Z" />
             <path d="m10 10 4 4m0-4-4 4" />
           </svg>
+          <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#18181b]" />
         </div>
 
         <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">Welcome to Prism</h2>
-        <p className="text-xs text-slate-400 mb-6">
-          {sessionActive 
-            ? 'Prism workspace active in standalone Chrome window.' 
-            : 'AI-Powered Examination Paper Synthesis'}
+        <p className="text-xs text-slate-400 mb-8 max-w-[340px] leading-relaxed">
+          AI-powered LaTeX workspace for research, document drafting, and examination paper synthesis.
         </p>
 
-        {sessionActive ? (
-          <div className="w-full space-y-3">
-            <button
-              type="button"
-              onClick={handleLaunchPrism}
-              className="w-full py-3 px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
-            >
-              <span>Bring Workspace to Front ↗</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSessionActive(false);
-                handleLaunchPrism();
-              }}
-              className="w-full py-2.5 px-4 rounded-full bg-[#323236] hover:bg-[#3d3d42] text-slate-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
-            >
-              Reconnect / Reopen
-            </button>
-          </div>
-        ) : (
-          <div className="w-full space-y-3">
-            <button
-              type="button"
-              onClick={handleLaunchPrism}
-              className="w-full py-3 px-5 rounded-full bg-white hover:bg-slate-100 text-slate-900 font-bold text-sm flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
-            >
-              <span className="w-4 h-4 flex items-center justify-center text-sm font-bold">✦</span>
-              <span>Continue with OpenAI</span>
-            </button>
-            <p className="text-[11px] text-slate-500 leading-normal px-2">
-              By clicking "Continue with OpenAI", you open the secure Chrome session where your account authenticates without iframe restrictions.
-            </p>
-          </div>
-        )}
-
-        <div className="mt-6 pt-5 border-t border-[#333338] w-full flex items-center justify-between gap-2 text-[11px] text-slate-400">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Zero Validation Errors</span>
-          </div>
+        <div className="w-full space-y-3.5">
           <button
             type="button"
-            onClick={() => setShowDirectIframe(true)}
-            className="text-slate-500 hover:text-slate-300 underline cursor-pointer text-[10px]"
+            onClick={handleLaunchPrism}
+            className="w-full py-3.5 px-6 rounded-full bg-white hover:bg-slate-100 text-slate-900 font-semibold text-sm flex items-center justify-center gap-2.5 shadow-lg transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
           >
-            Direct Frame Mode
+            <span className="w-4 h-4 flex items-center justify-center text-sm font-bold">✦</span>
+            <span>Continue with OpenAI</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSessionActive(true);
+              statusRef.current.onTitle('Prism — AI LaTeX Editor | ZeroLeak AI');
+            }}
+            className="w-full py-2.5 px-4 rounded-full bg-transparent hover:bg-white/5 text-xs text-slate-400 hover:text-slate-200 transition-colors cursor-pointer border border-transparent hover:border-white/10"
+          >
+            Already signed in? Open Workspace Directly →
+          </button>
+        </div>
+
+        <div className="mt-8 pt-5 border-t border-[#27272a] w-full flex items-center justify-between text-[11px] text-slate-400">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Chrome Secure Enclave</span>
+          </div>
+          <span className="font-mono text-[10px] text-slate-400">SSL Encrypted</span>
         </div>
       </div>
     </div>

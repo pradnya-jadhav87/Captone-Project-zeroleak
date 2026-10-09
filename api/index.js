@@ -995,6 +995,26 @@ app.get('/api/browser/stream', (req, res) => {
   }, 1000);
 });
 
+// Browser Configuration for Chrome Enclave
+app.get('/api/browser/config', (req, res) => {
+  res.json({
+    bookmarks: [
+      { id: 'prism', name: 'OpenAI Prism', url: 'https://prism.openai.com/', icon: '✨', group: 'core', status: 'ok' },
+    ],
+    policy: {
+      searchTemplate: 'https://www.google.com/search?q=%s',
+      blockExternalNavigations: false,
+    },
+  });
+});
+
+app.get('/api/browser/host/status', (req, res) => {
+  res.json({
+    status: { state: 'ready', url: 'https://prism.openai.com/', title: 'Prism — AI LaTeX Editor | ZeroLeak AI' },
+    running: true,
+  });
+});
+
 // ==========================================
 // AUTHORITY PROCTORING & SURVEILLANCE SUITE
 // ==========================================

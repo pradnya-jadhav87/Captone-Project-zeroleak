@@ -651,7 +651,7 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
                 <span className="w-3.5 h-3.5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] shrink-0 font-bold">
                   ✦
                 </span>
-                <span className="truncate">Prism — AI LaTeX Editor</span>
+                <span className="truncate">Prism — AI LaTeX Editor | ZeroLeak AI</span>
                 <span className="w-3.5 h-3.5 flex items-center justify-center rounded-full hover:bg-white/10 text-slate-400 text-[11px] cursor-pointer ml-auto" onClick={onClose} title="Close tab">
                   ×
                 </span>
