@@ -214,37 +214,21 @@ const PrismChromeWebAuthPane: React.FC<{
     setIsAuthenticating(true);
     setAuthStep(1);
 
-    const width = 1280;
-    const height = 850;
-    const left = Math.max(0, Math.round(window.screen.width / 2 - width / 2));
-    const top = Math.max(0, Math.round(window.screen.height / 2 - height / 2));
-    const win = window.open(
-      'https://prism.openai.com/',
-      'ZeroLeakPrismChrome',
-      `width=${width},height=${height},top=${top},left=${left},menubar=no,toolbar=no,status=no,location=yes,resizable=yes`,
-    );
-    authWindowRef.current = win;
-    if (win) {
-      try {
-        win.focus();
-      } catch {}
-    }
-
     // Step 2: Session validation
     setTimeout(() => {
       setAuthStep(2);
-    }, 700);
+    }, 400);
 
     // Step 3: Redirecting into Prism Workspace with verified profile
     setTimeout(() => {
       setAuthStep(3);
-    }, 1300);
+    }, 800);
 
-    // Final: Activate workspace
+    // Final: Activate workspace cleanly inside in-app modal
     setTimeout(() => {
       setIsAuthenticating(false);
       activateSession();
-    }, 1800);
+    }, 1200);
   };
 
   const [latexDoc, setLatexDoc] = useState(`\\documentclass[11pt,a4paper]{article}
@@ -460,17 +444,10 @@ const PrismChromeWebAuthPane: React.FC<{
                   <p className="text-xs font-medium text-white">Pradnya Jadhav</p>
                   <p className="text-[10px] text-slate-400 font-mono">pradnya.jadhav@zeroleak.ai</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleLaunchPrism();
-                    setShowUserDropdown(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs text-slate-300 hover:text-white hover:bg-white/5 rounded-lg flex items-center gap-2 cursor-pointer"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Focus Standalone Chrome Window ↗</span>
-                </button>
+                <div className="px-3 py-2 text-left text-xs text-emerald-400 bg-emerald-500/10 rounded-lg flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>Enclave Verified & Protected</span>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -517,15 +494,10 @@ const PrismChromeWebAuthPane: React.FC<{
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={handleLaunchPrism}
-                className="px-3 py-1.5 rounded-lg bg-[#27272a] hover:bg-[#323236] border border-white/10 text-xs text-slate-200 hover:text-white flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Focus real Chrome standalone window"
-              >
-                <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Focus Standalone Window ↗</span>
-              </button>
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#27272a] border border-white/5 text-xs text-slate-300">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span>ZeroLeak Enclave</span>
+              </div>
 
               <button
                 type="button"

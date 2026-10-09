@@ -728,21 +728,20 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
             <div className="flex-1 max-w-xl mx-auto h-7 px-3 rounded-full bg-[#202124] border border-[#3c4043] flex items-center justify-between gap-2 text-xs text-slate-300 shadow-inner">
               <div className="flex items-center gap-2 truncate">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-xs shadow-emerald-400/50" />
-                <span className="font-mono text-[11px] text-slate-200">prism.openai.com</span>
-                <span className="text-[10px] text-slate-500 font-sans hidden sm:inline">| Verified Secure Enclave</span>
+                <span className="font-medium text-[11px] text-slate-200">AI LaTeX Synthesis</span>
+                <span className="text-[10px] text-slate-500 font-sans hidden sm:inline">| Verified Enclave</span>
               </div>
-              <span className="text-[10px] text-emerald-400 font-medium">SSL Encrypted</span>
+              <span className="text-[10px] text-emerald-400 font-medium">Encrypted Session</span>
             </div>
 
-            {/* Quick Action Button for Direct Top-Level Chrome Session */}
+            {/* Fullscreen Expand Button (In-app, no external popup) */}
             <button
               type="button"
-              onClick={() => window.open(PRISM_SIGN_IN_URL, 'ZeroLeakPrismChrome', 'popup=1,width=1280,height=850,menubar=no,toolbar=no,status=no')}
+              onClick={() => setIsMaximized(!isMaximized)}
               className="px-3 py-1 rounded-md bg-[#35363a] hover:bg-[#404246] border border-[#484b50] text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-2xs"
-              title="Open full Prism session in top-level Chrome standalone window"
+              title={isMaximized ? "Restore window size" : "Expand to full screen"}
             >
-              <ExternalLink className="w-3 h-3 text-emerald-400" />
-              <span>Full Window ↗</span>
+              <span>{isMaximized ? "Restore ❐" : "Full Screen ⛶"}</span>
             </button>
           </div>
         </div>
