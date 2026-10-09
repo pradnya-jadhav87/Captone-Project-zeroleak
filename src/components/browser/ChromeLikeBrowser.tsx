@@ -378,7 +378,7 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
   onOpenExternal,
   streamed = false,
   streamedStatus,
-  chrome = true,
+  chrome = false,
 }) => {
   const [tabs, setTabs] = useState<BrowserTab[]>(() => {
     const tab = createTab(initialUrl);
