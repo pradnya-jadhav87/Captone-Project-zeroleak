@@ -29,7 +29,6 @@ import {
   type BrowserBookmark,
   type BrowserPolicy,
 } from './browser/ChromeLikeBrowser';
-import { EmbeddedPrismStudio } from './browser/EmbeddedPrismStudio';
 import { useStreamedBrowser } from './browser/useStreamedBrowser';
 import {
   AUTH_PHASE_LABEL,
@@ -146,8 +145,6 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
   const [configNote, setConfigNote] = useState<string | null>(null);
   /** The streamed panel's own sign-in offer, dismissible for this session. */
   const [showStreamedSignIn, setShowStreamedSignIn] = useState<boolean>(true);
-  const [activeView, setActiveView] = useState<'prism' | 'studio'>('prism');
-  const [showAuthHelper, setShowAuthHelper] = useState<boolean>(true);
 
   const authWindowRef = useRef<Window | null>(null);
   const authPollRef = useRef<number | null>(null);
@@ -660,68 +657,18 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
              */}
             <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm pl-2 border-l border-slate-800">
               <Sparkles className="w-4 h-4 text-emerald-400" />
-              <span>ZeroLeak</span>
+              <span>ZeroLeak AI Browser</span>
             </div>
           </div>
 
-          {/* Mode Switcher */}
-          <div className="flex items-center bg-slate-900/90 p-0.5 rounded-xl border border-slate-800 text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setActiveView('prism')}
-              className={`px-3 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeView === 'prism'
-                  ? 'bg-slate-800 text-white shadow-xs font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5 text-indigo-400" />
-              <span>OpenAI Prism Web</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveView('studio')}
-              className={`px-3 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeView === 'studio'
-                  ? 'bg-emerald-600 text-white shadow-xs font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
-              <span>ZeroLeak AI Studio</span>
-            </button>
-          </div>
+          <div className="flex-1" />
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Status indicator */}
-            <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-[11px] font-medium text-slate-200 shadow-2xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>{desktopShell ? 'Desktop Native' : streamedBrowser.ready ? 'Live Browser' : 'ZeroLeak AI Studio'}</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setReloadSignal((prev) => prev + 1)}
-              title="Reload page"
-              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleOpenExternal('https://prism.openai.com/')}
-              title="Open Prism in new browser tab"
-              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
-            >
-              <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
-            </button>
-
             <button
               type="button"
               onClick={() => setIsMaximized(!isMaximized)}
               title={isMaximized ? 'Restore' : 'Maximize'}
-              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
             >
               {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
@@ -730,70 +677,32 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
               type="button"
               onClick={onClose}
               title="Close Browser"
-              className="p-2 rounded-xl text-slate-300 hover:text-rose-400 hover:bg-rose-950/40 transition-all cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-300 hover:text-rose-400 hover:bg-rose-950/40 transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {activeView === 'prism' && showAuthHelper && !desktopShell && (
-          <div className="bg-slate-900 border-b border-indigo-900/60 px-4 py-2 text-xs text-slate-300 flex items-center justify-between gap-3 shrink-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-              <span>
-                Prism login requires a real top-level tab (Google/GitHub blocks embedded frame OAuth with <code className="text-amber-300 font-mono text-[11px]">legacy-provider-validation-failed</code>).
-              </span>
-              <button
-                type="button"
-                onClick={() => handleOpenExternal('https://prism.openai.com/')}
-                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs cursor-pointer transition-all"
-              >
-                <ExternalLink className="w-3 h-3" />
-                <span>Open & Sign In in New Tab</span>
-              </button>
-              <span className="text-slate-400 text-[11px]">
-                or switch above to <strong className="text-emerald-400 cursor-pointer" onClick={() => setActiveView('studio')}>ZeroLeak AI Studio</strong> for instant paper synthesis without login.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowAuthHelper(false)}
-              className="text-slate-400 hover:text-slate-200 cursor-pointer p-0.5"
-              title="Dismiss"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
         {/* Web Viewport Area */}
         <div className="flex-1 w-full bg-slate-950 overflow-hidden flex flex-col">
-          {activeView === 'prism' ? (
-            <div className="relative flex-1 w-full overflow-hidden flex flex-col">
-              <ChromeLikeBrowser
-                desktopShell={desktopShell}
-                initialUrl={initialUrl}
-                bookmarks={bookmarks}
-                policy={policy}
-                streamed={streamedBrowser.ready}
-                streamedStatus={streamedBrowser.status}
-                onActiveUrlChange={handleActiveUrlChange}
-                onNavigate={handleNavigate}
-                beforeNavigate={handleBeforeNavigate}
-                reloadSignal={reloadSignal}
-                onOpenExternal={handleOpenExternal}
-                chrome={false}
-              />
-              {downloadNotice && (
-                <div className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-lg rounded-lg border border-emerald-800/70 bg-emerald-950/95 px-3 py-2 text-[11px] text-emerald-100 shadow-lg">
-                  {downloadNotice}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="relative flex-1 w-full overflow-hidden">
-              <EmbeddedPrismStudio />
+          <ChromeLikeBrowser
+            desktopShell={desktopShell}
+            initialUrl={initialUrl}
+            bookmarks={bookmarks}
+            policy={policy}
+            streamed={streamedBrowser.ready}
+            streamedStatus={streamedBrowser.status}
+            onActiveUrlChange={handleActiveUrlChange}
+            onNavigate={handleNavigate}
+            beforeNavigate={handleBeforeNavigate}
+            reloadSignal={reloadSignal}
+            onOpenExternal={handleOpenExternal}
+            chrome={true}
+          />
+          {downloadNotice && (
+            <div className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-lg rounded-lg border border-emerald-800/70 bg-emerald-950/95 px-3 py-2 text-[11px] text-emerald-100 shadow-lg">
+              {downloadNotice}
             </div>
           )}
         </div>

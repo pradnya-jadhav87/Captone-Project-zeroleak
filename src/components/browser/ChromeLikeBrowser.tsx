@@ -807,16 +807,6 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
           </div>
 
           {toolbarExtra}
-
-          <button
-            type="button"
-            onClick={() => onOpenExternal(activeUrl)}
-            title="Open this page in a real browser tab"
-            className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all cursor-pointer flex items-center gap-1 text-xs shrink-0"
-          >
-            <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden md:inline">New Tab</span>
-          </button>
         </form>
       </div>
 
