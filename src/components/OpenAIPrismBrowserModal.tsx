@@ -710,6 +710,23 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
 
         {/* Web Viewport Area */}
         <div className="flex-1 w-full bg-slate-950 overflow-hidden flex flex-col">
+          <div className="bg-slate-900/90 border-b border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-2.5 text-xs text-slate-300 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+              <span>
+                <strong>Prism Login:</strong> In Firefox/Chrome, click the <strong>Shield (🛡️) / Eye (👁️)</strong> in the address bar to allow cookies, or use <strong>Open in New Tab ↗</strong> to sign in directly.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleOpenExternal('https://prism.openai.com/')}
+              className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer shrink-0"
+              title="Launch Real Prism in a new top-level browser tab"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Launch in Tab ↗</span>
+            </button>
+          </div>
           <ChromeLikeBrowser
             desktopShell={desktopShell}
             initialUrl={initialUrl}
