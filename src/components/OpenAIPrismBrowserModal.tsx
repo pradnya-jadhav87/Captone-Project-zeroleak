@@ -1,19 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  Globe,
+  ExternalLink,
+  RotateCcw,
   Maximize2,
   Minimize2,
   X,
   Sparkles,
-  ArrowLeft,
-  ArrowRight,
-  RotateCcw,
-  Home,
-  Upload,
-  FolderUp,
-  FileArchive,
-  Check,
+  ShieldCheck,
+  KeyRound,
+  Info,
+  CheckCircle2,
   Loader2,
+  Copy,
 } from 'lucide-react';
 import {
   OPENAI_GOOGLE_SIGN_IN_URL,
@@ -29,7 +29,6 @@ import {
   type BrowserBookmark,
   type BrowserPolicy,
 } from './browser/ChromeLikeBrowser';
-import { ZeroLeakLogo } from './ZeroLeakLogo';
 import { useStreamedBrowser } from './browser/useStreamedBrowser';
 import {
   AUTH_PHASE_LABEL,
@@ -45,7 +44,7 @@ import {
   type SignInDiagnosis,
   type SignInReport,
 } from '../utils/signInDiagnosis';
-import { api, subscribeBrowserStatus, sendBrowserCommand } from '../api';
+import { api, subscribeBrowserStatus } from '../api';
 
 interface OpenAIPrismBrowserModalProps {
   isOpen: boolean;
@@ -72,7 +71,7 @@ interface OpenAIPrismBrowserModalProps {
 const MAX_AUTO_STARTS = 3;
 
 const FALLBACK_BOOKMARKS: BrowserBookmark[] = [
-  { id: 'prism', name: 'ZeroLeak AI', url: PRISM_SIGN_IN_URL, icon: '🛡️', group: 'core' },
+  { id: 'prism', name: 'OpenAI Prism', url: PRISM_SIGN_IN_URL, icon: '✨', group: 'core' },
 ];
 
 /** What `GET /api/browser/config` answers with, inferred from the client. */
@@ -592,69 +591,6 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
     streamedBrowser.command({ type: 'navigate', url: target });
   }, [streamedBrowser, streamedSignIn.backUrl]);
 
-  /** File Import & Upload State */
-  const archiveInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
-  const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [uploadNotice, setUploadNotice] = useState<string | null>(null);
-  const [isDragOver, setIsDragOver] = useState<boolean>(false);
-
-  const handleFilesSelected = useCallback(async (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return;
-    const files = Array.from(fileList);
-    setIsUploading(true);
-    setUploadNotice(`Uploading ${files.length} file(s) into project...`);
-    try {
-      const payloadFiles = await Promise.all(
-        files.map(async (file) => {
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const res = reader.result as string;
-              const comma = res.indexOf(',');
-              resolve(comma >= 0 ? res.slice(comma + 1) : res);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
-          const relativePath = (file as any).webkitRelativePath || file.name;
-          return {
-            name: file.name,
-            relativePath,
-            type: file.type || 'application/octet-stream',
-            base64,
-            lastModified: file.lastModified || Date.now(),
-          };
-        })
-      );
-      await sendBrowserCommand({
-        type: 'upload-files',
-        files: payloadFiles,
-      });
-      setUploadNotice(`✓ Successfully imported ${files.length} file(s) into project`);
-      setTimeout(() => setUploadNotice(null), 5000);
-    } catch (err: any) {
-      console.error('Failed to upload files to browser:', err);
-      setUploadNotice(`Upload failed: ${err.message || 'unknown error'}`);
-      setTimeout(() => setUploadNotice(null), 5000);
-    } finally {
-      setIsUploading(false);
-    }
-  }, []);
-
-  /** Listen for page requesting file/directory chooser from offscreen host */
-  const lastNoticeHandledRef = useRef<string | null>(null);
-  useEffect(() => {
-    const notice = streamedBrowser.status?.notice;
-    if (!notice || notice === lastNoticeHandledRef.current) return;
-    lastNoticeHandledRef.current = notice;
-    if (notice === 'REQUEST_FILE_PICKER') {
-      archiveInputRef.current?.click();
-    } else if (notice === 'REQUEST_DIRECTORY_PICKER') {
-      folderInputRef.current?.click();
-    }
-  }, [streamedBrowser.status?.notice]);
-
   /**
    * The panel starts its own real browser.
    *
@@ -684,125 +620,48 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
 
   /**
    * Rendered into `document.body`, not where this component happens to sit.
+   *
+   * A full-screen panel has to be a child of the body for two reasons that both
+   * bit this panel: `position: fixed` resolves against the nearest ancestor that
+   * creates a containing block (a scrolled workspace put the title bar above the
+   * visible area, and a stack of app chrome could paint over it), and z-index only
+   * orders an element within its own stacking context, so 9999 inside the
+   * workspace was not the top of the page.
    */
   return createPortal(
     <div
-      className={`fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm transition-all ${
+      className={`fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/85 backdrop-blur-md transition-all ${
         isMaximized ? 'p-0' : 'p-2 sm:p-4'
       }`}
     >
-      {/* Hidden File Inputs for Local Client Selection */}
-      <input
-        ref={archiveInputRef}
-        type="file"
-        accept=".zip,.tar.gz,.tgz,.tar,.gz,.tex,.pdf"
-        multiple
-        className="hidden"
-        onChange={(e) => {
-          void handleFilesSelected(e.target.files);
-          e.target.value = '';
-        }}
-      />
-      <input
-        ref={folderInputRef}
-        type="file"
-        // @ts-ignore
-        webkitdirectory=""
-        directory=""
-        multiple
-        className="hidden"
-        onChange={(e) => {
-          void handleFilesSelected(e.target.files);
-          e.target.value = '';
-        }}
-      />
-
       <div
-        className={`bg-white border border-slate-200/90 shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ring-1 ring-black/5 ${
-          isMaximized ? 'w-full h-full rounded-none border-none' : 'w-full max-w-6xl h-[90vh] max-h-[940px] rounded-2xl'
+        className={`bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ${
+          isMaximized ? 'w-full h-full rounded-none' : 'w-full max-w-6xl h-[90vh] max-h-[940px]'
         }`}
       >
         {/* Browser Top Window Bar */}
-        <div className="bg-white border-b border-slate-200 px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3 shrink-0 shadow-2xs">
+        <div className="bg-slate-950 border-b border-slate-800 px-4 py-3 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3 shrink-0">
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-[#FF5F56] hover:brightness-95 border border-[#E0443E] inline-block cursor-pointer transition-transform hover:scale-105" onClick={onClose} title="Close" />
-              <span className="w-3 h-3 rounded-full bg-[#FFBD2E] hover:brightness-95 border border-[#DEA123] inline-block cursor-pointer transition-transform hover:scale-105" onClick={() => setIsMaximized(!isMaximized)} title="Maximize" />
-              <span className="w-3 h-3 rounded-full bg-[#27C93F] hover:brightness-95 border border-[#1AAB29] inline-block" />
+              <span className="w-3 h-3 rounded-full bg-red-500/80 inline-block hover:opacity-80 cursor-pointer" onClick={onClose} title="Close" />
+              <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block hover:opacity-80 cursor-pointer" onClick={() => setIsMaximized(!isMaximized)} title="Maximize" />
+              <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
             </div>
-            <div className="flex items-center gap-2 text-slate-900 font-bold text-xs sm:text-sm pl-3 border-l border-slate-200">
-              <ZeroLeakLogo variant="icon" imgHeightClass="h-5 w-auto" />
-              <span className="hidden sm:inline">ZeroLeak AI — LaTeX & Paper Editor</span>
-              <span className="sm:hidden">ZeroLeak AI</span>
-              <span className="hidden md:inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Studio
-              </span>
+            {/*
+             * Just the name.
+             *
+             * It said "OpenAI Prism & LaTeX Browser" with an "In-Project Sandbox"
+             * badge and a paragraph teaching Ctrl+T - all of it describing a
+             * browser the user no longer sees, because the chrome is hidden. What
+             * is left says which page this is.
+             */}
+            <div className="flex items-center gap-2 text-white font-bold text-xs sm:text-sm pl-2 border-l border-slate-800">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <span>Prism</span>
             </div>
           </div>
 
-          {/* Browser Navigation & Direct Import Actions */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Navigation buttons */}
-            <div className="flex items-center bg-slate-100/90 border border-slate-200 rounded-lg p-0.5 shadow-2xs">
-              <button
-                type="button"
-                onClick={() => streamedBrowser.command({ type: 'back' })}
-                title="Back"
-                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition-all cursor-pointer hover:shadow-2xs"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => streamedBrowser.command({ type: 'forward' })}
-                title="Forward"
-                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition-all cursor-pointer hover:shadow-2xs"
-              >
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => streamedBrowser.command({ type: 'reload' })}
-                title="Reload Page"
-                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition-all cursor-pointer hover:shadow-2xs"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => streamedBrowser.command({ type: 'navigate', url: 'https://prism.openai.com/' })}
-                title="Projects Home"
-                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-md transition-all cursor-pointer hover:shadow-2xs"
-              >
-                <Home className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Direct Import Archive / Folder Buttons */}
-            <button
-              type="button"
-              onClick={() => archiveInputRef.current?.click()}
-              disabled={isUploading}
-              title="Import Project Archive (.zip, .tar.gz, .tex)"
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold text-[11px] sm:text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
-            >
-              {isUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileArchive className="w-3.5 h-3.5" />}
-              <span className="hidden md:inline">Import Archive (.zip)</span>
-              <span className="md:hidden">.zip</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => folderInputRef.current?.click()}
-              disabled={isUploading}
-              title="Import Entire Folder"
-              className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border border-slate-300 font-semibold text-[11px] sm:text-xs flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
-            >
-              <FolderUp className="w-3.5 h-3.5 text-slate-600" />
-              <span className="hidden md:inline">Import Folder</span>
-              <span className="md:hidden">Folder</span>
-            </button>
-          </div>
+          <div className="flex-1" />
 
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Status indicator */}
@@ -810,12 +669,11 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>{desktopShell ? 'Desktop Native' : streamedBrowser.ready ? 'Live Browser' : 'ZeroLeak AI Studio'}</span>
             </div>
-
             <button
               type="button"
               onClick={() => setIsMaximized(!isMaximized)}
               title={isMaximized ? 'Restore' : 'Maximize'}
-              className="p-1.5 sm:p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
+              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
             >
               {isMaximized ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
             </button>
@@ -824,51 +682,222 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
               type="button"
               onClick={onClose}
               title="Close Browser"
-              className="p-1.5 sm:p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+              className="p-2 rounded-xl text-slate-300 hover:text-rose-400 hover:bg-rose-950/40 transition-all cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Web Viewport Area with Drag & Drop */}
-        <div
-          className="flex-1 w-full bg-[#F8FAFC] overflow-hidden flex flex-col relative"
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragOver(true);
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragOver(false);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDragOver(false);
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-              void handleFilesSelected(e.dataTransfer.files);
-            }
-          }}
-        >
-          {isDragOver && (
-            <div className="absolute inset-0 z-30 bg-white/95 backdrop-blur-xs border-2 border-dashed border-emerald-500 flex flex-col items-center justify-center text-slate-800 pointer-events-none p-6 text-center animate-in fade-in shadow-2xl">
-              <Upload className="w-12 h-12 text-emerald-600 animate-bounce mb-3" />
-              <h3 className="text-lg font-bold text-slate-900">Drop Project Archive (.zip, .tar.gz) or Folder here</h3>
-              <p className="text-sm text-slate-600 mt-1">Files will be imported directly into your ZeroLeak AI project</p>
-            </div>
+        {configNote && !streamingHere && (
+          <div className="bg-amber-950/50 border-b border-amber-800/50 px-4 py-1 text-[11px] text-amber-200 shrink-0">
+            {configNote}
+          </div>
+        )}
+
+        {/* Auth status strip. Hidden while a real browser streams: the row above
+            the page already says the only thing that matters then. */}
+        {!streamingHere && (
+        <div className="bg-slate-950 border-b border-slate-800 px-4 py-1.5 flex flex-wrap items-center gap-3 text-[11px] shrink-0">
+          {desktopShell ? (
+            <>
+              <span className="px-2 py-0.5 rounded-full border font-mono bg-emerald-950/70 text-emerald-300 border-emerald-800/60">
+                Embedded browser session: persistent
+              </span>
+              <button
+                type="button"
+                onClick={handleDesktopSignIn}
+                title="Open a real sign-in window inside the app, on this pane's own session — Google, GitHub or ChatGPT"
+                className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <KeyRound className="w-3 h-3" />
+                <span>Sign in to Prism</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDesktopGoogleSignIn}
+                title="Opens OpenAI's own sign-in route, which hands straight over to Google — inside the app, on this pane's session"
+                className="px-2.5 py-1 rounded-lg bg-rose-700 hover:bg-rose-600 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              >
+                <Globe className="w-3 h-3" />
+                <span>Sign in with Google</span>
+              </button>
+              <span className="text-slate-400">
+                That window opens <strong className="text-slate-300">inside the app</strong> on this pane&apos;s session —
+                not a Chrome tab. When you finish there, the pane reloads itself and shows your account.
+              </span>
+              {desktopAuthStatus && <span className="text-emerald-300">{desktopAuthStatus}</span>}
+            </>
+          ) : (
+            <>
+              <span className={`px-2 py-0.5 rounded-full border font-mono ${AUTH_PHASE_STYLE[auth.phase]}`}>
+                Authentication: {AUTH_PHASE_LABEL[auth.phase]}
+              </span>
+              {(navigationMessage ?? auth.message) && (
+                <span className="text-slate-400">{navigationMessage ?? auth.message}</span>
+              )}
+              <span className="text-slate-500">
+                Browser mode — an iframe can never complete OAuth. Run{' '}
+                <code className="font-mono text-slate-400">npm run desktop</code> for real tabs with their own
+                session.
+              </span>
+            </>
           )}
 
-          {uploadNotice && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 bg-white text-slate-900 border border-emerald-300 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-top-2 ring-1 ring-emerald-500/10">
-              <Check className="w-4 h-4 text-emerald-600" />
-              <span>{uploadNotice}</span>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={handleDiagnose}
+            disabled={diagnosing}
+            title="Measure this pane and say why a sign-in window did or did not open"
+            className="ml-auto px-2 py-0.5 rounded-full border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-[11px] flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+          >
+            {diagnosing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Info className="w-3 h-3" />}
+            <span>{diagnosing ? 'Measuring…' : 'Diagnose sign-in'}</span>
+          </button>
+        </div>
+        )}
 
+        {/* Sign-in diagnosis: says which cause is in force, with the evidence */}
+        {diagnosis && (
+          <div
+            className={`border-b px-4 py-2.5 text-[11px] shrink-0 ${
+              diagnosis.level === 'blocked'
+                ? 'bg-rose-950/60 border-rose-800/60 text-rose-100'
+                : diagnosis.level === 'warning'
+                  ? 'bg-amber-950/60 border-amber-800/60 text-amber-100'
+                  : 'bg-emerald-950/60 border-emerald-800/60 text-emerald-100'
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-2 min-w-0">
+                <p className="font-bold leading-snug">{diagnosis.headline}</p>
+
+                <div>
+                  <p className="font-semibold opacity-80">What was measured</p>
+                  <ul className="list-disc list-inside space-y-0.5 opacity-90 break-words">
+                    {diagnosis.reasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div>
+                  <p className="font-semibold opacity-80">What to do</p>
+                  <ul className="list-disc list-inside space-y-0.5 opacity-90 break-words">
+                    {diagnosis.actions.map((action) => (
+                      <li key={action}>{action}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDiagnosis(null)}
+                title="Dismiss"
+                className="px-1 text-xs opacity-70 hover:opacity-100 transition-all cursor-pointer shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/*
+         * Frame-limitation banner, iframe path only.
+         *
+         * This used to be a full-page gate covering Prism, which got the
+         * trade-off exactly backwards: Prism's page embeds perfectly well, and
+         * only its sign-in cannot complete. Blocking the page to warn about the
+         * sign-in meant the site was never visible at all. The page renders now,
+         * and the warning sits above it as something that can be read and
+         * dismissed.
+         */}
+        {showAuthTip && !desktopShell && authRequired && !streamingHere && (
+          <div className="bg-gradient-to-r from-amber-950/90 to-indigo-950/90 border-b border-amber-800/50 px-4 py-2 flex items-start justify-between gap-3 text-xs text-amber-200 shrink-0">
+            <div className="flex items-start gap-2 min-w-0">
+              <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1 min-w-0">
+                <span className="block">
+                  <strong>Prism&apos;s page renders here — only its sign-in cannot.</strong> Google, GitHub and OpenAI
+                  all refuse to run OAuth inside an embedded frame (that is where{' '}
+                  <code className="font-mono">openai-provider-validation-failed</code> comes from). Sign in through a
+                  real window via{' '}
+                  <button
+                    type="button"
+                    onClick={() => openAuthWindow(PRISM_SIGN_IN_URL, 'helper banner')}
+                    className="font-bold underline hover:text-white inline-flex items-center gap-1 cursor-pointer mx-1"
+                  >
+                    <KeyRound className="w-3 h-3" /> Sign In Window
+                  </button>
+                  , then{' '}
+                  <button
+                    type="button"
+                    onClick={handleConfirmSignedIn}
+                    className="font-bold underline hover:text-emerald-300 inline-flex items-center gap-1 cursor-pointer mx-1"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Load Prism here
+                  </button>
+                  .
+                </span>
+                <span className="block text-amber-200/80">
+                  Run{' '}
+                  <code className="font-mono text-amber-100">npm run desktop</code> and every tab gets its own real
+                  browsing session: Prism signs in inside the panel, and stays signed in across restarts.{' '}
+                  <button
+                    type="button"
+                    onClick={handleCopyDesktopCommand}
+                    className="font-bold underline hover:text-white inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    {copiedDesktopCommand ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                    {copiedDesktopCommand ? 'Copied' : 'Copy command'}
+                  </button>
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAuthTip(false)}
+              title="Dismiss - the page below is still fully browsable"
+              className="text-slate-400 hover:text-white text-xs px-1 cursor-pointer shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Web Viewport Area */}
+        <div className="flex-1 w-full bg-slate-950 overflow-hidden flex flex-col">
           <div className="relative flex-1 w-full overflow-hidden flex flex-col">
+            {/* One pane per tab. In the desktop shell a tab is a real guest on a
+                persistent partition, so provider sign-in works and survives a
+                restart; in a plain browser tab it is an iframe. */}
+            {/*
+             * Browser mode only: the streamed browser's own state.
+             *
+             * There is no start or stop button by request, and none is needed:
+             * this panel has only ever had the real browser, so asking the user
+             * to switch it on was a decision with one sensible answer. It starts
+             * itself (see the effect above), and this line appears only when
+             * something is worth reading - it is starting, it stopped, or the
+             * browser has a notice such as where a download went.
+             */}
+            {!desktopShell && !streamedBrowser.ready && (
+              <div className="border-b border-slate-800 bg-slate-900/80 px-3 py-1.5 flex items-center gap-1.5 text-[11px] shrink-0">
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${streamedBrowser.starting ? 'bg-amber-400 animate-pulse' : 'bg-slate-500'}`}
+                />
+                <span className="text-slate-400 truncate">{streamedBrowser.reason}</span>
+              </div>
+            )}
+
+            {streamedBrowser.error && (
+              <div className="border-b border-rose-900/60 bg-rose-950/50 px-3 py-1.5 text-[11px] text-rose-200 shrink-0">
+                {streamedBrowser.error}
+              </div>
+            )}
+
             <ChromeLikeBrowser
               desktopShell={desktopShell}
               initialUrl={initialUrl}
@@ -881,15 +910,141 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
               beforeNavigate={handleBeforeNavigate}
               reloadSignal={reloadSignal}
               onOpenExternal={handleOpenExternal}
+              /* No tabs, no address bar, no bookmark bar: only the page. The real
+                 browser behind it is untouched - it is still streaming, and it is
+                 still the thing this panel steers. */
               chrome={false}
             />
 
+            {/*
+             * A download is the one action with no visible result: the window is
+             * offscreen, so there is no download shelf. This is the only thing
+             * that floats over the page, it names the file's real path on disk,
+             * and the server clears it after a few seconds.
+             */}
+            {/*
+             * Sign-in inside the streamed browser.
+             *
+             * Floats over the page rather than sitting above it: the panel keeps
+             * every pixel for the editor, and this is the one control that has no
+             * other home while a real browser streams. It is dismissible, so it
+             * never becomes furniture.
+             */}
+            {streamingHere && showStreamedSignIn && (
+              <div className="absolute bottom-3 left-3 z-20 max-w-md rounded-lg border border-indigo-800/70 bg-slate-900/95 px-3 py-2 text-[11px] text-slate-200 shadow-lg space-y-1.5">
+                <div className="flex items-start gap-2">
+                  <KeyRound className="w-3.5 h-3.5 text-indigo-300 shrink-0 mt-0.5" />
+                  <p className="leading-snug">
+                    If Prism&apos;s own sign-in button opens nothing, sign in here instead — it happens in this same
+                    real browser, so Prism picks the session up.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowStreamedSignIn(false)}
+                    title="Dismiss"
+                    className="px-0.5 opacity-70 hover:opacity-100 transition-all cursor-pointer shrink-0"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {streamedSignIn.offerSignIn && (
+                    <button
+                      type="button"
+                      onClick={signInInsideStreamedBrowser}
+                      className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                    >
+                      <Globe className="w-3 h-3" />
+                      <span>Sign in with Google</span>
+                    </button>
+                  )}
+                  {streamedSignIn.offerBackToPrism && (
+                    <button
+                      type="button"
+                      onClick={backToPrismInStreamedBrowser}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Back to Prism</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {downloadNotice && (
-              <div className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-lg rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-[11px] text-slate-700 shadow-lg">
+              <div className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-lg rounded-lg border border-emerald-800/70 bg-emerald-950/95 px-3 py-2 text-[11px] text-emerald-100 shadow-lg">
                 {downloadNotice}
               </div>
             )}
           </div>
+
+          {/*
+           * Bottom toolbar, from before the panel became a plain Prism view.
+           *
+           * It printed the page's URL - which the user asked not to see - beside
+           * Sign In Window and Open in Tab. None of it belongs in front of the
+           * editor: a real browser is streaming underneath (see the panel above),
+           * the file it shows is on disk, and every one of these actions is
+           * something Prism's own page does in place. It stays for the desktop
+           * shell, where those buttons drive real panes and nothing is streamed.
+           */}
+          {!streamingHere && (
+          <div className="bg-slate-950 border-t border-slate-800 px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-300 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-slate-300">
+                Connected to <strong className="text-white font-mono">{activeUrl}</strong>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {!desktopShell && (
+                <button
+                  type="button"
+                  onClick={() => openAuthWindow(PRISM_SIGN_IN_URL, 'status bar')}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs flex items-center gap-1.5 shadow transition-all cursor-pointer"
+                  title="Authenticate with Google / GitHub / ChatGPT in a real top-level window"
+                >
+                  {signInWindowOpen ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <KeyRound className="w-3.5 h-3.5" />}
+                  <span>Sign In Window</span>
+                </button>
+              )}
+
+              {mayConfirmSignIn && (
+                <button
+                  type="button"
+                  onClick={handleConfirmSignedIn}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 shadow transition-all cursor-pointer"
+                  title="I finished signing in — reload the embedded Prism panel"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Load Prism here</span>
+                </button>
+              )}
+
+              {signInWindowOpen && (
+                <button
+                  type="button"
+                  onClick={handleCancelSignIn}
+                  title="Stop waiting for the sign-in window"
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs flex items-center gap-1.5 border border-slate-700 transition-all cursor-pointer"
+                >
+                  <span>Cancel sign-in</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleOpenExternal}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs flex items-center gap-1.5 border border-slate-700 transition-all cursor-pointer"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Open in Tab</span>
+              </button>
+            </div>
+          </div>
+          )}
         </div>
       </div>
     </div>,

@@ -240,13 +240,8 @@ const createWindow = () => {
       sandbox: true,
       webviewTag: true,
       preload: path.join(__dirname, 'preload.cjs'),
-      devTools: process.env.NODE_ENV !== 'production' && !app.isPackaged,
     },
   });
-
-  // Call win.setContentProtection(true) on every BrowserWindow that can show a paper.
-  // This must be on by default and not switchable from the renderer.
-  mainWindow.setContentProtection(true);
 
   // The app shell is the ONLY surface allowed to hand a link to the OS browser:
   // a pane, or an authentication window it opened, must never escape the app.
@@ -356,7 +351,6 @@ const AUTH_WINDOW_OPTIONS = {
     nodeIntegration: false,
     sandbox: true,
     webviewTag: false,
-    devTools: process.env.NODE_ENV !== 'production' && !app.isPackaged,
   },
 };
 
@@ -369,11 +363,6 @@ const AUTH_WINDOW_OPTIONS = {
  * memory of the page, so the pane has to be reloaded to notice.
  */
 const trackAuthWindow = (child) => {
-  try {
-    child.setContentProtection(true);
-  } catch {
-    /* best effort */
-  }
   paneChildWindows.add(child);
   const childContents = child.webContents;
 
@@ -536,57 +525,6 @@ ipcMain.handle('zeroleak:diagnose-signin', async () => {
   }
 
   return report;
-});
-
-app.on('browser-window-created', (_event, win) => {
-  try {
-    // 1. Hardware/OS display protection: block screen capture & OS screen recording
-    win.setContentProtection(true);
-  } catch {
-    /* best effort */
-  }
-
-  // 2. Disable DevTools in production
-  if (app.isPackaged || process.env.NODE_ENV === 'production') {
-    win.webContents.on('devtools-opened', () => {
-      win.webContents.closeDevTools();
-    });
-  }
-
-  // 3. Intercept PrintScreen and forbidden keyboard shortcuts
-  win.webContents.on('before-input-event', (event, input) => {
-    const key = (input.key || '').toLowerCase();
-    const isCtrlOrMeta = input.control || input.meta;
-
-    // Block PrintScreen / Snapshot
-    if (key === 'printscreen' || input.code === 'PrintScreen' || key === 'snapshot') {
-      event.preventDefault();
-      log('Main process blocked PrintScreen key event.');
-      return;
-    }
-
-    // Block F12
-    if (key === 'f12') {
-      event.preventDefault();
-      log('Main process blocked F12 shortcut.');
-      return;
-    }
-
-    // Block Ctrl+S (Save), Ctrl+P (Print), Ctrl+U (Source), DevTools shortcuts
-    if (isCtrlOrMeta && (key === 's' || key === 'p' || key === 'u' || (input.shift && (key === 'i' || key === 'c' || key === 'j')))) {
-      event.preventDefault();
-      log(`Main process blocked shortcut Ctrl+${input.shift ? 'Shift+' : ''}${key.toUpperCase()}`);
-      return;
-    }
-  });
-
-  // 4. Block downloads & savePage
-  if (win.webContents.session) {
-    win.webContents.session.on('will-download', (event, item) => {
-      event.preventDefault();
-      log(`Main process blocked download attempt: ${item.getFilename()}`);
-    });
-  }
 });
 
 app.on('web-contents-created', (_event, contents) => {
@@ -926,9 +864,6 @@ const runSmokeTest = async (win) => {
       'Boolean(window.zeroleakDesktop && window.zeroleakDesktop.isElectron)',
     );
     record('desktop bridge exposed to the app', bridge === true);
-
-    const contentProtectionActive = typeof win.setContentProtection === 'function';
-    record('content protection API applied to secure window', contentProtectionActive);
 
     // …while a page inside a pane must NOT be able to do that.
     await win.webContents

@@ -17,18 +17,13 @@ Architecture:
   Phase 9  - Debug Mode output with page classifications and rejected assets
 """
 
-import os
-import sys
-import warnings
-
-warnings.filterwarnings("ignore")
-os.environ["PYTHONWARNINGS"] = "ignore"
-
 import base64
 import hashlib
 import io
 import json
+import os
 import re
+import sys
 import tempfile
 import unicodedata
 
@@ -43,10 +38,7 @@ if hasattr(sys.stdin, "reconfigure"):
 
 # ── PyMuPDF ──────────────────────────────────────────────────────────────────
 try:
-    try:
-        import pymupdf as fitz
-    except ImportError:
-        import fitz
+    import fitz
     FITZ_AVAILABLE = True
 except ImportError:
     fitz = None

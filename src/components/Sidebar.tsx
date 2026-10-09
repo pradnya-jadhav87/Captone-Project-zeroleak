@@ -2,24 +2,25 @@ import React from 'react';
 import {
   LayoutDashboard,
   Building2,
+  FileText,
+  Layers,
+  Users,
+  Laptop,
+  ShieldAlert,
   FolderLock,
   PlusCircle,
-  Cpu,
-  Layers,
   Printer,
   History,
   Lock,
+  UserCheck,
+  Languages,
   Activity,
   LogOut,
   ShieldCheck,
-  ShieldAlert,
+  Camera,
+  Search,
+  BarChart3,
   Award,
-  GraduationCap,
-  Settings,
-  Shield,
-  FileText,
-  Laptop,
-  Users,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -39,6 +40,7 @@ export type NavSubTab =
   // Exam Manager
   | 'all_examinations'
   | 'create_examination'
+  | 'hierarchy_management'
   | 'question_workflow'
   | 'question_pools'
   | 'blueprint_pattern'
@@ -56,10 +58,20 @@ export type NavSubTab =
   | 'device_status'
   // Auditor
   | 'audit_trail'
+  | 'user_activity'
   | 'login_history'
+  | 'device_activity'
+  | 'role_activity'
+  | 'paper_security'
   | 'paper_events'
+  | 'encryption_unlock'
+  | 'print_security'
   | 'printing_events'
-  | 'regeneration_events';
+  | 'regeneration_events'
+  | 'proctoring_evidence'
+  | 'watermark_investigations'
+  | 'security_reports'
+  | 'user_activity_reports';
 
 interface SidebarProps {
   activeSubTab: NavSubTab;
@@ -90,11 +102,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       case 'ORG_OWNER':
         return [
           {
-            title: 'OVERVIEW',
+            title: 'Overview',
             items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }],
           },
           {
-            title: 'ACCESS CONTROL',
+            title: 'Access Control',
             items: [
               { id: 'authorized_managers', label: 'Authorized Managers', icon: Users },
               { id: 'trusted_devices', label: 'Trusted Workstations', icon: Laptop },
@@ -105,87 +117,114 @@ export const Sidebar: React.FC<SidebarProps> = ({
       case 'EXAM_MANAGER':
         return [
           {
-            title: 'OVERVIEW',
+            title: 'Overview',
             items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }],
           },
           {
-            title: 'EXAMINATIONS',
+            title: 'Access Control',
             items: [
-              { id: 'all_examinations', label: 'All Examinations', icon: FolderLock },
-              { id: 'create_examination', label: 'Create Examination', icon: PlusCircle },
+              { id: 'authorized_managers', label: 'Authorized Users', icon: Users },
+              { id: 'trusted_devices', label: 'Trusted Workstations', icon: Laptop },
+              { id: 'hierarchy_management', label: 'Hierarchy Management', icon: ShieldCheck },
             ],
           },
           {
-            title: 'COMPETITIVE EXAMINATIONS',
+            title: 'Examinations',
             items: [
+              { id: 'all_examinations', label: 'All Examinations', icon: FolderLock },
+              { id: 'create_examination', label: 'Create Examination', icon: PlusCircle },
               { id: 'question_workflow', label: 'Competitive Examination', icon: Award },
             ],
           },
           {
-            title: 'UNIVERSITY',
+            title: 'University',
             items: [
-              { id: 'paper_generation', label: 'University Paper Generation', icon: GraduationCap },
+              { id: 'paper_generation', label: 'University Paper Generation', icon: Lock },
             ],
           },
           {
-            title: 'INFRASTRUCTURE',
+            title: 'Examination Centres',
             items: [{ id: 'examination_centres', label: 'Examination Centres', icon: Building2 }],
           },
+          {
+            title: 'Security',
+            items: [{ id: 'security_events', label: 'Security Events', icon: ShieldAlert }],
+          },
         ];
+
 
       case 'TRANSLATOR':
         return [
           {
-            title: 'OVERVIEW',
-            items: [{ id: 'dashboard', label: 'Translation Hub', icon: LayoutDashboard }],
+            title: 'Overview',
+            items: [{ id: 'dashboard', label: 'Translator Dashboard & Workbench', icon: LayoutDashboard }],
           },
           {
-            title: 'VERIFICATION',
-            items: [
-              { id: 'translation_tasks', label: 'Assigned Papers', icon: FileText },
-              { id: 'verification_history', label: 'Translation Logs', icon: History },
-            ],
+            title: 'Ledger & Audit',
+            items: [{ id: 'verification_history', label: 'Translation Ledger', icon: History }],
           },
         ];
 
       case 'CENTRE_OPERATOR':
         return [
           {
-            title: 'OVERVIEW',
-            items: [{ id: 'dashboard', label: 'Center Dashboard', icon: LayoutDashboard }],
+            title: 'Overview',
+            items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }],
           },
           {
-            title: 'RELEASE & PRINTING',
+            title: 'Examination Delivery',
             items: [
-              { id: 'released_examinations', label: 'Released Papers', icon: Lock },
-              { id: 'secure_viewer', label: 'Secure Viewer', icon: FolderLock },
-              { id: 'print_management', label: 'Print Station', icon: Printer },
+              { id: 'released_examinations', label: 'Released Examinations', icon: FolderLock },
+              { id: 'secure_viewer', label: 'Secure Viewer', icon: Lock },
             ],
           },
           {
-            title: 'HARDWARE',
-            items: [{ id: 'device_status', label: 'Device Attestation', icon: Laptop }],
+            title: 'Printing',
+            items: [{ id: 'print_management', label: 'Print Management', icon: Printer }],
+          },
+          {
+            title: 'Hardware Terminal',
+            items: [{ id: 'device_status', label: 'Device Status', icon: Laptop }],
           },
         ];
 
       case 'AUDITOR':
         return [
           {
-            title: 'OVERVIEW',
-            items: [{ id: 'dashboard', label: 'Audit Dashboard', icon: LayoutDashboard }],
+            title: 'Overview',
+            items: [{ id: 'dashboard', label: 'Auditor Dashboard', icon: LayoutDashboard }],
           },
           {
-            title: 'AUDIT LEDGER',
+            title: 'Audit',
             items: [
-              { id: 'audit_trail', label: 'Cryptographic Trail', icon: History },
-              { id: 'login_history', label: 'Authentication Events', icon: Users },
-              { id: 'paper_events', label: 'Paper Lifecycle Logs', icon: FileText },
-              { id: 'printing_events', label: 'Printing Logs', icon: Printer },
+              { id: 'audit_trail', label: 'Audit Trail', icon: Activity },
+              { id: 'user_activity', label: 'User & Session Activity', icon: UserCheck },
+              { id: 'device_activity', label: 'Device Activity', icon: Laptop },
+              { id: 'role_activity', label: 'Role & Authority Activity', icon: ShieldCheck },
             ],
           },
           {
-            title: 'SURVEILLANCE',
-            items: [{ id: 'proctor_dashboard', label: 'Leak Surveillance Audit', icon: ShieldAlert }],
+            title: 'Exam Security',
+            items: [
+              { id: 'paper_security', label: 'Paper Security', icon: Layers },
+              { id: 'encryption_unlock', label: 'Encryption & Unlock', icon: Lock },
+              { id: 'print_security', label: 'Print Security', icon: Printer },
+            ],
+          },
+          {
+            title: 'Threats & Forensics',
+            items: [
+              { id: 'security_events', label: 'Security & Threat Events', icon: ShieldAlert },
+              { id: 'proctoring_evidence', label: 'Proctoring & Evidence', icon: Camera },
+              { id: 'watermark_investigations', label: 'Watermark Investigations', icon: Search },
+            ],
+          },
+          {
+            title: 'Reports',
+            items: [
+              { id: 'security_reports', label: 'Security Reports', icon: FileText },
+              { id: 'user_activity_reports', label: 'User Activity Reports', icon: BarChart3 },
+            ],
           },
         ];
 
@@ -197,52 +236,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const sections = getNavSections();
 
   return (
-    <aside className="w-full lg:w-[260px] bg-white border-r border-[#E1E7EA] flex flex-col justify-between shrink-0 shadow-[2px_0_12px_rgba(20,40,50,0.02)] z-20">
+    <aside className="w-full lg:w-72 bg-white/70 dark:bg-[#080B11]/50 backdrop-blur-2xl border-r border-slate-200/80 dark:border-white/[0.08] flex flex-col justify-between shrink-0 shadow-[1px_0_12px_rgba(15,23,42,0.03)] dark:shadow-[4px_0_30px_rgba(0,0,0,0.5)] z-20">
       <div className="p-4 space-y-5 overflow-y-auto">
-        {/* Header: LIGHT SECURITY CARD (Specification 6) */}
-        <div 
-          className="p-4 rounded-2xl border border-[#CDEDE1] shadow-xs relative overflow-hidden space-y-2.5"
-          style={{
-            background: 'linear-gradient(135deg, #F1FBF7 0%, #FFFFFF 100%)',
-          }}
-        >
+        {/* Role Domain Header Banner */}
+        <div className="p-4 bg-gradient-to-br from-[#00cc5f]/12 via-[#00cc5f]/5 to-transparent border border-[#00cc5f]/30 rounded-2xl shadow-xs relative overflow-hidden backdrop-blur-md">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-[#00A878]" />
-              <span className="text-[12px] font-mono font-black tracking-wider text-[#102A38]">
-                ZEROLEAK
-              </span>
-            </div>
-            <span className="inline-flex items-center gap-1.5 text-[9.5px] font-mono font-bold text-[#008A63] bg-[#E7F8F2] px-2 py-0.5 rounded-full border border-[#B8EBD6]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#00A878] animate-pulse" />
-              SYSTEM SECURE
+            <span className="text-[10px] uppercase font-black text-slate-500 dark:text-slate-400 tracking-wider">
+              Enclave Boundary
+            </span>
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00cc5f] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00cc5f]"></span>
             </span>
           </div>
-
-          <div className="pt-2 border-t border-[#E1F2EC] space-y-1 text-[11px] font-mono">
-            <div className="text-[9.5px] font-bold text-[#61747E] uppercase tracking-wider">
-              SECURITY CORE
-            </div>
-            <div className="flex items-center justify-between text-[#102A38]">
-              <span className="text-[#61747E]">ENCLAVE</span>
-              <span className="text-[#008A63] font-bold">ACTIVE</span>
-            </div>
-            <div className="flex items-center justify-between text-[#102A38]">
-              <span className="text-[#61747E]">ENCRYPTION</span>
-              <span className="text-[#2672B8] font-bold">AES-256</span>
-            </div>
-            <div className="flex items-center justify-between text-[#102A38]">
-              <span className="text-[#61747E]">INTEGRITY</span>
-              <span className="text-[#008A63] font-bold">98.4%</span>
-            </div>
+          <p className="font-black text-slate-900 dark:text-white text-xs mt-1.5 tracking-tight flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-[#00cc5f] shrink-0" />
+            <span>{userRole ? userRole.replace(/_/g, ' ') : 'UNAUTHENTICATED'}</span>
+          </p>
+          <div className="mt-2 pt-2 border-t border-[#00cc5f]/20 dark:border-white/10 flex items-center justify-between text-[10px] text-[#00873d] dark:text-[#00cc5f] font-mono">
+            <span>FIPS-140-2</span>
+            <span className="font-bold text-[#00873d] dark:text-[#00cc5f]">AES-256</span>
           </div>
         </div>
 
-        {/* Dynamic Section Navigation Groups (Height 44-48px, Icons 18-20px, Text 14px) */}
+        {/* Dynamic Section Navigation */}
         <div className="space-y-4">
           {sections.map(section => (
             <div key={section.title} className="space-y-1">
-              <p className="text-[10px] font-mono font-bold text-[#879598] uppercase tracking-wider px-3 py-1">
+              <p className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest px-3 py-1">
                 {section.title}
               </p>
               <div className="space-y-1">
@@ -252,17 +273,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   return (
                     <button
                       key={item.id}
-                      type="button"
                       onClick={() => onSelectSubTab(item.id)}
-                      className={`w-full min-h-[46px] flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all relative cursor-pointer ${
+                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all relative cursor-pointer backdrop-blur-md ${
                         isActive
-                          ? 'bg-[#E7F8F2] text-[#008A63] font-bold border-l-[3px] border-[#00A878] shadow-2xs'
-                          : 'text-[#53635F] hover:bg-[#F2F7F8] hover:text-[#102A38] border-l-[3px] border-transparent'
+                          ? 'bg-[#00cc5f]/12 dark:bg-[#00cc5f]/18 text-[#00873d] dark:text-[#00cc5f] font-bold border border-[#00cc5f]/40 dark:border-[#00cc5f]/50 shadow-[0_2px_12px_rgba(0,204,95,0.12)] dark:shadow-[0_0_20px_rgba(0,204,95,0.25)]'
+                          : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/[0.04] hover:text-slate-950 dark:hover:text-white border border-transparent hover:translate-x-0.5'
                       }`}
                     >
+                      {isActive && (
+                        <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-4.5 rounded-full bg-[#00cc5f] shadow-[0_0_8px_#00cc5f]" />
+                      )}
                       <Icon
-                        className={`w-5 h-5 shrink-0 transition-colors ${
-                          isActive ? 'text-[#008A63]' : 'text-[#879598] group-hover:text-[#53635F]'
+                        className={`w-4 h-4 shrink-0 transition-colors ${
+                          isActive ? 'text-[#00cc5f]' : 'text-slate-400'
                         }`}
                       />
                       <span className="truncate">{item.label}</span>
@@ -275,20 +298,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Terminal Session & Sign Out Footer */}
-      <div className="p-4 border-t border-[#E1E7EA] bg-white space-y-2">
-        <div className="flex items-center justify-between px-2 text-[11px] font-mono text-[#879598]">
-          <span>TERMINAL SESSION</span>
-          <span className="inline-flex items-center gap-1.5 text-[#008A63] font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00A878]" />
-            BOUND
+      {/* Account & Session Controls */}
+      <div className="p-4 border-t border-slate-200/90 dark:border-white/10 bg-slate-50/70 dark:bg-black/20 backdrop-blur-md space-y-2">
+        <div className="flex items-center justify-between px-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            Terminal Session
           </span>
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_#10B981]" />
         </div>
 
         <button
-          type="button"
-          onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold text-[#D64550] bg-[#FFF0F1] hover:bg-[#FFE4E6] border border-[#FAD1D5] transition-all cursor-pointer shadow-2xs"
+          onClick={() => onLogout?.()}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200/60 dark:border-rose-900/40 hover:border-rose-300 dark:hover:border-rose-700 transition-all cursor-pointer shadow-2xs hover:shadow-xs bg-white/80 dark:bg-white/[0.03] backdrop-blur-md"
         >
           <LogOut className="w-4 h-4" />
           <span>Sign Out of Enclave</span>

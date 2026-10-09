@@ -26,20 +26,15 @@ Usage: extractPdfFigures.py <pdf_path> <output_dir> [max_figures] [dpi]
 Prints a JSON object on stdout.
 """
 
+import json
 import os
 import sys
-import warnings
-
-warnings.filterwarnings("ignore")
-os.environ["PYTHONWARNINGS"] = "ignore"
-
-import json
 
 try:
-    import pymupdf as fitz
-except ImportError:
+    import fitz  # PyMuPDF
+except ImportError:  # pragma: no cover - alternate distribution name
     try:
-        import fitz  # PyMuPDF
+        import pymupdf as fitz
     except ImportError:
         print(json.dumps({"error": "PyMuPDF not installed"}))
         sys.exit(1)

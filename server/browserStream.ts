@@ -101,7 +101,6 @@ export type InputEventPayload =
 
 export interface UploadedFileItem {
   name: string;
-  relativePath?: string;
   type: string;
   base64: string;
   lastModified?: number;
@@ -401,16 +400,12 @@ export const normalizeCommand = (raw: unknown, viewport: StreamViewport): Normal
     const files: UploadedFileItem[] = [];
     for (const item of rawFiles) {
       if (item && typeof item === 'object' && typeof (item as any).name === 'string' && typeof (item as any).base64 === 'string') {
-        const fileObj: UploadedFileItem = {
+        files.push({
           name: String((item as any).name).slice(0, 255),
           type: typeof (item as any).type === 'string' ? String((item as any).type).slice(0, 100) : 'application/octet-stream',
           base64: String((item as any).base64),
           lastModified: typeof (item as any).lastModified === 'number' ? (item as any).lastModified : Date.now(),
-        };
-        if (typeof (item as any).relativePath === 'string') {
-          fileObj.relativePath = String((item as any).relativePath).slice(0, 1024);
-        }
-        files.push(fileObj);
+        });
       }
     }
     return { ok: true, reason: '', command: { type: 'upload-files', files } };
@@ -541,10 +536,6 @@ export const planHostSpawn = (options: {
         // roughly in half without touching the frame rate, which is what keeps
         // a remote panel feeling live instead of a slideshow.
         ZEROLEAK_HOST_ADAPTIVE_QUALITY: '1',
-        // Open Prism directly on startup using the persisted session.
-        // The partition 'persist:zeroleak-streamed' keeps cookies across restarts,
-        // so if the user signed in before, no login page appears.
-        ZEROLEAK_HOST_START_URL: 'https://prism.openai.com/',
       },
     },
   };

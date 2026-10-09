@@ -2,46 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import initSqlJs, { type Database } from 'sql.js';
 import { Pool } from 'pg';
-import mongoose from 'mongoose';
-import { TableToModelMap } from './models/index.ts';
-
-let mongoConnectionPromise: Promise<typeof mongoose> | null = null;
-let mongoInitialized = false;
-
-export function isMongoAvailable(): boolean {
-  return mongoose.connection.readyState === 1;
-}
-
-export function getMongoConnection() {
-  return mongoose.connection;
-}
-
-export async function connectDB(): Promise<typeof mongoose> {
-  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/zeroleak';
-  if (mongoose.connection.readyState === 1) {
-    mongoInitialized = true;
-    return mongoose;
-  }
-  if (mongoConnectionPromise) {
-    return mongoConnectionPromise;
-  }
-
-  try {
-    mongoConnectionPromise = mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000,
-    });
-    const conn = await mongoConnectionPromise;
-    mongoInitialized = true;
-    console.log(`✓ MongoDB connected successfully to ${uri} (database: "${mongoose.connection.name}")`);
-    return conn;
-  } catch (err: any) {
-    mongoConnectionPromise = null;
-    mongoInitialized = false;
-    console.error(`✗ Fatal: Failed to connect to MongoDB at ${uri}:`, err.message);
-    throw err;
-  }
-}
 
 let dbInstance: Database | null = null;
 let SQL_MODULE: any = null;
@@ -49,10 +9,6 @@ const DB_FILE_PATH = path.join(process.cwd(), 'zeroleak_data.sqlite');
 
 let pgPool: Pool | null = null;
 let pgInitialized = false;
-
-export function isPostgresAvailable(): boolean {
-  return pgInitialized;
-}
 
 export function getPostgresPool(): Pool | null {
   if (!pgPool) {
@@ -128,15 +84,8 @@ export async function resetDatabase(): Promise<Database> {
   return dbInstance;
 }
 
-let lastPgInitAttempt = 0;
-const PG_RECONNECT_INTERVAL_MS = 30000;
-
 export async function initPostgres(): Promise<boolean> {
   if (pgInitialized) return true;
-  if (Date.now() - lastPgInitAttempt < PG_RECONNECT_INTERVAL_MS) {
-    return false;
-  }
-  lastPgInitAttempt = Date.now();
   const pool = getPostgresPool();
   if (!pool) return false;
 
@@ -206,15 +155,11 @@ export async function hydrateFromPostgres(db: Database): Promise<void> {
     'generated_papers',
     'generated_paper_questions',
     'candidate_paper_assignments',
-    'competitive_exams',
-    'competitive_question_pool_files',
-    'competitive_question_pools',
-    'competitive_questions',
-    'competitive_generated_papers',
-    'emergency_incidents',
-    'emergency_papers',
-    'security_key_attempts',
-    'security_authorizations',
+    'security_evidence',
+    'watermark_investigations',
+    'user_sessions',
+    'early_unlock_requests',
+    'key_contribution_requests',
   ];
 
   let totalRowsLoaded = 0;
@@ -222,10 +167,7 @@ export async function hydrateFromPostgres(db: Database): Promise<void> {
     db.exec('BEGIN TRANSACTION;');
     for (const table of coreTables) {
       try {
-        const querySql = table === 'competitive_question_pool_files'
-          ? `SELECT id, org_id, exam_id, subject_id, subject_name, file_name, mime_type, file_size, file_hash, status, question_count, error_message, uploaded_at, processed_at FROM ${table}`
-          : `SELECT * FROM ${table}`;
-        const res = await pool.query(querySql);
+        const res = await pool.query(`SELECT * FROM ${table}`);
         if (res.rows.length > 0) {
           totalRowsLoaded += res.rows.length;
           for (const row of res.rows) {
@@ -885,30 +827,6 @@ function initializeSchema(db: Database) {
       tx_hash TEXT NOT NULL
     );
 
-    -- Print Anywhere Jobs (Secure Multi-Printer Dispatch Ledger)
-    CREATE TABLE IF NOT EXISTS print_anywhere_jobs (
-      id TEXT PRIMARY KEY,
-      exam_id TEXT NOT NULL,
-      exam_name TEXT NOT NULL,
-      exam_type TEXT NOT NULL,
-      paper_id TEXT NOT NULL,
-      centre_id TEXT NOT NULL,
-      centre_name TEXT,
-      operator_id TEXT NOT NULL,
-      operator_name TEXT NOT NULL,
-      printer_id TEXT NOT NULL,
-      printer_name TEXT NOT NULL,
-      printer_location TEXT,
-      status TEXT NOT NULL,
-      unlock_time TEXT,
-      requested_at TEXT NOT NULL,
-      completed_at TEXT,
-      failure_reason TEXT,
-      copies_count INTEGER DEFAULT 1,
-      tx_hash TEXT,
-      created_at TEXT NOT NULL
-    );
-
     -- Audit Events (Immutable Security Log)
     CREATE TABLE IF NOT EXISTS audit_events (
       id TEXT PRIMARY KEY,
@@ -962,6 +880,89 @@ function initializeSchema(db: Database) {
       message TEXT NOT NULL,
       category TEXT NOT NULL, -- 'SECURITY', 'VERIFICATION', 'EXAMINATION', 'PAPER_RELEASE'
       is_read INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
+    -- Security Evidence Vault (Proctoring Webcam Snapshots with Cryptographic Hash)
+    CREATE TABLE IF NOT EXISTS security_evidence (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      user_id TEXT,
+      exam_id TEXT,
+      paper_id TEXT,
+      session_id TEXT,
+      device_id TEXT,
+      event_id TEXT,
+      captured_at TEXT NOT NULL,
+      mime_type TEXT NOT NULL DEFAULT 'image/jpeg',
+      image_data TEXT,
+      hash TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    -- Watermark Forensics Investigations
+    CREATE TABLE IF NOT EXISTS watermark_investigations (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      investigator_user_id TEXT NOT NULL,
+      investigator_role TEXT NOT NULL,
+      leak_source_type TEXT NOT NULL,
+      input_reference TEXT,
+      extracted_signature TEXT,
+      status TEXT NOT NULL,
+      resolved_exam_id TEXT,
+      resolved_paper_id TEXT,
+      resolved_paper_version TEXT,
+      resolved_copy_id TEXT,
+      resolved_centre_id TEXT,
+      resolved_device_id TEXT,
+      resolved_print_tx TEXT,
+      resolved_details_json TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    -- User Session Activity Tracking
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      user_email TEXT,
+      role TEXT,
+      org_id TEXT NOT NULL,
+      device_id TEXT,
+      ip_address TEXT,
+      login_time TEXT NOT NULL,
+      logout_time TEXT,
+      session_duration_seconds INTEGER DEFAULT 0,
+      auth_result TEXT NOT NULL DEFAULT 'SUCCESS',
+      failed_attempts INTEGER DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      created_at TEXT NOT NULL
+    );
+
+    -- Early Unlock Requests
+    CREATE TABLE IF NOT EXISTS early_unlock_requests (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      exam_id TEXT NOT NULL,
+      requested_by TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      target_unlock_time TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    -- Key Contribution Requests
+    CREATE TABLE IF NOT EXISTS key_contribution_requests (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      exam_id TEXT NOT NULL,
+      paper_version_id TEXT NOT NULL,
+      contributor_user_id TEXT,
+      contributor_role TEXT,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      share_index INTEGER,
       created_at TEXT NOT NULL
     );
 
@@ -1028,7 +1029,6 @@ function initializeSchema(db: Database) {
       emergency_locked INTEGER DEFAULT 0,
       emergency_lock_reason TEXT,
       locked_by TEXT,
-      warning_count INTEGER DEFAULT 0,
       last_heartbeat_at TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -1068,48 +1068,6 @@ function initializeSchema(db: Database) {
       repeated_activity_points INTEGER DEFAULT 10,
       max_warnings INTEGER DEFAULT 3,
       updated_at TEXT NOT NULL
-    );
-
-    -- Proctor Voice Evidence (Auditor voice notes & recorded audio submissions)
-    CREATE TABLE IF NOT EXISTS proctor_voice_evidence (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      exam_id TEXT,
-      user_id TEXT NOT NULL,
-      user_name TEXT NOT NULL,
-      user_role TEXT NOT NULL,
-      audio_data_url TEXT NOT NULL,
-      storage_reference TEXT,
-      duration_seconds INTEGER DEFAULT 0,
-      file_size_bytes INTEGER DEFAULT 0,
-      mime_type TEXT DEFAULT 'audio/webm',
-      event_type TEXT DEFAULT 'VOICE_RECORDING_EVIDENCE',
-      warning_number INTEGER DEFAULT 0,
-      submitted_by TEXT,
-      recipient TEXT DEFAULT 'CBI Chief Vigilance & Security Auditor',
-      review_status TEXT DEFAULT 'PENDING_REVIEW',
-      created_at TEXT NOT NULL
-    );
-
-    -- Proctor Camera Evidence (Webcam photo frames, verification shots, warning snapshots)
-    CREATE TABLE IF NOT EXISTS proctor_camera_evidence (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      exam_id TEXT,
-      user_id TEXT NOT NULL,
-      user_name TEXT NOT NULL,
-      user_role TEXT NOT NULL,
-      image_data_url TEXT NOT NULL,
-      storage_reference TEXT,
-      file_size_bytes INTEGER DEFAULT 0,
-      mime_type TEXT DEFAULT 'image/jpeg',
-      event_type TEXT DEFAULT 'CAMERA_SNAPSHOT',
-      presence_status TEXT DEFAULT 'PRESENT',
-      warning_number INTEGER DEFAULT 0,
-      submitted_by TEXT,
-      recipient TEXT DEFAULT 'CBI Chief Vigilance & Security Auditor',
-      review_status TEXT DEFAULT 'PENDING_REVIEW',
-      created_at TEXT NOT NULL
     );
 
     -- 39. DYNAMIC MULTI-PAPER GENERATOR TABLES
@@ -1172,69 +1130,6 @@ function initializeSchema(db: Database) {
       exam_session_id TEXT,
       paper_fingerprint TEXT NOT NULL,
       assigned_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS emergency_incidents (
-      id TEXT PRIMARY KEY,
-      exam_id TEXT NOT NULL,
-      exam_type TEXT NOT NULL,
-      paper_id TEXT,
-      subject TEXT,
-      subject_code TEXT,
-      threat_type TEXT NOT NULL,
-      threat_severity TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'ACTIVE',
-      detected_at TEXT NOT NULL,
-      original_paper_status TEXT NOT NULL DEFAULT 'LOCKED_EMERGENCY',
-      compromised_question_ids TEXT,
-      emergency_paper_id TEXT,
-      resolved_at TEXT,
-      resolved_by TEXT,
-      details_json TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS emergency_papers (
-      id TEXT PRIMARY KEY,
-      incident_id TEXT NOT NULL,
-      exam_id TEXT NOT NULL,
-      exam_type TEXT NOT NULL,
-      version TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'PENDING_APPROVAL',
-      paper_data_json TEXT NOT NULL,
-      encrypted_payload_json TEXT,
-      is_emergency INTEGER NOT NULL DEFAULT 1,
-      approved_by TEXT,
-      approved_at TEXT,
-      approval_reason TEXT,
-      generated_by TEXT NOT NULL,
-      generated_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS security_key_attempts (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      exam_id TEXT NOT NULL,
-      paper_id TEXT,
-      operation TEXT NOT NULL,
-      attempt_count INTEGER NOT NULL DEFAULT 0,
-      is_locked INTEGER NOT NULL DEFAULT 0,
-      locked_at TEXT,
-      last_attempt_at TEXT NOT NULL,
-      incident_id TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS security_authorizations (
-      id TEXT PRIMARY KEY,
-      token TEXT NOT NULL UNIQUE,
-      user_id TEXT NOT NULL,
-      role TEXT NOT NULL,
-      exam_id TEXT NOT NULL,
-      paper_id TEXT,
-      operation TEXT NOT NULL,
-      incident_id TEXT,
-      created_at TEXT NOT NULL,
-      expires_at TEXT NOT NULL,
-      consumed INTEGER NOT NULL DEFAULT 0
     );
   `);
 
@@ -1320,14 +1215,30 @@ function initializeSchema(db: Database) {
 
   safeAddColumn('proctor_events', 'session_id TEXT');
   safeAddColumn('proctor_events', 'user_id TEXT');
-  safeAddColumn('proctor_events', 'user_role TEXT');
   safeAddColumn('proctor_events', 'snapshot_thumbnail TEXT');
-  safeAddColumn('authority_proctor_sessions', 'warning_count INTEGER DEFAULT 0');
-  safeAddColumn('authority_proctor_sessions', 'review_status TEXT DEFAULT "PENDING_REVIEW"');
-  safeAddColumn('authority_proctor_sessions', 'auditor_remarks TEXT');
-  safeAddColumn('authority_proctor_sessions', 'reviewed_by TEXT');
-  safeAddColumn('authority_proctor_sessions', 'reviewed_at TEXT');
-  safeAddColumn('proctor_voice_evidence', 'storage_reference TEXT');
+
+  // Auditor & Security Schema Compatibility Columns
+  safeAddColumn('audit_events', 'event_category TEXT DEFAULT "SYSTEM"');
+  safeAddColumn('audit_events', 'severity TEXT DEFAULT "INFO"');
+  safeAddColumn('audit_events', 'target_user_id TEXT');
+  safeAddColumn('audit_events', 'paper_id TEXT');
+  safeAddColumn('audit_events', 'paper_version_id TEXT');
+  safeAddColumn('audit_events', 'session_id TEXT');
+  safeAddColumn('audit_events', 'centre_id TEXT');
+  safeAddColumn('audit_events', 'previous_event_hash TEXT');
+  safeAddColumn('audit_events', 'event_hash TEXT');
+
+  safeAddColumn('security_events', 'role TEXT');
+  safeAddColumn('security_events', 'exam_id TEXT');
+  safeAddColumn('security_events', 'paper_id TEXT');
+  safeAddColumn('security_events', 'device_id TEXT');
+  safeAddColumn('security_events', 'status TEXT DEFAULT "OPEN"');
+  safeAddColumn('security_events', 'resolved_by TEXT');
+  safeAddColumn('security_events', 'resolved_at TEXT');
+  safeAddColumn('security_events', 'resolution_notes TEXT');
+
+  safeAddColumn('trusted_devices', 'last_seen_at TEXT');
+  safeAddColumn('trusted_devices', 'auth_failures INTEGER DEFAULT 0');
 
   try {
     const proctorCols = executeQuery(db, 'PRAGMA table_info(proctor_events)', []);
@@ -1451,7 +1362,7 @@ function initializeSchema(db: Database) {
           face_status, faces_detected_count, audio_level_db, leak_risk_score,
           leak_risk_level, last_heartbeat_at, created_at, updated_at
         ) VALUES (
-          'AUTH-SESS-TRANS-01', 'usr-translator-01', 'Prof. Meera Deshmukh (Chief Linguistic Translator)', 'translator@nbte.edu.in', 'TRANSLATOR',
+          'AUTH-SESS-TRANS-01', 'usr-trans-01', 'Vikram Joshi', 'translator@nbte.edu.in', 'TRANSLATOR',
           'ORG-ZEROLEAK-NATIONAL', 'TRANSLATOR_PORTAL', 'EXAM-2026-CS-NATIONAL',
           'ACTIVE', 'ACTIVE', 'ACTIVE', 'ACTIVE', 'SHOULDER_SURFING_DETECTED', 2, -34.0, 65,
           'HIGH', ?, ?, ?
@@ -1462,35 +1373,18 @@ function initializeSchema(db: Database) {
         INSERT INTO proctor_events (
           id, session_id, user_id, user_role, exam_id, event_type, severity, risk_points, timestamp, metadata_json, created_at
         ) VALUES (
-          'AUTH-EV-02', 'AUTH-SESS-TRANS-01', 'usr-translator-01', 'TRANSLATOR', 'EXAM-2026-CS-NATIONAL',
+          'AUTH-EV-02', 'AUTH-SESS-TRANS-01', 'usr-trans-01', 'TRANSLATOR', 'EXAM-2026-CS-NATIONAL',
           'ENCLAVE_STARTED', 'LOW', 0, ?, '{"action":"Translator Enclave Verified"}', ?
         ),
         (
-          'AUTH-EV-03', 'AUTH-SESS-TRANS-01', 'usr-translator-01', 'TRANSLATOR', 'EXAM-2026-CS-NATIONAL',
+          'AUTH-EV-03', 'AUTH-SESS-TRANS-01', 'usr-trans-01', 'TRANSLATOR', 'EXAM-2026-CS-NATIONAL',
           'SHOULDER_SURFING_DETECTED', 'HIGH', 35, ?, '{"faces_detected":2,"action":"Confidential paper instantly blurred & watermarked to avoid leak"}', ?
         ),
         (
-          'AUTH-EV-04', 'AUTH-SESS-TRANS-01', 'usr-translator-01', 'TRANSLATOR', 'EXAM-2026-CS-NATIONAL',
+          'AUTH-EV-04', 'AUTH-SESS-TRANS-01', 'usr-trans-01', 'TRANSLATOR', 'EXAM-2026-CS-NATIONAL',
           'UNAUTHORIZED_WINDOW_SWITCH', 'MEDIUM', 15, ?, '{"window_focus":false,"duration_seconds":3}', ?
         )
       `, [tenMinsAgo, tenMinsAgo, fiveMinsAgo, fiveMinsAgo, twoMinsAgo, twoMinsAgo]);
-
-      // Seed initial verified camera snapshot for Prof. Meera Deshmukh
-      db.run(`
-        INSERT INTO proctor_camera_evidence (
-          id, session_id, exam_id, user_id, user_name, user_role,
-          image_data_url, file_size_bytes, mime_type, event_type,
-          presence_status, warning_number, submitted_by, recipient,
-          review_status, created_at
-        ) VALUES (
-          'CAM-EV-INIT-01', 'AUTH-SESS-TRANS-01', 'EXAM-2026-CS-NATIONAL',
-          'usr-translator-01', 'Prof. Meera Deshmukh (Chief Linguistic Translator)', 'TRANSLATOR',
-          'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240"><rect width="320" height="240" fill="%230F172A"/><circle cx="160" cy="100" r="45" fill="%231E293B" stroke="%2300A878" stroke-width="3"/><path d="M100 200 C100 155 220 155 220 200" fill="%231E293B" stroke="%2300A878" stroke-width="3"/><text x="160" y="225" font-family="sans-serif" font-size="11" fill="%2300C98B" text-anchor="middle" font-weight="bold">VERIFIED OFFICIAL: PROF. MEERA DESHMUKH</text></svg>',
-          1024, 'image/svg+xml', 'CAMERA_SNAPSHOT',
-          'PRESENT', 0, 'Prof. Meera Deshmukh', 'CBI Chief Vigilance & Security Auditor',
-          'PENDING_REVIEW', ?
-        )
-      `, [tenMinsAgo]);
 
       // 3. Exam Manager Compilation Session
       db.run(`
@@ -1601,49 +1495,6 @@ function initializeSchema(db: Database) {
       for (const col of examCols) {
         pgPool.query(`ALTER TABLE examinations ADD COLUMN IF NOT EXISTS ${col} TEXT`).catch(() => {});
       }
-      pgPool.query(`ALTER TABLE authority_proctor_sessions ADD COLUMN IF NOT EXISTS warning_count INTEGER DEFAULT 0`).catch(() => {});
-      pgPool.query(`CREATE TABLE IF NOT EXISTS proctor_voice_evidence (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        exam_id TEXT,
-        user_id TEXT NOT NULL,
-        user_name TEXT NOT NULL,
-        user_role TEXT NOT NULL,
-        audio_data_url TEXT NOT NULL,
-        storage_reference TEXT,
-        duration_seconds INTEGER DEFAULT 0,
-        file_size_bytes INTEGER DEFAULT 0,
-        mime_type TEXT DEFAULT 'audio/webm',
-        event_type TEXT DEFAULT 'VOICE_RECORDING_EVIDENCE',
-        warning_number INTEGER DEFAULT 0,
-        submitted_by TEXT,
-        recipient TEXT DEFAULT 'CBI Chief Vigilance & Security Auditor',
-        review_status TEXT DEFAULT 'PENDING_REVIEW',
-        created_at TEXT NOT NULL
-      )`).catch(() => {});
-      pgPool.query(`CREATE TABLE IF NOT EXISTS proctor_camera_evidence (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        exam_id TEXT,
-        user_id TEXT NOT NULL,
-        user_name TEXT NOT NULL,
-        user_role TEXT NOT NULL,
-        image_data_url TEXT NOT NULL,
-        storage_reference TEXT,
-        file_size_bytes INTEGER DEFAULT 0,
-        mime_type TEXT DEFAULT 'image/jpeg',
-        event_type TEXT DEFAULT 'CAMERA_SNAPSHOT',
-        presence_status TEXT DEFAULT 'PRESENT',
-        warning_number INTEGER DEFAULT 0,
-        submitted_by TEXT,
-        recipient TEXT DEFAULT 'CBI Chief Vigilance & Security Auditor',
-        review_status TEXT DEFAULT 'PENDING_REVIEW',
-        created_at TEXT NOT NULL
-      )`).catch(() => {});
-      pgPool.query(`ALTER TABLE authority_proctor_sessions ADD COLUMN IF NOT EXISTS review_status TEXT DEFAULT 'PENDING_REVIEW'`).catch(() => {});
-      pgPool.query(`ALTER TABLE authority_proctor_sessions ADD COLUMN IF NOT EXISTS auditor_remarks TEXT`).catch(() => {});
-      pgPool.query(`ALTER TABLE authority_proctor_sessions ADD COLUMN IF NOT EXISTS reviewed_by TEXT`).catch(() => {});
-      pgPool.query(`ALTER TABLE authority_proctor_sessions ADD COLUMN IF NOT EXISTS reviewed_at TEXT`).catch(() => {});
     }
   } catch {}
 }
@@ -1753,7 +1604,6 @@ export function writeThroughToPostgres(sql: string, params: any[] = []): void {
       if (!pgInitialized) {
         await initPostgres();
       }
-      if (!pgInitialized) return;
       const pgSql = convertSqliteToPostgres(sql);
       const pgParams = params.map((p) => {
         if (p === undefined) return null;
@@ -1767,156 +1617,10 @@ export function writeThroughToPostgres(sql: string, params: any[] = []): void {
   });
 }
 
-function splitSqlList(str: string): string[] {
-  const items: string[] = [];
-  let current = '';
-  let inQuote = false;
-  let quoteChar = '';
-
-  for (let i = 0; i < str.length; i++) {
-    const char = str[i];
-    if ((char === "'" || char === '"') && (i === 0 || str[i - 1] !== '\\')) {
-      if (!inQuote) {
-        inQuote = true;
-        quoteChar = char;
-      } else if (char === quoteChar) {
-        inQuote = false;
-      }
-    }
-    if (char === ',' && !inQuote) {
-      items.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  if (current.trim().length > 0) {
-    items.push(current.trim());
-  }
-  return items;
-}
-
-export function writeThroughToMongo(sql: string, params: any[] = []): void {
-  if (!isMongoAvailable()) return;
-
-  setImmediate(async () => {
-    try {
-      // 1. Handle INSERT / INSERT OR REPLACE / INSERT OR IGNORE
-      const insertMatch = sql.match(/INSERT(?:\s+OR\s+(?:REPLACE|IGNORE))?\s+INTO\s+["`]?([a-zA-Z0-9_]+)["`]?\s*\(([^)]+)\)(?:\s*VALUES\s*\((.+)\))?/is);
-      if (insertMatch) {
-        const tableName = insertMatch[1].toLowerCase();
-        const columns = insertMatch[2].split(',').map((c) => c.trim().replace(/["`]/g, ''));
-        const model = TableToModelMap[tableName];
-        if (!model) return;
-
-        const valuesExprs = insertMatch[3] ? splitSqlList(insertMatch[3]) : [];
-        const doc: Record<string, any> = {};
-        let paramIdx = 0;
-
-        for (let i = 0; i < columns.length; i++) {
-          const colName = columns[i];
-          const valExpr = valuesExprs[i] ? valuesExprs[i].trim() : '?';
-
-          if (valExpr === '?' || valExpr.startsWith('$')) {
-            if (paramIdx < params.length && params[paramIdx] !== undefined) {
-              doc[colName] = params[paramIdx];
-            }
-            paramIdx++;
-          } else if (valExpr.startsWith("'") && valExpr.endsWith("'")) {
-            doc[colName] = valExpr.slice(1, -1);
-          } else if (valExpr.toUpperCase() === 'NULL') {
-            doc[colName] = null;
-          } else if (!isNaN(Number(valExpr))) {
-            doc[colName] = Number(valExpr);
-          } else {
-            if (paramIdx < params.length && params[paramIdx] !== undefined) {
-              doc[colName] = params[paramIdx];
-              paramIdx++;
-            }
-          }
-        }
-
-        const primaryId = doc.id || doc._id || doc.setting_key || doc.public_id || doc.copy_id;
-        if (primaryId) {
-          doc._id = primaryId;
-          doc.id = primaryId;
-        }
-
-        if (tableName === 'trusted_devices' && (doc.device_uuid === null || doc.device_uuid === undefined)) {
-          delete doc.device_uuid;
-        }
-
-        if (tableName === 'audit_events') {
-          // Strictly append-only
-          await model.create(doc);
-        } else {
-          await model.updateOne({ _id: primaryId }, { $set: doc }, { upsert: true });
-        }
-        return;
-      }
-
-      // 2. Handle UPDATE table SET col1 = ?, ... WHERE id = ?
-      const updateMatch = sql.match(/UPDATE\s+["`]?([a-zA-Z0-9_]+)["`]?\s+SET\s+(.+?)\s+WHERE\s+(?:id|_id)\s*=\s*\?/is);
-      if (updateMatch) {
-        const tableName = updateMatch[1].toLowerCase();
-        const model = TableToModelMap[tableName];
-        if (!model) return;
-
-        const assignments = splitSqlList(updateMatch[2]);
-        const targetId = params[params.length - 1];
-        const updateDoc: Record<string, any> = {};
-        let pIdx = 0;
-
-        for (const assign of assignments) {
-          const eqIdx = assign.indexOf('=');
-          if (eqIdx !== -1) {
-            const col = assign.slice(0, eqIdx).trim().replace(/["`]/g, '');
-            const valExpr = assign.slice(eqIdx + 1).trim();
-            if (valExpr === '?' || valExpr.startsWith('$')) {
-              if (pIdx < params.length - 1 && params[pIdx] !== undefined) {
-                updateDoc[col] = params[pIdx];
-              }
-              pIdx++;
-            } else if (valExpr.startsWith("'") && valExpr.endsWith("'")) {
-              updateDoc[col] = valExpr.slice(1, -1);
-            } else if (valExpr.toUpperCase() === 'NULL') {
-              updateDoc[col] = null;
-            } else if (!isNaN(Number(valExpr))) {
-              updateDoc[col] = Number(valExpr);
-            }
-          }
-        }
-
-        if (targetId && Object.keys(updateDoc).length > 0) {
-          await model.updateOne({ $or: [{ _id: targetId }, { id: targetId }] }, { $set: updateDoc });
-        }
-        return;
-      }
-
-      // 3. Handle DELETE FROM table WHERE id = ?
-      const deleteMatch = sql.match(/DELETE\s+FROM\s+["`]?([a-zA-Z0-9_]+)["`]?\s+WHERE\s+(?:id|public_id|_id)\s*=\s*\?/i);
-      if (deleteMatch) {
-        const tableName = deleteMatch[1].toLowerCase();
-        const model = TableToModelMap[tableName];
-        if (!model || tableName === 'audit_events') return;
-
-        const targetId = params[0];
-        if (targetId) {
-          await model.deleteOne({ $or: [{ _id: targetId }, { id: targetId }] });
-        }
-        return;
-      }
-    } catch (err: any) {
-      console.warn('MongoDB write-through notice:', err.message, '| Query:', sql.substring(0, 80));
-    }
-  });
-}
-
 export function executeRun(db: Database, sql: string, params: any[] = []): void {
   db.run(sql, params);
   saveDb();
   writeThroughToPostgres(sql, params);
-  writeThroughToMongo(sql, params);
 }
 
 /**
@@ -1932,7 +1636,7 @@ export function executeRun(db: Database, sql: string, params: any[] = []): void 
  * never answered the browser - the Owner's screen spun forever.
  *
  * Here the statements stay inside one real transaction, the database is
- * persisted once at the end, and the same statements are mirrored to PostgreSQL and MongoDB.
+ * persisted once at the end, and the same statements are mirrored to PostgreSQL.
  */
 export function executeTransaction(db: Database, statements: Array<{ sql: string; params?: any[] }>): void {
   if (statements.length === 0) return;
@@ -1953,7 +1657,6 @@ export function executeTransaction(db: Database, statements: Array<{ sql: string
   saveDb();
   for (const statement of statements) {
     writeThroughToPostgres(statement.sql, statement.params ?? []);
-    writeThroughToMongo(statement.sql, statement.params ?? []);
   }
 }
 

@@ -8,8 +8,6 @@ export interface FaceDetectionResult {
   lookingDirection: 'FORWARD' | 'LEFT' | 'RIGHT' | 'AWAY';
   confidence: number;
   box?: { x: number; y: number; width: number; height: number };
-  phoneDetected?: boolean;
-  phoneCount?: number;
 }
 
 let nativeDetector: any = null;
@@ -101,7 +99,7 @@ function detectFacesUsingCanvas(video: HTMLVideoElement): FaceDetectionResult {
   const H = 120;
   const helper = getSampleContext(W, H);
   if (!helper) {
-    return { faceCount: 1, status: 'NORMAL', lookingDirection: 'FORWARD', confidence: 0.85 };
+    return { faceCount: 1, status: 'NORMAL', lookingDirection: 'FORWARD', confidence: 0.8 };
   }
 
   const { ctx } = helper;
@@ -110,25 +108,19 @@ function detectFacesUsingCanvas(video: HTMLVideoElement): FaceDetectionResult {
     const imgData = ctx.getImageData(0, 0, W, H);
     const data = imgData.data;
 
+    // Skin chromaticity and luminance detection (Kovac / Normalized RGB skin model)
+    // Grid sampling (step size 4 for high performance)
     const step = 4;
     const gridW = Math.floor(W / step);
     const gridH = Math.floor(H / step);
-    const totalCells = gridW * gridH;
-    const skinGrid = new Uint8Array(totalCells);
+    const skinGrid = new Uint8Array(gridW * gridH);
 
     let totalSkinPixels = 0;
     let sumX = 0;
     let sumY = 0;
-    let totalLuminance = 0;
-    let luminanceVarianceSum = 0;
-    let edgeEnergy = 0;
-
-    // First pass: Calculate luminance, variance, skin pixels
-    const luminances = new Float32Array(totalCells);
 
     for (let gy = 0; gy < gridH; gy++) {
       for (let gx = 0; gx < gridW; gx++) {
-        const cellIdx = gy * gridW + gx;
         const px = gx * step;
         const py = gy * step;
         const idx = (py * W + px) * 4;
@@ -137,87 +129,36 @@ function detectFacesUsingCanvas(video: HTMLVideoElement): FaceDetectionResult {
         const g = data[idx + 1];
         const b = data[idx + 2];
 
-        // Standard Luminance
-        const Y = 0.299 * r + 0.587 * g + 0.114 * b;
-        luminances[cellIdx] = Y;
-        totalLuminance += Y;
+        // Normalized RGB skin tone detector
+        const sum = r + g + b;
+        if (sum > 70) {
+          const nr = r / sum;
+          const ng = g / sum;
 
-        // Chromaticities
-        const Cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
-        const Cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+          // Standard chromaticity ellipse for human skin tone under indoor/natural lighting
+          const isSkin =
+            nr > 0.35 &&
+            nr < 0.58 &&
+            ng > 0.25 &&
+            ng < 0.38 &&
+            r > g &&
+            g > b &&
+            Math.abs(r - g) > 12;
 
-        // HSV calculation
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        const delta = max - min;
-        let h = 0;
-        if (delta > 0) {
-          if (max === r) h = ((g - b) / delta) % 6;
-          else if (max === g) h = (b - r) / delta + 2;
-          else h = (r - g) / delta + 4;
-          h = Math.round(h * 60);
-          if (h < 0) h += 360;
-        }
-        const s = max === 0 ? 0 : delta / max;
-        const v = max / 255;
-
-        // Broad inclusive multi-ethnic skin check (covering all tones + various lighting)
-        const isYCbCrSkin = Y > 15 && Cb >= 60 && Cb <= 155 && Cr >= 115 && Cr <= 200;
-        const isHsvSkin = (h <= 55 || h >= 320) && s >= 0.08 && s <= 0.88 && v >= 0.12 && v <= 0.98;
-        const isRgbSkin = r > 30 && g > 20 && b > 15 && (r + g + b) > 70 && (r >= g - 20) && (r - b >= -20);
-
-        const isSkin = isYCbCrSkin || isHsvSkin || isRgbSkin;
-
-        if (isSkin) {
-          skinGrid[cellIdx] = 1;
-          totalSkinPixels++;
-          sumX += gx;
-          sumY += gy;
+          if (isSkin) {
+            skinGrid[gy * gridW + gx] = 1;
+            totalSkinPixels++;
+            sumX += gx;
+            sumY += gy;
+          }
         }
       }
     }
 
-    const meanLuminance = totalLuminance / totalCells;
+    const minSkinThreshold = (gridW * gridH) * 0.04; // At least 4% of frame is face/skin
+    const maxSkinThreshold = (gridW * gridH) * 0.70; // More than 70% is likely camera covered/glare
 
-    // Second pass: Variance & upper-center edge energy
-    for (let gy = 0; gy < gridH; gy++) {
-      for (let gx = 0; gx < gridW; gx++) {
-        const cellIdx = gy * gridW + gx;
-        const diff = luminances[cellIdx] - meanLuminance;
-        luminanceVarianceSum += diff * diff;
-
-        // Edge energy (upper 75% of frame where head & shoulders are)
-        if (gy < gridH * 0.75 && gx < gridW - 1 && gy < gridH - 1) {
-          const rightCell = luminances[gy * gridW + gx + 1];
-          const downCell = luminances[(gy + 1) * gridW + gx];
-          edgeEnergy += Math.abs(luminances[cellIdx] - rightCell) + Math.abs(luminances[cellIdx] - downCell);
-        }
-      }
-    }
-
-    const stdDev = Math.sqrt(luminanceVarianceSum / totalCells);
-    const avgEdge = edgeEnergy / (gridW * gridH * 0.75);
-
-    // Camera completely dark/covered check
-    const isCameraDarkOrCovered = meanLuminance < 10 && stdDev < 8;
-    // Camera pointed at completely flat textureless blank wall
-    const isBlankFlatWall = stdDev < 4.5 && avgEdge < 3.0;
-
-    if (isCameraDarkOrCovered || isBlankFlatWall) {
-      return {
-        faceCount: 0,
-        status: 'NO_FACE',
-        lookingDirection: 'AWAY',
-        confidence: 0.9,
-      };
-    }
-
-    // Adaptive presence threshold:
-    // If skin pixels detected, or substantial contrast and edges of a seated person
-    const hasSkinPresence = totalSkinPixels >= Math.max(6, totalCells * 0.008);
-    const hasSilhouettePresence = stdDev >= 12.0 && avgEdge >= 6.0 && meanLuminance >= 15;
-
-    if (!hasSkinPresence && !hasSilhouettePresence) {
+    if (totalSkinPixels < minSkinThreshold) {
       return {
         faceCount: 0,
         status: 'NO_FACE',
@@ -226,105 +167,76 @@ function detectFacesUsingCanvas(video: HTMLVideoElement): FaceDetectionResult {
       };
     }
 
-    // 1. Mobile Phone / Smartphone Detection (handheld dark high-contrast rectangle)
-    let phoneDetected = false;
-    let phoneCount = 0;
-    // Check lower 70% of frame for dark smartphone profile (Luminance < 35, width 5-15, height 10-25 cells)
-    for (let gy = Math.floor(gridH * 0.3); gy < gridH - 8; gy += 3) {
-      for (let gx = 3; gx < gridW - 8; gx += 3) {
-        let darkCount = 0;
-        for (let dy = 0; dy < 6; dy++) {
-          for (let dx = 0; dx < 4; dx++) {
-            if (luminances[(gy + dy) * gridW + (gx + dx)] < 40) darkCount++;
-          }
-        }
-        if (darkCount >= 18) {
-          // Check edge contrast against surroundings
-          const surroundingLum = (
-            luminances[Math.max(0, gy - 2) * gridW + gx] +
-            luminances[Math.min(gridH - 1, gy + 8) * gridW + gx] +
-            luminances[gy * gridW + Math.max(0, gx - 2)] +
-            luminances[gy * gridW + Math.min(gridW - 1, gx + 6)]
-          ) / 4;
-          if (surroundingLum > 65) {
-            phoneDetected = true;
-            phoneCount = 1;
-            break;
-          }
-        }
-      }
-      if (phoneDetected) break;
+    if (totalSkinPixels > maxSkinThreshold) {
+      return {
+        faceCount: 0,
+        status: 'NO_FACE',
+        lookingDirection: 'AWAY',
+        confidence: 0.75,
+      };
     }
 
-    // 2. Multiple faces / Secondary person detection via horizontal histogram & dual clustering
-    // 2. Multiple faces / Secondary person detection:
-    // Requires two widely separated skin mass centroids (at least 45% of width apart)
-    // with a deep valley of non-skin in between.
-    let leftSkinMass = 0;
-    let rightSkinMass = 0;
-    let centerValleySkin = 0;
-
-    const leftBoundary = Math.floor(gridW * 0.35);
-    const rightBoundary = Math.floor(gridW * 0.65);
+    // Check for distinct separated face clusters (Multiple Faces)
+    // Compare left half vs right half skin mass
+    let leftSkin = 0;
+    let rightSkin = 0;
+    const midGX = Math.floor(gridW / 2);
 
     for (let gy = 0; gy < gridH; gy++) {
       for (let gx = 0; gx < gridW; gx++) {
         if (skinGrid[gy * gridW + gx] === 1) {
-          if (gx < leftBoundary) leftSkinMass++;
-          else if (gx > rightBoundary) rightSkinMass++;
-          else centerValleySkin++;
+          if (gx < midGX - 3) leftSkin++;
+          else if (gx > midGX + 3) rightSkin++;
         }
       }
     }
 
-    const minPersonMass = totalCells * 0.06; // at least 6% of total cells on each separate side
-    // Two distinct persons require empty space between them (center valley significantly lower than either mass)
-    const hasTwoSeparatePeople =
-      leftSkinMass > minPersonMass &&
-      rightSkinMass > minPersonMass &&
-      centerValleySkin < Math.min(leftSkinMass, rightSkinMass) * 0.25;
-
-    if (hasTwoSeparatePeople) {
-      return {
-        faceCount: 2,
-        status: 'MULTIPLE_FACES',
-        lookingDirection: 'FORWARD',
-        confidence: 0.94,
-        phoneDetected,
-        phoneCount,
-      };
+    // If both left and right quadrants have independent large skin clusters separated by a gap
+    const clusterMin = minSkinThreshold * 0.8;
+    if (leftSkin > clusterMin && rightSkin > clusterMin) {
+      // Check if center gap is low skin (indicates 2 separate people)
+      let centerSkin = 0;
+      for (let gy = 0; gy < gridH; gy++) {
+        for (let gx = midGX - 2; gx <= midGX + 2; gx++) {
+          if (skinGrid[gy * gridW + gx] === 1) centerSkin++;
+        }
+      }
+      if (centerSkin < (leftSkin + rightSkin) * 0.15) {
+        return {
+          faceCount: 2,
+          status: 'MULTIPLE_FACES',
+          lookingDirection: 'FORWARD',
+          confidence: 0.88,
+        };
+      }
     }
 
-    // Single Authorized Person Confirmed
-    const effectiveTotal = Math.max(1, totalSkinPixels);
-    const avgGX = sumX / effectiveTotal;
-    const midGX = gridW / 2;
+    // Normal single face
+    const avgGX = sumX / totalSkinPixels;
     const centerNorm = (avgGX - midGX) / gridW;
 
     let dir: 'FORWARD' | 'LEFT' | 'RIGHT' = 'FORWARD';
-    if (centerNorm < -0.18) dir = 'LEFT';
-    else if (centerNorm > 0.18) dir = 'RIGHT';
+    if (centerNorm < -0.16) dir = 'LEFT';
+    else if (centerNorm > 0.16) dir = 'RIGHT';
 
     return {
       faceCount: 1,
       status: 'NORMAL',
       lookingDirection: dir,
-      confidence: 0.92,
-      phoneDetected,
-      phoneCount,
+      confidence: 0.9,
       box: {
         x: Math.max(10, Math.min(80, (avgGX / gridW) * 100 - 15)),
-        y: Math.max(10, Math.min(80, ((sumY / effectiveTotal) / gridH) * 100 - 15)),
+        y: Math.max(10, Math.min(80, ((sumY / totalSkinPixels) / gridH) * 100 - 15)),
         width: 30,
         height: 35,
       },
     };
-  } catch (err) {
+  } catch {
     return {
       faceCount: 1,
       status: 'NORMAL',
       lookingDirection: 'FORWARD',
-      confidence: 0.85,
+      confidence: 0.7,
     };
   }
 }

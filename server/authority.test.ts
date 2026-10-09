@@ -116,14 +116,14 @@ test('10. revoked / suspended / pending authority cannot perform restricted oper
 test('11. audit events are planned for important authority changes', () => {
   const granted = evaluateDelegation({ actorRole: 'ORG_OWNER', actorOrgId: 'org-a', targetRole: 'EXAM_MANAGER', targetOrgId: 'org-a' });
   const grantPlan = planAuthorityAudit(granted, 'GRANT');
-  assert.deepEqual(grantPlan.audit, ['AUTHORITY_GRANTED', 'ROLE_ASSIGNED']);
+  assert.deepEqual(grantPlan.audit, ['ROLE_ASSIGNMENT_REQUESTED', 'ROLE_AUTHORIZED']);
   assert.equal(grantPlan.security.length, 0);
 
   const revokePlan = planAuthorityAudit({ allowed: true, reason: DELEGATION_REASON.ALLOWED, isEscalation: false }, 'REVOKE');
-  assert.deepEqual(revokePlan.audit, ['AUTHORITY_REVOKED']);
+  assert.deepEqual(revokePlan.audit, ['ROLE_REVOKED']);
 
   const restorePlan = planAuthorityAudit({ allowed: true, reason: DELEGATION_REASON.ALLOWED, isEscalation: false }, 'RESTORE');
-  assert.deepEqual(restorePlan.audit, ['AUTHORITY_RESTORED']);
+  assert.deepEqual(restorePlan.audit, ['ROLE_AUTHORIZED']);
 
   const denied = evaluateDelegation({ actorRole: 'TRANSLATOR', actorOrgId: 'org-a', targetRole: 'EXAM_MANAGER', targetOrgId: 'org-a' });
   const deniedPlan = planAuthorityAudit(denied, 'GRANT');
@@ -137,7 +137,7 @@ test('11. audit events are planned for important authority changes', () => {
 // ---------------------------------------------------------------------------
 
 test('12. delegatable role sets exactly match the specified hierarchy', () => {
-  assert.deepEqual(getDelegatableRoles('ORG_OWNER'), ['EXAM_MANAGER', 'AUDITOR', 'TRANSLATOR', 'CENTRE_OPERATOR']);
+  assert.deepEqual(getDelegatableRoles('ORG_OWNER'), ['EXAM_MANAGER', 'AUDITOR']);
   assert.deepEqual(getDelegatableRoles('EXAM_MANAGER'), ['TRANSLATOR', 'CENTRE_OPERATOR']);
   assert.deepEqual(getDelegatableRoles('TRANSLATOR'), []);
   assert.deepEqual(getDelegatableRoles('CENTRE_OPERATOR'), []);
@@ -146,7 +146,9 @@ test('12. delegatable role sets exactly match the specified hierarchy', () => {
 
 test('13. authority management follows the hierarchy and never reaches ORG_OWNER', () => {
   assert.equal(canManageAuthority('ORG_OWNER', 'EXAM_MANAGER'), true);
-  assert.equal(canManageAuthority('ORG_OWNER', 'TRANSLATOR'), true);
+  assert.equal(canManageAuthority('ORG_OWNER', 'AUDITOR'), true);
+  assert.equal(canManageAuthority('ORG_OWNER', 'TRANSLATOR'), false);
+  assert.equal(canManageAuthority('ORG_OWNER', 'CENTRE_OPERATOR'), false);
   assert.equal(canManageAuthority('ORG_OWNER', 'ORG_OWNER'), false);
   assert.equal(canManageAuthority('EXAM_MANAGER', 'TRANSLATOR'), true);
   assert.equal(canManageAuthority('EXAM_MANAGER', 'EXAM_MANAGER'), false);

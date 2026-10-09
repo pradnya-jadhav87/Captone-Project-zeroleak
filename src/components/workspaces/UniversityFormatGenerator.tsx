@@ -47,7 +47,6 @@ import { User, Examination, DraftPaper, UniversityDraftQuestion, IngestDraftPape
 import { QuestionPaperPdfModal } from './QuestionPaperPdfModal';
 import { LaTeXText } from '../common/LaTeXText';
 import { FreeLatexToolchainPanel } from '../FreeLatexToolchainPanel';
-import { SecurePaperViewer } from '../security/SecurePaperViewer';
 
 interface UniversityFormatGeneratorProps {
   currentUser: User | null;
@@ -146,6 +145,7 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
 
   useEffect(() => {
     loadExaminations();
+    loadUploadedPapers();
     checkCloudinary();
     checkFormatex();
     checkLatexOnline();
@@ -349,21 +349,22 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
   };
 
   const loadUploadedPapers = async (examId?: string) => {
-    if (!examId) {
-      setUploadedPapers([]);
-      return;
-    }
     setLoadingPapers(true);
     try {
       let res = await api.getUploadedQuestionPapers(examId);
+      if (res.success && Array.isArray(res.papers) && res.papers.length === 0) {
+        // Automatically sync from Cloudinary if local bank is currently empty
+        const syncRes = await api.syncCloudinaryQuestionPapers(examId);
+        if (syncRes.success && Array.isArray(syncRes.papers)) {
+          setUploadedPapers(syncRes.papers);
+          return;
+        }
+      }
       if (res.success && Array.isArray(res.papers)) {
         setUploadedPapers(res.papers);
-      } else {
-        setUploadedPapers([]);
       }
     } catch (e: any) {
       console.error('Failed to load uploaded question papers:', e);
-      setUploadedPapers([]);
     } finally {
       setLoadingPapers(false);
     }
@@ -585,8 +586,9 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
         const engineLabel = res.compilerService || (targetEngine === 'formatex' ? 'FormaTeX Cloud' : 'LaTeX.Online');
         setActionMessage({
           type: 'success',
-          text: `⚡ ${engineLabel} compiled official typesetting for Set ${letter} (${Math.round((res.sizeBytes || 0) / 1024)} KB) inside secure in-app viewer.`,
+          text: `⚡ ${engineLabel} compiled official publication PDF for Set ${letter} (${Math.round((res.sizeBytes || 0) / 1024)} KB)!`,
         });
+        window.open(res.pdfUrl, '_blank');
       } else {
         setActionMessage({
           type: 'error',
@@ -1189,9 +1191,9 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
         ) : uploadedPapers.length === 0 ? (
           <div className="p-10 rounded-2xl bg-slate-50 border border-dashed border-slate-300 text-center space-y-3">
             <UploadCloud className="w-10 h-10 text-sky-600 mx-auto" />
-            <div className="text-sm font-bold text-slate-900">No source paper uploaded yet</div>
+            <div className="text-sm font-bold text-slate-900">No draft question papers indexed in local bank yet</div>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              No draft papers uploaded for this configuration. Upload exactly 3 question-paper PDFs above to attach source papers.
+              Upload PDF question papers in <strong className="text-slate-800">Exam Workflow</strong> or click below to sync directly from your Cloudinary storage.
             </p>
             <button
               type="button"
@@ -1714,13 +1716,7 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
               </div>
 
               {/* Paper Preview Box */}
-              <SecurePaperViewer
-                paperId={selectedExam?.id}
-                examId={selectedExam?.id}
-                examTitle={selectedExam?.name || 'University Examination Paper'}
-                examType="UNIVERSITY"
-              >
-                <div className="bg-white text-slate-900 p-6 sm:p-10 rounded-2xl shadow-md border border-slate-200 space-y-6 max-w-full overflow-hidden relative">
+              <div className="bg-white text-slate-900 p-6 sm:p-10 rounded-2xl shadow-md border border-slate-200 space-y-6 max-w-full overflow-hidden relative">
                 {/* Official University Header */}
                 <div className="space-y-3 border-b-2 border-slate-900 pb-4">
                   <div className="flex items-center justify-between font-mono text-xs font-bold text-slate-900">
@@ -1999,8 +1995,7 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
                   <div className="font-bold text-slate-900">*** END OF QUESTION PAPER ***</div>
                   <div>{selectedExam?.code || selectedExam?.paper_code || 'EXAM-2026'} (Set {setLetter})</div>
                 </div>
-                </div>
-              </SecurePaperViewer>
+              </div>
             </>
           )}
         </div>

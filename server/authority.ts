@@ -53,7 +53,7 @@ export const ROLE_RANK: Record<AuthorityRole, number> = {
  * can never escalate themselves or others.
  */
 export const ROLE_DELEGATIONS: Record<AuthorityRole, AuthorityRole[]> = {
-  ORG_OWNER: ['EXAM_MANAGER', 'AUDITOR', 'TRANSLATOR', 'CENTRE_OPERATOR'],
+  ORG_OWNER: ['EXAM_MANAGER', 'AUDITOR'],
   EXAM_MANAGER: ['TRANSLATOR', 'CENTRE_OPERATOR'],
   AUDITOR: [],
   TRANSLATOR: [],
@@ -188,7 +188,7 @@ export function evaluateDelegation(params: {
 export function canManageAuthority(actorRole: string, targetRole: string): boolean {
   if (!isAuthorityRole(actorRole) || !isAuthorityRole(targetRole)) return false;
   if (targetRole === 'ORG_OWNER') return false;
-  if (actorRole === 'ORG_OWNER') return true;
+  if (actorRole === 'ORG_OWNER') return ROLE_DELEGATIONS.ORG_OWNER.includes(targetRole);
   if (actorRole === 'EXAM_MANAGER') return ROLE_DELEGATIONS.EXAM_MANAGER.includes(targetRole);
   return false;
 }
@@ -265,13 +265,13 @@ export function planAuthorityAudit(decision: DelegationDecision, action: Authori
   if (decision.allowed) {
     switch (action) {
       case 'GRANT':
-        return { audit: ['AUTHORITY_GRANTED', 'ROLE_ASSIGNED'], security: [] };
+        return { audit: ['ROLE_ASSIGNMENT_REQUESTED', 'ROLE_AUTHORIZED'], security: [] };
       case 'APPROVE':
-        return { audit: ['AUTHORITY_GRANTED'], security: [] };
+        return { audit: ['ROLE_AUTHORIZED'], security: [] };
       case 'REVOKE':
-        return { audit: ['AUTHORITY_REVOKED'], security: [] };
+        return { audit: ['ROLE_REVOKED'], security: [] };
       case 'RESTORE':
-        return { audit: ['AUTHORITY_RESTORED'], security: [] };
+        return { audit: ['ROLE_AUTHORIZED'], security: [] };
     }
   }
   const security: AuthorityAuditPlan['security'] = decision.isEscalation

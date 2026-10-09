@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 import sys
 import os
-import warnings
-
-warnings.filterwarnings("ignore")
-os.environ["PYTHONWARNINGS"] = "ignore"
-
 import json
 
 try:
-    import pymupdf as fitz
+    import fitz
 except ImportError:
     try:
-        import fitz
+        import pymupdf as fitz
     except ImportError:
         print(json.dumps({"error": "PyMuPDF not installed"}))
         sys.exit(1)

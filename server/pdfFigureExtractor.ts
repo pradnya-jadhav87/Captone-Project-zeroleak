@@ -56,21 +56,6 @@ function slugify(value: string): string {
 }
 
 /**
- * Resilient JSON extractor from subprocess stdout that may contain deprecation
- * warnings or other logs before/after the JSON payload.
- */
-export function parseExtractorJson<T = any>(stdout: string): T {
-  const stdoutStr = (stdout || '').trim();
-  const startIdx = stdoutStr.indexOf('{');
-  const endIdx = stdoutStr.lastIndexOf('}');
-  if (startIdx !== -1 && endIdx !== -1 && endIdx >= startIdx) {
-    const cleanJson = stdoutStr.slice(startIdx, endIdx + 1);
-    return JSON.parse(cleanJson);
-  }
-  throw new Error(`No valid JSON object found in extractor output: ${stdoutStr}`);
-}
-
-/**
  * Extract the visual assets a paper already contains.
  *
  * The cropping itself happens in PyMuPDF (see `extractPdfFigures.py`) because
@@ -108,21 +93,13 @@ export async function extractSourceFigures(
       execFile(
         process.env.PYTHON_PATH || 'python',
         [scriptPath, sourcePath, cropDir, String(maxFigures), String(dpi)],
-        {
-          maxBuffer: 16 * 1024 * 1024,
-          windowsHide: true,
-          env: {
-            ...process.env,
-            PYTHONWARNINGS: 'ignore',
-            PYTHONUTF8: '1',
-          },
-        },
+        { maxBuffer: 16 * 1024 * 1024, windowsHide: true },
         (err, stdout, stderr) => {
           if (err && !stdout) return reject(new Error(stderr || err.message));
           try {
-            resolve(parseExtractorJson<RawExtraction>(stdout));
-          } catch (parseErr: any) {
-            reject(new Error(`Could not read the figure extractor's output: ${stdout || stderr || parseErr.message}`));
+            resolve(JSON.parse(stdout));
+          } catch {
+            reject(new Error(`Could not read the figure extractor's output: ${stdout || stderr || err.message}`));
           }
         }
       );

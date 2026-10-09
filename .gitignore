@@ -48,14 +48,11 @@ scratch/
 .claude/*.local.json
 
 # Model weights and artifacts
-/models/
+models/
 NaviDC-OCR/outputs/
 *.safetensors
 *.bin
-*.pt
 .cache/
-public/competitive_visuals/*
-!public/competitive_visuals/.gitkeep
 
 # Generated questions and test suites
 test_results/
@@ -78,9 +75,5 @@ test_*.py
 test_*.cjs
 tests/role_counts.ts
 tests/test_insert_debug.ts
-storage/evidence/images/*
-!storage/evidence/images/.gitkeep
-storage/evidence/audio/*
-!storage/evidence/audio/.gitkeep
 
 

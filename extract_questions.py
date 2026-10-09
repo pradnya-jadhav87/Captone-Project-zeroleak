@@ -21,19 +21,14 @@ CRITICAL ARCHITECTURAL GUARANTEES:
    - Validates question validity, absence of unrelated instructions, and correct option mapping.
 """
 
-import os
-import sys
-import warnings
-
-warnings.filterwarnings("ignore")
-os.environ["PYTHONWARNINGS"] = "ignore"
-
 import argparse
 import base64
 import io
 import json
+import os
 import re
 import shutil
+import sys
 import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -51,10 +46,7 @@ if hasattr(sys.stdin, "reconfigure"):
 
 # Dependencies
 try:
-    try:
-        import pymupdf as fitz
-    except ImportError:
-        import fitz  # PyMuPDF
+    import fitz  # PyMuPDF
     FITZ_AVAILABLE = True
 except ImportError:
     fitz = None

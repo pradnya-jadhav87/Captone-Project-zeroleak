@@ -17,13 +17,18 @@ import {
   AuditEvent,
   SecurityEvent,
   NotificationItem,
+  AuditorDashboardMetrics,
+  UserSessionActivity,
+  UserSecurityProfile,
+  DeviceActivityItem,
+  PaperSecurityOverview,
+  SecurityEvidenceRecord,
+  WatermarkInvestigationRecord,
+  AuditReportSummary,
   DynamicWatermarkData,
   AuthorityProctorSession,
   AuthorityProctorEvent,
   AuthoritySurveillanceMetrics,
-  VoiceEvidenceItem,
-  CameraEvidenceItem,
-  UnifiedEvidenceItem,
   AicteUniversity,
   RegistrationVerificationResult,
   MultiPaperSourcePaper,
@@ -41,15 +46,6 @@ import {
   DraftPaper,
   UniversityDraftQuestion,
   IngestDraftPapersResponse,
-  PrinterItem,
-  PrintAnywhereJob,
-  PrintAnywhereRequest,
-  PrintAnywhereResponse,
-  ViewOnceStatusResponse,
-  StartViewOnceRequest,
-  StartViewOnceResponse,
-  ConsumeViewOnceRequest,
-  ConsumeViewOnceResponse,
 } from './types';
 
 export const DEVICE_APPROVAL_EVENT = 'zeroleak:device-approval-needed';
@@ -63,16 +59,8 @@ export const DEVICE_APPROVAL_EVENT = 'zeroleak:device-approval-needed';
  * repoint the frontend without touching code.
  */
 export const API_BASE: string =
-  ((import.meta.env.VITE_API_URL as string | undefined) || '').trim();
-
-/**
- * Prism transport selection. Same-origin builds stream over Server-Sent
- * Events; deployments whose API is reached through the free ngrok tunnel
- * (Netlify, flagged at build time) poll the snapshot endpoints instead,
- * because EventSource cannot send ngrok's required skip header.
- */
-const PRISM_POLLING: boolean =
-  Boolean(API_BASE) || import.meta.env.VITE_PRISM_POLLING === '1';
+  ((import.meta.env.VITE_API_URL as string | undefined) || '').trim() ||
+  (import.meta.env.PROD ? 'https://backed-repeated-aerobics.ngrok-free.dev' : '');
 
 function getStoredToken(): string | null {
   return localStorage.getItem('zeroleak_jwt_token');
@@ -288,9 +276,11 @@ function buildApiHeaders(extra?: HeadersInit): Record<string, string> {
     'x-device-fingerprint': getDeviceFingerprint(),
     ...(extra as Record<string, string>),
   };
-  // Send ngrok's skip header on every call: harmless same-origin, and when a
-  // proxy (e.g. Netlify) forwards it, the tunnel never serves its interstitial.
-  headers['ngrok-skip-browser-warning'] = '1';
+  // Cross-origin API hosts behind ngrok answer browser requests with an
+  // interstitial warning page unless this header is present.
+  if (API_BASE) {
+    headers['ngrok-skip-browser-warning'] = '1';
+  }
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -1122,56 +1112,6 @@ export const api = {
     }),
   getPrintHistory: () => request<{ printHistory: PrintCopy[] }>('/api/delivery/print-history'),
 
-  // Print Anywhere (Secure Multi-Printer Enclave Dispatch)
-  getPrinters: () => request<{ printers: PrinterItem[] }>('/api/printers'),
-  getPrintAnywhereJobs: (params?: { exam_id?: string; centre_id?: string; exam_type?: string; limit?: number }) => {
-    const query = new URLSearchParams();
-    if (params?.exam_id) query.set('exam_id', params.exam_id);
-    if (params?.centre_id) query.set('centre_id', params.centre_id);
-    if (params?.exam_type) query.set('exam_type', params.exam_type);
-    if (params?.limit) query.set('limit', String(params.limit));
-    const qs = query.toString();
-    return request<{ jobs: PrintAnywhereJob[] }>(`/api/delivery/print-anywhere/jobs${qs ? `?${qs}` : ''}`);
-  },
-  getPrintAnywhereStatus: (examId: string) =>
-    request<{ job: PrintAnywhereJob | null }>(`/api/delivery/print-anywhere/status/${encodeURIComponent(examId)}`),
-  notifyPaperUnlocked: (exam_id: string, exam_type: 'UNIVERSITY' | 'COMPETITIVE') =>
-    request<{ success: boolean; message: string }>('/api/delivery/print-anywhere/notify-unlocked', {
-      method: 'POST',
-      body: JSON.stringify({ exam_id, exam_type }),
-    }),
-  executePrintAnywhere: (payload: PrintAnywhereRequest) =>
-    request<PrintAnywhereResponse>('/api/delivery/print-anywhere', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
-  // Secure View-Once Paper Preview (One-Time Verification)
-  getViewOnceStatus: (examType: 'COMPETITIVE' | 'UNIVERSITY', paperId: string) =>
-    request<ViewOnceStatusResponse>(`/api/delivery/view-once/status/${encodeURIComponent(examType)}/${encodeURIComponent(paperId)}`),
-  startViewOnce: (payload: StartViewOnceRequest) =>
-    request<StartViewOnceResponse>('/api/delivery/view-once/start', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  consumeViewOnce: (payload: ConsumeViewOnceRequest) =>
-    request<ConsumeViewOnceResponse>('/api/delivery/view-once/consume', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  recordViewOnceSecurityEvent: (payload: {
-    examType: 'COMPETITIVE' | 'UNIVERSITY';
-    examId: string;
-    paperId: string;
-    sessionToken: string;
-    eventType: string;
-    details?: any;
-  }) =>
-    request<{ success: boolean }>('/api/delivery/view-once/security-event', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
   // Wi-Fi Secure Print Relay: print from any device on the centre's network
   getPrintRelays: () =>
     request<{ stations: PrintRelayStation[]; lanAddresses: string[]; beaconPort: number; pairingCodeLength: number }>(
@@ -1206,9 +1146,39 @@ export const api = {
     }),
 
   // Audit & Security
-  getAuditEvents: () => request<{ events: AuditEvent[] }>('/api/audit/events'),
+  getAuditEvents: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<{ events: AuditEvent[]; total?: number }>(`/api/audit/events${qs}`);
+  },
+  getAuditorDashboardMetrics: () => request<AuditorDashboardMetrics>('/api/audit/dashboard-stats'),
+  verifyAuditIntegrity: () => request<{ verified: boolean; chainedCount: number; brokenAt?: string; status: string }>('/api/audit/verify-integrity'),
+  getUserActivity: () => request<{ users: UserSessionActivity[] }>('/api/audit/user-activity'),
+  getUserSecurityProfile: (userId: string) => request<UserSecurityProfile>(`/api/audit/user-profile/${encodeURIComponent(userId)}`),
+  getDeviceActivity: () => request<{ devices: DeviceActivityItem[] }>('/api/audit/device-activity'),
+  getDeviceHistory: (deviceId: string) => request<{ events: AuditEvent[]; securityEvents: SecurityEvent[] }>(`/api/audit/device-history/${encodeURIComponent(deviceId)}`),
+  getPaperSecurityOverview: () => request<{ papers: PaperSecurityOverview[] }>('/api/audit/paper-security'),
   getSecurityEvents: () => request<{ events: SecurityEvent[]; metrics: any }>('/api/security/events'),
+  transitionSecurityEvent: (id: string, payload: { status: string; notes?: string }) =>
+    request<{ message: string; event: SecurityEvent }>(`/api/security/events/${encodeURIComponent(id)}/transition`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   resolveSecurityEvent: (event_id: string) => request<{ message: string }>('/api/security/resolve-event', { method: 'POST', body: JSON.stringify({ event_id }) }),
+  getSecurityEvidence: () => request<{ evidence: SecurityEvidenceRecord[] }>('/api/audit/evidence'),
+  investigateWatermark: (payload: { leak_source_type: string; input_reference?: string; extracted_signature?: string }) =>
+    request<{ investigation: WatermarkInvestigationRecord }>('/api/audit/watermark/investigate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getWatermarkInvestigations: () => request<{ investigations: WatermarkInvestigationRecord[] }>('/api/audit/watermark/investigations'),
+  getAuditReportSummary: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<AuditReportSummary>(`/api/audit/reports/summary${qs}`);
+  },
+  exportAuditReport: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<{ data: any[]; summary: any }>(`/api/audit/reports/export${qs}`);
+  },
   getNotifications: () => request<{ notifications: NotificationItem[] }>('/api/notifications'),
   markNotificationRead: (id: string) => request<{ message: string }>(`/api/notifications/${id}/read`, { method: 'POST' }),
 
@@ -1349,78 +1319,10 @@ export const api = {
       faces_detected_count?: number;
       audio_level_db?: number;
     }) =>
-      request<{ success: boolean; status: string; emergency_locked: boolean; emergency_lock_reason?: string | null; warning_count?: number }>('/api/authority-proctor/heartbeat', {
+      request<{ success: boolean; status: string; emergency_locked: boolean; emergency_lock_reason?: string | null }>('/api/authority-proctor/heartbeat', {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
-    submitVoiceEvidence: (payload: {
-      session_id: string;
-      exam_id?: string;
-      audio_data_url: string;
-      duration_seconds: number;
-      file_size_bytes?: number;
-      mime_type?: string;
-      warning_number?: number;
-    }) =>
-      request<{ success: boolean; evidence: VoiceEvidenceItem }>('/api/authority-proctor/voice-evidence', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }),
-    submitCameraEvidence: (payload: {
-      session_id: string;
-      exam_id?: string;
-      image_data_url: string;
-      file_size_bytes?: number;
-      mime_type?: string;
-      event_type?: string;
-      presence_status?: string;
-      warning_number?: number;
-    }) =>
-      request<{ success: boolean; evidence: CameraEvidenceItem }>('/api/authority-proctor/camera-evidence', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }),
-    detectFrame: (payload: { frame: string; annotate?: boolean }) =>
-      request<{
-        success: boolean;
-        telemetry: {
-          timestamp?: string;
-          status: 'SECURE' | 'ALERT';
-          threat_level: 'INFO' | 'WARNING' | 'CRITICAL';
-          person_count: number;
-          phone_detected: boolean;
-          violations: string[];
-          details: {
-            cell_phone_count: number;
-            phone_consecutive_frames?: number;
-            multi_person_consecutive_frames?: number;
-            absence_consecutive_frames?: number;
-            frame_id?: number;
-            [key: string]: any;
-          };
-        };
-        annotated_frame?: string;
-      }>('/api/authority-proctor/detect-frame', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }),
-    getSessionCameraEvidence: (sessionId: string) =>
-      request<{ success: boolean; evidence: CameraEvidenceItem[] }>(`/api/authority-proctor/sessions/${sessionId}/camera-evidence`),
-    issueWarning: (payload: { session_id: string; reason: string; details?: any }) =>
-      request<{
-        success: boolean;
-        warning_count: number;
-        max_warnings: number;
-        warnings_remaining: number;
-        status: string;
-        is_locked: boolean;
-        message: string;
-      }>('/api/authority-proctor/sessions/warning', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }),
-    getSessionEvidence: (sessionId: string) =>
-      request<{ success: boolean; evidence: VoiceEvidenceItem[] }>(`/api/authority-proctor/sessions/${sessionId}/evidence`),
     endSession: (sessionId: string) =>
       request<{ success: boolean }>('/api/authority-proctor/sessions/end', {
         method: 'POST',
@@ -1429,48 +1331,11 @@ export const api = {
     getSurveillanceDashboard: () =>
       request<{ success: boolean; metrics: AuthoritySurveillanceMetrics; sessions: AuthorityProctorSession[] }>('/api/authority-proctor/dashboard'),
     getSessionReview: (sessionId: string) =>
-      request<{
-        success: boolean;
-        session: AuthorityProctorSession;
-        events: AuthorityProctorEvent[];
-        evidence?: VoiceEvidenceItem[];
-        camera_evidence?: CameraEvidenceItem[];
-        unified_evidence?: UnifiedEvidenceItem[];
-      }>(`/api/authority-proctor/sessions/${sessionId}/review`),
-    reviewAction: (sessionId: string, payload: { action: 'MARK_REVIEWED' | 'ESCALATE' | 'CLOSE_CASE'; remarks?: string }) =>
-      request<{ success: boolean; message: string; session: AuthorityProctorSession }>(`/api/authority-proctor/sessions/${sessionId}/review-action`, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }),
+      request<{ success: boolean; session: AuthorityProctorSession; events: AuthorityProctorEvent[] }>(`/api/authority-proctor/sessions/${sessionId}/review`),
     emergencyLockSession: (sessionId: string, reason: string) =>
       request<{ success: boolean; message: string }>(`/api/authority-proctor/sessions/${sessionId}/emergency-lock`, {
         method: 'POST',
         body: JSON.stringify({ reason }),
-      }),
-    postOffer: (sessionId: string, offer: any) =>
-      request<{ success: boolean }>(`/api/authority-proctor/sessions/${sessionId}/signal/offer`, {
-        method: 'POST',
-        body: JSON.stringify({ offer }),
-      }),
-    getOffer: (sessionId: string) =>
-      request<{ success: boolean; offer: any | null; activeListeners?: number }>(`/api/authority-proctor/sessions/${sessionId}/signal/offer`),
-    postAnswer: (sessionId: string, answer: any) =>
-      request<{ success: boolean }>(`/api/authority-proctor/sessions/${sessionId}/signal/answer`, {
-        method: 'POST',
-        body: JSON.stringify({ answer }),
-      }),
-    getAnswer: (sessionId: string) =>
-      request<{ success: boolean; answer: any | null }>(`/api/authority-proctor/sessions/${sessionId}/signal/answer`),
-    postCandidate: (sessionId: string, sender: 'TRANSLATOR' | 'AUDITOR', candidate: any) =>
-      request<{ success: boolean }>(`/api/authority-proctor/sessions/${sessionId}/signal/candidate`, {
-        method: 'POST',
-        body: JSON.stringify({ sender, candidate }),
-      }),
-    getCandidates: (sessionId: string, sender: 'TRANSLATOR' | 'AUDITOR') =>
-      request<{ success: boolean; candidates: any[] }>(`/api/authority-proctor/sessions/${sessionId}/signal/candidates?sender=${sender}`),
-    stopLiveAudio: (sessionId: string) =>
-      request<{ success: boolean }>(`/api/authority-proctor/sessions/${sessionId}/signal/stop`, {
-        method: 'POST',
       }),
   },
   multiPaper: {
@@ -1574,8 +1439,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
-    deleteExam: (id: string) =>
-      request<{ success: boolean; message: string; deletedExamId?: string }>(`/api/competitive/exams/${encodeURIComponent(id)}`, {
+    deleteExam: (examId: string) =>
+      request<{ success: boolean; message: string }>(`/api/competitive/exams/${encodeURIComponent(examId)}`, {
         method: 'DELETE',
       }),
     uploadSubjectPdf: (payload: {
@@ -1597,66 +1462,117 @@ export const api = {
         }
       ),
     getQuestionPools: (examId: string) =>
-      request<{ success: boolean; pools: any[]; questions: any[] }>(
-        `/api/competitive/question-pools/${encodeURIComponent(examId)}`
-      ),
+      request<{
+        success: boolean;
+        pools: any[];
+        files: any[];
+        questions: any[];
+        subjectStats?: Record<string, { totalPdfs: number; totalExtracted: number; totalVerified: number; totalRejected: number }>;
+      }>(`/api/competitive/question-pools/${encodeURIComponent(examId)}`),
     getSubjectPoolFiles: (examId: string, subjectId: string) =>
       request<{ success: boolean; files: any[] }>(
         `/api/competitive/pool-files/${encodeURIComponent(examId)}/${encodeURIComponent(subjectId)}`
       ),
-    validateBlueprint: (examId: string, blueprint: any) =>
-      request<{ success: boolean; valid: boolean; subjectResults: any[]; overallMessage: string }>(
-        '/api/competitive/validate-blueprint',
+    updateQuestionStatus: (questionId: string, status: 'VERIFIED' | 'REJECTED' | 'UNVERIFIED') =>
+      request<{ success: boolean; message: string; questionId: string; status: string }>(
+        `/api/competitive/questions/${encodeURIComponent(questionId)}/status`,
         {
           method: 'POST',
-          body: JSON.stringify({ exam_id: examId, blueprint }),
+          body: JSON.stringify({ status }),
         }
       ),
-    generateFinalPaper: (
-      examId: string,
-      blueprint: any,
-      options?: {
-        enable_translation?: boolean;
-        translation_language?: string;
-        exam_details?: any;
-        reuse_if_exists?: boolean;
-      }
-    ) =>
-      request<{ success: boolean; message: string; paper: any }>('/api/competitive/generate-final-paper', {
+    updateQuestion: (questionId: string, payload: any) =>
+      request<{ success: boolean; message: string; questionId: string }>(
+        `/api/competitive/questions/${encodeURIComponent(questionId)}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        }
+      ),
+    batchVerifyQuestions: (examId: string, subjectId?: string, status?: 'VERIFIED' | 'UNVERIFIED') =>
+      request<{ success: boolean; message: string }>('/api/competitive/questions/batch-verify', {
         method: 'POST',
-        body: JSON.stringify({
-          exam_id: examId,
-          blueprint,
-          enable_translation: options?.enable_translation,
-          translation_language: options?.translation_language,
-          exam_details: options?.exam_details,
-          reuse_if_exists: options?.reuse_if_exists,
-        }),
+        body: JSON.stringify({ exam_id: examId, subject_id: subjectId, status }),
+      }),
+    validateBlueprint: (examId: string, blueprint: any) =>
+      request<{
+        success: boolean;
+        valid: boolean;
+        subjectResults: Array<{
+          subject: string;
+          subjectId?: string;
+          required: number;
+          available: number;
+          deficit: number;
+          sourceCount: number;
+          passed: boolean;
+          message: string;
+        }>;
+        overallMessage: string;
+      }>('/api/competitive/validate-blueprint', {
+        method: 'POST',
+        body: JSON.stringify({ exam_id: examId, blueprint }),
+      }),
+    generateFinalPaper: (examId: string, blueprint: any) =>
+      request<{ success: boolean; message: string; paper: any; papers?: any[] }>('/api/competitive/generate-final-paper', {
+        method: 'POST',
+        body: JSON.stringify({ exam_id: examId, blueprint }),
       }),
     getGeneratedPaper: (paperId: string) =>
       request<{ success: boolean; paper: any }>(
         `/api/competitive/generated-papers/${encodeURIComponent(paperId)}`
       ),
-    getPapersByExam: (examId: string) =>
-      request<{ success: boolean; papers: any[]; latestPaper: any | null }>(
-        `/api/competitive/papers/by-exam/${encodeURIComponent(examId)}`
-      ),
-    getTranslatorAssignedPapers: () =>
+    getGeneratedPaperSet: (examId: string) =>
       request<{ success: boolean; papers: any[] }>(
-        '/api/competitive/translator/assigned-papers'
+        `/api/competitive/generated-papers-set/${encodeURIComponent(examId)}`
       ),
-    returnTranslationsToManager: (paperId: string) =>
-      request<{ success: boolean; message: string; paper: any }>(
-        `/api/competitive/papers/${encodeURIComponent(paperId)}/return-translations`,
+    completeGeneratedPaper: (paperId: string) =>
+      request<{ success: boolean; message: string; completedPaperId: string; unlockedPaperNumber?: number }>(
+        `/api/competitive/generated-papers/${encodeURIComponent(paperId)}/complete`,
+        { method: 'POST' }
+      ),
+    getTranslators: () =>
+      request<{ success: boolean; translators: any[] }>('/api/competitive/translators'),
+    assignTranslation: (payload: {
+      exam_id: string;
+      subject_id: string;
+      subject_name?: string;
+      language: string;
+      translator_id: string;
+      question_ids?: string[];
+    }) =>
+      request<{ success: boolean; message: string; assignmentId: string; assignedCount: number }>(
+        '/api/competitive/assign-translation',
         {
           method: 'POST',
+          body: JSON.stringify(payload),
         }
       ),
-    generateFinalBilingualPaper: (paperId: string) =>
-      request<{ success: boolean; message: string; paper: any }>(
-        `/api/competitive/papers/${encodeURIComponent(paperId)}/generate-final-bilingual`,
+    getTranslatorTasks: () =>
+      request<{ success: boolean; assignments: any[]; tasks: any[] }>('/api/competitive/translator-tasks'),
+    submitTranslation: (payload: {
+      source_question_id: string;
+      language: string;
+      translated_question_text: string;
+      translated_option_a?: string;
+      translated_option_b?: string;
+      translated_option_c?: string;
+      translated_option_d?: string;
+    }) =>
+      request<{ success: boolean; message: string }>('/api/competitive/submit-translation', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    getSubjectTranslations: (examId: string, subjectId: string) =>
+      request<{ success: boolean; translations: any[] }>(
+        `/api/competitive/translations/${encodeURIComponent(examId)}/${encodeURIComponent(subjectId)}`
+      ),
+    verifyTranslation: (translationId: string, verification_status: 'VERIFIED' | 'REJECTED') =>
+      request<{ success: boolean; message: string; translationId: string }>(
+        `/api/competitive/verify-translation/${encodeURIComponent(translationId)}`,
         {
           method: 'POST',
+          body: JSON.stringify({ verification_status }),
         }
       ),
     deletePoolFile: (payload: {
@@ -1670,127 +1586,6 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
-    getOperators: () =>
-      request<{
-        success: boolean;
-        operators: Array<{
-          id: string;
-          fullName: string;
-          email: string;
-          centreId: string;
-          centreLabel: string;
-        }>;
-        serverTimeIso: string;
-      }>('/api/competitive/operators'),
-    finalizeAndEncryptPaper: (
-      paperId: string,
-      payload: {
-        exam_date: string;
-        encryption_time: string;
-        decryption_time: string;
-        encryption_time_iso?: string;
-        decryption_time_iso?: string;
-        timezone: string;
-        timezone_offset?: string;
-        assigned_operator_id?: string;
-        assigned_centre_code?: string;
-      }
-    ) =>
-      request<{ success: boolean; message: string; paper: any; serverTimeIso: string }>(
-        `/api/competitive/papers/${encodeURIComponent(paperId)}/finalize-encrypt`,
-        {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        }
-      ),
-    resetFinalization: (paperId: string, reason?: string) =>
-      request<{ success: boolean; message: string; paper: any }>(
-        `/api/competitive/papers/${encodeURIComponent(paperId)}/reset-finalization`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ reason }),
-        }
-      ),
-    getOperatorAssignedPapers: () =>
-      request<{
-        success: boolean;
-        papers: any[];
-        serverTimeIso: string;
-        serverTimestampMs: number;
-      }>('/api/competitive/operator/assigned-papers'),
-    decryptAndUnlockPaper: (paperId: string) =>
-      request<{
-        success: boolean;
-        message: string;
-        paper: any;
-        auditTxHash: string;
-        serverTimeIso: string;
-      }>(`/api/competitive/papers/${encodeURIComponent(paperId)}/decrypt-unlock`, {
-        method: 'POST',
-      }),
-    printPaper: (paperId: string, copiesCount: number = 1) =>
-      request<{
-        success: boolean;
-        message: string;
-        paper: any;
-        printRecord: {
-          copyId: string;
-          txHash: string;
-          printedAt: string;
-          printedBy: string;
-          role: string;
-        };
-        serverTimeIso: string;
-      }>(`/api/competitive/papers/${encodeURIComponent(paperId)}/print`, {
-        method: 'POST',
-        body: JSON.stringify({ copies_count: copiesCount }),
-      }),
-    downloadPaper: (paperId: string) =>
-      request<{
-        success: boolean;
-        message: string;
-        paper: any;
-        auditTxHash: string;
-        serverTimeIso: string;
-      }>(`/api/competitive/papers/${encodeURIComponent(paperId)}/download`, {
-        method: 'POST',
-      }),
-    getPaperAuditLogs: (paperId: string) =>
-      request<{
-        success: boolean;
-        logs: any[];
-        serverTimeIso: string;
-      }>(`/api/competitive/papers/${encodeURIComponent(paperId)}/audit-logs`),
-    validatePaperVisuals: (paperId: string) =>
-      request<{
-        success: boolean;
-        paperId: string;
-        visualValidation: any;
-      }>(`/api/competitive/papers/${encodeURIComponent(paperId)}/validate-visuals`, {
-        method: 'POST',
-      }),
-    downloadPaperPdf: async (
-      paperId: string,
-      viewMode?: 'original' | 'bilingual' | 'translated'
-    ): Promise<Blob> => {
-      const token = getStoredToken();
-      const qs = viewMode ? `?viewMode=${encodeURIComponent(viewMode)}` : '';
-      const res = await fetch(`/api/competitive/papers/${encodeURIComponent(paperId)}/pdf${qs}`, {
-        method: 'GET',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) {
-        let errMsg = `Failed to download Competitive Exam PDF (${res.status})`;
-        try {
-          const data = await res.json();
-          if (data?.error) errMsg = data.error;
-        } catch {
-          // ignore
-        }
-        throw new Error(errMsg);
-      }
-      return res.blob();
-    },
   },
 };
 
@@ -1923,7 +1718,7 @@ export function subscribeBrowserStatus(onFrame: (frame: BrowserStatusFrame) => v
   // Cross-origin API host behind ngrok's free tier: EventSource cannot send
   // the ngrok-skip-browser-warning header, so the tunnel answers with its
   // interstitial page instead of the stream. Poll a JSON snapshot instead.
-  if (PRISM_POLLING) {
+  if (API_BASE) {
     let stopped = false;
     let busy = false;
     const tick = async () => {
@@ -2021,11 +1816,7 @@ export type BrowserLiveEvent =
 export type StreamedBrowserCommand =
   | { type: 'navigate'; url: string }
   | { type: 'back' | 'forward' | 'reload' | 'stop' }
-  | { type: 'resize'; viewport: { width: number; height: number } }
-  | {
-      type: 'upload-files';
-      files: Array<{ name: string; relativePath?: string; type: string; base64: string; lastModified: number }>;
-    };
+  | { type: 'resize'; viewport: { width: number; height: number } };
 
 /** Is a streamed browser running, and what is it showing? */
 export const getBrowserHostStatus = () =>
@@ -2074,7 +1865,7 @@ export function subscribeBrowserLive(onEvent: (event: BrowserLiveEvent) => void)
   // them as they change. Frame cadence drops to roughly one per second — a
   // slideshow rather than live video, which still beats a permanently loading
   // panel.
-  if (PRISM_POLLING) {
+  if (API_BASE) {
     let stopped = false;
     let busy = false;
     let lastFrameSeq = -1;

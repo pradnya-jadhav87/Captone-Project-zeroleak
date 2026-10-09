@@ -462,10 +462,9 @@ function buildDocumentBody(paper: NormalizedPaper, options: { unicode: boolean; 
     options.unicode
       ? ['\\usepackage{fontspec}', font ? `\\setmainfont{${font}}` : ''].filter(Boolean).join('\n')
       : '\\usepackage[T1]{fontenc}\n\\usepackage[utf8]{inputenc}',
-    '\\usepackage[a4paper, left=18mm, right=18mm, top=20mm, bottom=20mm]{geometry}',
+    '\\usepackage[a4paper,top=18mm,bottom=20mm,left=16mm,right=16mm]{geometry}',
     '\\usepackage{array,tabularx,booktabs,longtable}',
     '\\usepackage{graphicx}',
-    '\\usepackage[export]{adjustbox}',
     '\\usepackage{xcolor}',
     '\\usepackage{enumitem}',
     '\\usepackage{tikz}',
@@ -502,12 +501,10 @@ function buildDocumentBody(paper: NormalizedPaper, options: { unicode: boolean; 
     '}',
     '% Seat box + set label, printed above the title like the source paper.',
     '\\newcommand{\\zlSeatBox}[1]{%',
-    '  \\noindent',
-    '  \\begin{tabularx}{\\textwidth}{@{}l X r@{}}',
-    '    \\textbf{Seat No.:} \\framebox[2.5cm]{\\vphantom{A}} &',
-    '    \\centering \\textbf{AUTONOMOUS STATE UNIVERSITY EXAM} &',
-    '    \\textbf{Set: #1} \\\\',
-    '  \\end{tabularx}\\vspace{2mm}',
+    '  \\begin{tabularx}{\\textwidth}{@{}X r@{}}',
+    '    \\fbox{\\textbf{Seat No:}\\hspace{3cm}} &',
+    '    \\fbox{\\textbf{SET} : #1}',
+    '    \\end{tabularx}\\vspace{2mm}',
     '}',
     '\\newcommand{\\zlInstructions}[1]{%',
     '  \\begin{minipage}{\\textwidth}',
@@ -537,30 +534,23 @@ function buildDocumentBody(paper: NormalizedPaper, options: { unicode: boolean; 
     '\\newcommand{\\zlMcqOptionsEnd}{\\end{enumerate}}',
     '\\newcommand{\\zlFigure}[2][0.72]{%',
     '  \\begin{center}',
-    '    \\IfFileExists{#2}{\\includegraphics[max width=\\textwidth, max height=0.3\\textheight]{#2}}{\\fbox{\\parbox{0.8\\textwidth}{\\centering\\small [figure not available]}}}',
+    '    \\IfFileExists{#2}{\\includegraphics[width=#1\\linewidth]{#2}}{\\fbox{\\parbox{0.8\\textwidth}{\\centering\\small [figure not available]}}}',
     '  \\end{center}',
     '}',
   ].join('\n');
 
   const body: string[] = [];
-  body.push(`\\zlSeatBox{${escapeLatexText(paper.setLetter)}}`);
   body.push(
     `\\zlPaperHeader{${escapeLatexText(paper.universityName)}}{${escapeLatexText(paper.examName)}}` +
       `{${escapeLatexText(paper.subject)}}{${escapeLatexText(paper.paperCode)}}` +
       `{${escapeLatexText(paper.duration)}}{${escapeLatexText(paper.totalMarks)}}{${escapeLatexText(paper.date)}}`
   );
+  body.push(`\\zlSeatBox{${escapeLatexText(paper.setLetter)}}`);
   if (paper.instructions.length > 0) {
     body.push(`\\zlInstructions{${paper.instructions.map((line) => `\\zlInstructionsItem ${escapeLatexText(line)}`).join('\n')}}`);
   }
 
-  let sIdx = 0;
   for (const section of paper.sections) {
-    // Dynamic Page Breaks: Strictly separate Component 1 (MCQ/Objective, Q.1) from
-    // descriptive SECTION - I and subsequent sections.
-    if (sIdx > 0) {
-      body.push('\\clearpage');
-    }
-    sIdx++;
     const sectionMarks = section.totalMarks ? `[${escapeLatexText(section.totalMarks)} Marks]` : null;
     body.push(`\\zlSectionHeading{${escapeLatexText(section.title)}}{${sectionMarks ? escapeLatexText(sectionMarks) : '\\relax'}}`);
     if (section.instructions) body.push(`\\zlSectionNote{${escapeLatexText(section.instructions)}}`);

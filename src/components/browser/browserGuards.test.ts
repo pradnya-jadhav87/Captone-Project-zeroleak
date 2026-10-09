@@ -64,8 +64,8 @@ test('nothing covers the page the user asked to see', () => {
   );
   assert.match(
     MODAL_SOURCE,
-    /ZeroLeak AI/,
-    'the window bar must display ZeroLeak AI',
+    /Prism&apos;s page renders here/,
+    'the frame limitation must be explained in a banner instead',
   );
 });
 

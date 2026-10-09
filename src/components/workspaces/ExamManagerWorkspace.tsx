@@ -45,10 +45,10 @@ import {
   Mail,
   ShieldAlert,
   User as UserIcon,
-  Database,
-  Shield,
+  Laptop,
+  ShieldCheck,
 } from 'lucide-react';
-import { User, Examination, Question, Organization, ExamType, ExtractedQuestion, QuestionAssignment, QuestionTranslation, ExaminationCentre, AddCentreResponse, EmergencyRegenerateResponse, SecurityEvent } from '../../types';
+import { User, Examination, Question, Organization, ExamType, ExtractedQuestion, QuestionAssignment, QuestionTranslation, ExaminationCentre, AddCentreResponse, EmergencyRegenerateResponse, SecurityEvent, TrustedDevice } from '../../types';
 import { api } from '../../api';
 import { NavSubTab } from '../Sidebar';
 import { ExamManagerQuestionExtractor } from './ExamManagerQuestionExtractor';
@@ -61,18 +61,6 @@ import { QuestionPaperPdfModal } from './QuestionPaperPdfModal';
 import { UniversityFormatGenerator } from './UniversityFormatGenerator';
 import { PaperGenerationModule } from '../PaperGenerationModule';
 import { CompetitiveExaminationUnifiedWorkflow } from '../competitive/CompetitiveExaminationUnifiedWorkflow';
-import { PrintAnywhereMonitorSection } from '../PrintAnywhereMonitorSection';
-import {
-  DashboardHeader,
-  SecurityStatusBar,
-  StatCard,
-  SecurityScore,
-  AISynthesisPanel,
-  ExaminationTable,
-  SecurityActivity,
-  SystemHealth,
-  QuickActions,
-} from '../dashboard';
 
 interface ExamManagerWorkspaceProps {
   currentUser: User | null;
@@ -264,6 +252,121 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
   const [allCentresList, setAllCentresList] = useState<ExaminationCentre[]>([]);
   const [centresFilterExamId, setCentresFilterExamId] = useState<string>('ALL');
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
+  const [authorizedPersonnel, setAuthorizedPersonnel] = useState<User[]>([]);
+  const [devicesList, setDevicesList] = useState<TrustedDevice[]>([]);
+  const [processingUserId, setProcessingUserId] = useState<string | null>(null);
+  const [processingDeviceId, setProcessingDeviceId] = useState<string | null>(null);
+  const [showAddSubordinateModal, setShowAddSubordinateModal] = useState(false);
+  const [subordinateName, setSubordinateName] = useState('');
+  const [subordinateEmail, setSubordinateEmail] = useState('');
+  const [subordinateContact, setSubordinateContact] = useState('');
+  const [subordinateDesignation, setSubordinateDesignation] = useState('');
+  const [subordinateRole, setSubordinateRole] = useState<'TRANSLATOR' | 'CENTRE_OPERATOR'>('TRANSLATOR');
+  const [subordinatePassword, setSubordinatePassword] = useState('');
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    name: string;
+    email: string;
+    role: string;
+    password: string;
+  } | null>(null);
+
+  const handleCreateSubordinate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await api.authorizeManager({
+        name: subordinateName,
+        email: subordinateEmail,
+        contact: subordinateContact,
+        designation: subordinateDesignation,
+        role: subordinateRole,
+        password: subordinatePassword,
+      });
+      setCreatedCredentials({
+        name: subordinateName,
+        email: subordinateEmail,
+        role: subordinateRole === 'TRANSLATOR' ? 'Linguistic Translator' : 'Centre Superintendent & Operator',
+        password: subordinatePassword,
+      });
+      setStatusMessage({
+        type: 'success',
+        text: `Authorized ${subordinateRole === 'TRANSLATOR' ? 'Linguistic Translator' : 'Centre Operator'} successfully.`,
+      });
+      setSubordinateName('');
+      setSubordinateEmail('');
+      setSubordinateContact('');
+      setSubordinateDesignation('');
+      setSubordinatePassword('');
+      setShowAddSubordinateModal(false);
+      loadData();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err.message || 'Failed to authorize user.' });
+    }
+  };
+
+  const handleRevokeSubordinate = async (userId: string) => {
+    setProcessingUserId(userId);
+    try {
+      await api.revokeUser(userId);
+      setStatusMessage({ type: 'success', text: 'User access authority revoked.' });
+      loadData();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err.message || 'Failed to revoke authority.' });
+    } finally {
+      setProcessingUserId(null);
+    }
+  };
+
+  const handleRestoreSubordinate = async (userId: string) => {
+    setProcessingUserId(userId);
+    try {
+      await api.restoreUser(userId);
+      setStatusMessage({ type: 'success', text: 'User access authority restored.' });
+      loadData();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err.message || 'Failed to restore authority.' });
+    } finally {
+      setProcessingUserId(null);
+    }
+  };
+
+  const handleApproveDevice = async (deviceId: string) => {
+    setProcessingDeviceId(deviceId);
+    try {
+      await api.approveDevice(deviceId);
+      setStatusMessage({ type: 'success', text: 'Hardware terminal approved.' });
+      loadData();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err.message || 'Failed to approve terminal.' });
+    } finally {
+      setProcessingDeviceId(null);
+    }
+  };
+
+  const handleRejectDevice = async (deviceId: string) => {
+    setProcessingDeviceId(deviceId);
+    try {
+      await api.rejectDevice(deviceId);
+      setStatusMessage({ type: 'success', text: 'Hardware terminal rejected.' });
+      loadData();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err.message || 'Failed to reject terminal.' });
+    } finally {
+      setProcessingDeviceId(null);
+    }
+  };
+
+  const handleRevokeDevice = async (deviceId: string) => {
+    setProcessingDeviceId(deviceId);
+    try {
+      await api.revokeDevice(deviceId);
+      setStatusMessage({ type: 'success', text: 'Hardware terminal revoked.' });
+      loadData();
+    } catch (err: any) {
+      setStatusMessage({ type: 'error', text: err.message || 'Failed to revoke terminal.' });
+    } finally {
+      setProcessingDeviceId(null);
+    }
+  };
 
   const handleSimulateExam = (ex: Examination) => {
     if (ex.simulation_status === 'COMPLETED') {
@@ -449,7 +552,7 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
   const loadData = async () => {
     setLoading(true);
     try {
-      const [orgRes, examRes, qRes, membersRes, assignRes, centresRes, transRes, secRes] = await Promise.all([
+      const [orgRes, examRes, qRes, membersRes, assignRes, centresRes, transRes, secRes, authRes, devRes] = await Promise.all([
         api.getCurrentOrg().catch(() => ({ organization: null, documents: [], history: [], representatives: [] })),
         api.getExaminations().catch(() => ({ examinations: [] })),
         api.getQuestions().catch(() => ({ questions: [] })),
@@ -458,6 +561,8 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
         api.getAllCentres().catch(() => ({ centres: [] })),
         api.getTranslations().catch(() => ({ translations: [] })),
         api.getSecurityEvents().catch(() => ({ events: [] })),
+        api.getAuthorizedUsers().catch(() => ({ users: [] })),
+        api.getDevices().catch(() => ({ devices: [] })),
       ]);
 
       setOrg(orgRes.organization);
@@ -484,6 +589,8 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
       setTranslations(transRes.translations || []);
       setAllCentresList(centresRes.centres || []);
       setSecurityEvents(secRes.events || []);
+      setAuthorizedPersonnel(authRes.users || []);
+      setDevicesList(devRes.devices || []);
     } catch (err: any) {
       console.error('Exam Manager load error:', err);
     } finally {
@@ -936,7 +1043,7 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
   const quarantinedCount = questions.filter(q => q.status === 'QUARANTINED' || q.status === 'COMPROMISED').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 authority-management-form">
       {/* Organization Verification Gate Notification */}
       {org?.status !== 'VERIFIED' && (
         <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-3 shadow-xs">
@@ -970,94 +1077,271 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
       {/* DASHBOARD */}
       {activeSubTab === 'dashboard' && (
         <div className="space-y-6">
-          {/* 1. Header with Controller greeting & CTAs */}
-          <DashboardHeader
-            onCreateExam={() => onSelectSubTab?.('create_examination')}
-            onOpenSynthesizer={() => onSelectSubTab?.('paper_generation')}
-          />
+          {/* Futuristic Hero Banner */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-[#06201b] to-slate-900 border border-emerald-500/25 p-7 text-white shadow-2xl">
+            <div className="absolute -right-16 -top-16 w-64 h-64 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute right-1/3 -bottom-20 w-80 h-40 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
 
-          {/* 2. Security Status Monitoring Console Bar */}
-          <SecurityStatusBar />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 backdrop-blur-md">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    Examination Controller Command Enclave
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    ZeroLeak v4.1 Active
+                  </span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                  Exam Operations & Security Center
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+                  Real-time cryptographic control over examination blueprints, AI question synthesis, time-locked hardware enclaves, and verification pipelines.
+                </p>
+              </div>
 
-          {/* 3. 4 Interactive KPI Stat Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              label="TOTAL EXAMINATIONS"
-              count={examinations.length.toString().padStart(2, '0')}
-              description="Active examinations"
-              trend="+2 this month"
-              icon={Shield}
-              accentColor="emerald"
-              isActive={dashboardCardFilter === 'ALL'}
-              onClick={() => setDashboardCardFilter('ALL')}
-            />
-            <StatCard
-              label="QUESTION POOL"
-              count={questions.length}
-              description="Stored in secure enclave"
-              trend="100% Sealed"
-              icon={Database}
-              accentColor="teal"
-              isActive={dashboardCardFilter === 'READY'}
-              onClick={() => setDashboardCardFilter('READY')}
-            />
-            <StatCard
-              label="VERIFIED QUESTIONS"
-              count={verifiedCount}
-              description="Integrity verified"
-              trend="98.4% Integrity Index"
-              icon={CheckCircle2}
-              accentColor="emerald"
-              isActive={dashboardCardFilter === 'VERIFIED'}
-              onClick={() => setDashboardCardFilter('VERIFIED')}
-            />
-            <StatCard
-              label="QUARANTINED"
-              count={quarantinedCount.toString().padStart(2, '0')}
-              description="Review required"
-              trend="0 Active Threats"
-              icon={AlertTriangle}
-              accentColor="rose"
-              isActive={dashboardCardFilter === 'QUARANTINED'}
-              onClick={() => setDashboardCardFilter('QUARANTINED')}
-            />
+              <div className="flex flex-wrap items-center gap-3">
+                {onSelectSubTab && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectSubTab('paper_generation')}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/40 hover:scale-[1.02] transition-all cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-slate-950" />
+                    <span>AI Paper Synthesizer</span>
+                  </button>
+                )}
+                {onSelectSubTab && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectSubTab('create_examination')}
+                    className="px-4 py-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-white font-bold text-xs border border-white/15 flex items-center gap-2 backdrop-blur-md transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4 text-emerald-400" />
+                    <span>New Blueprint</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 4 Interactive Metric Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-7">
+              <button
+                type="button"
+                onClick={() => setDashboardCardFilter('ALL')}
+                className={`p-4 rounded-2xl border text-left transition-all cursor-pointer backdrop-blur-md hover:-translate-y-1 ${
+                  dashboardCardFilter === 'ALL'
+                    ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-slate-950 border-emerald-300 ring-4 ring-emerald-500/30 shadow-xl'
+                    : 'bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-emerald-500/40'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-[11px] font-bold uppercase tracking-wider ${dashboardCardFilter === 'ALL' ? 'text-slate-950/80' : 'text-slate-400'}`}>
+                    Total Exams
+                  </span>
+                  <Layers className={`w-4 h-4 ${dashboardCardFilter === 'ALL' ? 'text-slate-950' : 'text-emerald-400'}`} />
+                </div>
+                <span className="text-3xl font-black block mt-1.5 tracking-tight">{examinations.length}</span>
+                <span className={`text-[10px] font-bold block mt-1 ${dashboardCardFilter === 'ALL' ? 'text-slate-950/90' : 'text-emerald-400'}`}>
+                  Active Enclaves Configured
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDashboardCardFilter('READY')}
+                className={`p-4 rounded-2xl border text-left transition-all cursor-pointer backdrop-blur-md hover:-translate-y-1 ${
+                  dashboardCardFilter === 'READY'
+                    ? 'bg-gradient-to-br from-indigo-500 to-blue-600 text-white border-indigo-300 ring-4 ring-indigo-500/30 shadow-xl'
+                    : 'bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-indigo-500/40'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-[11px] font-bold uppercase tracking-wider ${dashboardCardFilter === 'READY' ? 'text-white/80' : 'text-slate-400'}`}>
+                    Question Pool
+                  </span>
+                  <FileText className={`w-4 h-4 ${dashboardCardFilter === 'READY' ? 'text-white' : 'text-indigo-400'}`} />
+                </div>
+                <span className="text-3xl font-black block mt-1.5 tracking-tight">{questions.length}</span>
+                <span className={`text-[10px] font-bold block mt-1 ${dashboardCardFilter === 'READY' ? 'text-white/90' : 'text-indigo-400'}`}>
+                  Total In Vault Repository
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDashboardCardFilter('VERIFIED')}
+                className={`p-4 rounded-2xl border text-left transition-all cursor-pointer backdrop-blur-md hover:-translate-y-1 ${
+                  dashboardCardFilter === 'VERIFIED'
+                    ? 'bg-gradient-to-br from-teal-500 to-emerald-600 text-slate-950 border-teal-300 ring-4 ring-teal-500/30 shadow-xl'
+                    : 'bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-teal-500/40'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-[11px] font-bold uppercase tracking-wider ${dashboardCardFilter === 'VERIFIED' ? 'text-slate-950/80' : 'text-slate-400'}`}>
+                    Verified & Eligible
+                  </span>
+                  <CheckCircle2 className={`w-4 h-4 ${dashboardCardFilter === 'VERIFIED' ? 'text-slate-950' : 'text-teal-400'}`} />
+                </div>
+                <span className="text-3xl font-black block mt-1.5 tracking-tight">{verifiedCount}</span>
+                <span className={`text-[10px] font-bold block mt-1 ${dashboardCardFilter === 'VERIFIED' ? 'text-slate-950/90' : 'text-teal-400'}`}>
+                  Passed AI Verification
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDashboardCardFilter('QUARANTINED')}
+                className={`p-4 rounded-2xl border text-left transition-all cursor-pointer backdrop-blur-md hover:-translate-y-1 ${
+                  dashboardCardFilter === 'QUARANTINED'
+                    ? 'bg-gradient-to-br from-rose-600 to-red-700 text-white border-rose-300 ring-4 ring-rose-500/30 shadow-xl'
+                    : 'bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-rose-500/40'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`text-[11px] font-bold uppercase tracking-wider ${dashboardCardFilter === 'QUARANTINED' ? 'text-white/80' : 'text-slate-400'}`}>
+                    Quarantined
+                  </span>
+                  <AlertTriangle className={`w-4 h-4 ${dashboardCardFilter === 'QUARANTINED' ? 'text-white' : 'text-rose-400'}`} />
+                </div>
+                <span className="text-3xl font-black block mt-1.5 tracking-tight">{quarantinedCount}</span>
+                <span className={`text-[10px] font-bold block mt-1 ${dashboardCardFilter === 'QUARANTINED' ? 'text-white/90' : 'text-rose-400'}`}>
+                  Flagged For Review
+                </span>
+              </button>
+            </div>
           </div>
 
-          {/* 4. Security Score & AI Question Synthesis Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <SecurityScore />
-            <AISynthesisPanel
-              totalQuestions={questions.length}
-              verifiedQuestions={verifiedCount}
-              onOpenSynthesizer={() => onSelectSubTab?.('paper_generation')}
-            />
+          {/* Active List based on Selected Interactive Metric Card */}
+          <div className="p-6 rounded-3xl bg-white border border-slate-200/90 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <FolderLock className="w-4 h-4" />
+                </div>
+                <span>
+                  {dashboardCardFilter === 'VERIFIED'
+                    ? 'Verified & Paper-Eligible Question Pool'
+                    : dashboardCardFilter === 'QUARANTINED'
+                    ? 'Quarantined & Flagged Questions'
+                    : dashboardCardFilter === 'READY'
+                    ? 'Repository Question Inventory'
+                    : 'Active Examination Configurations'}
+                </span>
+              </h3>
+
+              <span className="text-xs text-slate-500 font-mono">
+                {dashboardCardFilter === 'ALL'
+                  ? `${examinations.length} Active Configurations`
+                  : dashboardCardFilter === 'VERIFIED'
+                  ? `${verifiedCount} Verified Questions`
+                  : dashboardCardFilter === 'QUARANTINED'
+                  ? `${quarantinedCount} Quarantined`
+                  : `${questions.length} Pool Questions`}
+              </span>
+            </div>
+
+            {dashboardCardFilter === 'ALL' ? (
+              examinations.length === 0 ? (
+                <p className="text-xs text-slate-400 p-8 text-center">No examinations created yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {examinations.map(ex => (
+                    <div
+                      key={ex.id}
+                      className="p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-emerald-50/20 border border-slate-200/90 hover:border-emerald-500/40 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-slate-900 text-sm">{ex.name}</span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                            {ex.status}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-600 font-medium flex flex-wrap items-center gap-3">
+                          <span className="font-semibold text-emerald-800">Subject: {ex.subject}</span>
+                          <span>•</span>
+                          <span>Date: {ex.exam_date} @ {ex.exam_time}</span>
+                          <span>•</span>
+                          <span className="font-mono text-slate-500">Unlock: {ex.unlock_time}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {ex.simulation_status === 'COMPLETED' ? (
+                          <span
+                            className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-2xs"
+                            title="Simulation completed."
+                          >
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>Simulation Completed ✓</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSimulateExam(ex)}
+                            className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl font-bold text-xs shadow-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                            title="Start Proctored Final Paper Simulation"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            <span>Simulate Exam</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleGeneratePaper(ex.id)}
+                          disabled={generating || org?.status !== 'VERIFIED'}
+                          className={`px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-xs cursor-pointer transition-all ${
+                            ex.simulation_status === 'COMPLETED'
+                              ? 'bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-700 hover:to-teal-700 text-white ring-2 ring-emerald-500/30'
+                              : 'bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-40'
+                          }`}
+                        >
+                          Generate Paper
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                {(questions || [])
+                  .filter(q => {
+                    if (dashboardCardFilter === 'VERIFIED') return q.status === 'VERIFIED' || q.status === 'ELIGIBLE_FOR_PAPER';
+                    if (dashboardCardFilter === 'QUARANTINED') return q.status === 'QUARANTINED' || q.status === 'COMPROMISED';
+                    return true;
+                  })
+                  .map(q => (
+                    <div
+                      key={q.id}
+                      className="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-start justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-slate-800">{q.id}</span>
+                          <span className="font-bold text-slate-900">{q.subject}</span>
+                          <span className="text-[11px] text-slate-500">({q.topic})</span>
+                        </div>
+                        <p className="text-slate-700 line-clamp-2 text-[11px]">{q.content_text}</p>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                          q.status === 'VERIFIED' || q.status === 'ELIGIBLE_FOR_PAPER'
+                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                            : q.status === 'QUARANTINED' || q.status === 'COMPROMISED'
+                            ? 'bg-rose-100 text-rose-900 border border-rose-200'
+                            : 'bg-amber-100 text-amber-900 border border-amber-200'
+                        }`}
+                      >
+                        {q.status}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
-
-          {/* 5. Active Examinations Table / Question Inventory */}
-          <ExaminationTable
-            examinations={examinations}
-            questions={questions}
-            activeFilter={dashboardCardFilter}
-            onFilterChange={setDashboardCardFilter}
-            onSimulate={handleSimulateExam}
-            onGeneratePaper={handleGeneratePaper}
-            isGenerating={generating}
-            isOrgVerified={org?.status === 'VERIFIED'}
-          />
-
-          {/* 5B. Live Print Anywhere & Enclave Dispatch Monitoring */}
-          <PrintAnywhereMonitorSection variant="CONTROLLER" />
-
-          {/* 6. Security Activity (Dark Navy) */}
-          <SecurityActivity />
-
-          {/* 7. Protection Layers & System Health (White) */}
-          <SystemHealth />
-
-          {/* 7. Quick Operations Pathways */}
-          <QuickActions
-            onNavigateTab={(tab) => onSelectSubTab?.(tab)}
-          />
         </div>
       )}
 
@@ -1173,12 +1457,10 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
           <div className="grid grid-cols-1 gap-5">
             {(() => {
               const filteredExams = examinations.filter(ex => {
-                const examName = (ex?.name || (ex as any)?.title || '');
-                const examSubject = (ex?.subject || '');
                 const matchesSearch =
                   !examSearchQuery ||
-                  examName.toLowerCase().includes(examSearchQuery.toLowerCase()) ||
-                  examSubject.toLowerCase().includes(examSearchQuery.toLowerCase());
+                  ex.name.toLowerCase().includes(examSearchQuery.toLowerCase()) ||
+                  ex.subject.toLowerCase().includes(examSearchQuery.toLowerCase());
                 if (!matchesSearch) return false;
 
                 if (examCategoryFilter === 'ALL') return true;
@@ -3538,6 +3820,494 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
                 </div>
               ))
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* AUTHORIZED USERS (EXAMINATION PERSONNEL)                     */}
+      {/* ============================================================ */}
+      {activeSubTab === 'authorized_managers' && (
+        <div className="space-y-6 authority-management-form">
+          <div className="stat-card-luxury p-6 sm:p-8 rounded-3xl bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-[0_10px_30px_-5px_rgba(15,23,42,0.05)] space-y-5 relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                  Subordinate Role Delegation
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-slate-950 mt-2 tracking-tight">
+                  Authorized Examination Personnel
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Institutional delegation for subordinate roles: Linguistic Translators and Centre Operators.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowAddSubordinateModal(true)}
+                className="btn-gradient-emerald inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs shadow-md shadow-emerald-900/20 hover:shadow-emerald-900/30 transition-all cursor-pointer text-white bg-emerald-800 hover:bg-emerald-700"
+              >
+                <PlusCircle className="w-4 h-4 text-emerald-200" />
+                <span>+ AUTHORIZE NEW SUBORDINATE</span>
+              </button>
+            </div>
+
+            {authorizedPersonnel.filter(u => u.role === 'TRANSLATOR' || u.role === 'CENTRE_OPERATOR').length === 0 ? (
+              <div className="py-14 px-4 text-center border-2 border-dashed border-slate-200/80 rounded-3xl space-y-3 bg-slate-50/60">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200/60 shadow-2xs">
+                  <Users className="w-7 h-7" />
+                </div>
+                <p className="text-sm font-bold text-slate-800">No subordinate examination personnel registered yet.</p>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Authorize Linguistic Translators for exam translation and Centre Operators for local question paper printing.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowAddSubordinateModal(true)}
+                  className="px-5 py-2.5 rounded-xl font-bold text-xs shadow-sm cursor-pointer mt-2 inline-flex items-center gap-2 bg-emerald-800 hover:bg-emerald-700 text-white"
+                >
+                  <PlusCircle className="w-4 h-4 text-emerald-200" />
+                  <span>AUTHORIZE FIRST SUBORDINATE</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {authorizedPersonnel
+                  .filter(u => u.role === 'TRANSLATOR' || u.role === 'CENTRE_OPERATOR')
+                  .map(m => {
+                    const roleLabelMap: Record<string, string> = {
+                      TRANSLATOR: 'Linguistic Translator',
+                      CENTRE_OPERATOR: 'Centre Superintendent & Operator',
+                    };
+                    const isRevoked = m.authorization_status === 'REVOKED' || m.status === 'SUSPENDED';
+
+                    return (
+                      <div
+                        key={m.id}
+                        className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs transition-all duration-200 ${
+                          isRevoked
+                            ? 'bg-rose-50/40 border-rose-200/80'
+                            : 'bg-white hover:bg-slate-50/70 border-slate-200/80 shadow-2xs hover:shadow-xs'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div
+                            className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm shadow-xs ${
+                              isRevoked
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-800 border border-emerald-200'
+                            }`}
+                          >
+                            {m.full_name?.charAt(0) || 'U'}
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-black text-slate-900 text-sm tracking-tight">{m.full_name}</span>
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1.5 ${
+                                  isRevoked
+                                    ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                    : 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                                }`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${isRevoked ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`} />
+                                {isRevoked ? 'ACCESS REVOKED' : (m.authorization_status || 'AUTHORIZED')}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              {m.email} {m.phone_number ? `• ${m.phone_number}` : ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 self-end sm:self-center">
+                          <span className="px-3 py-1.5 rounded-xl text-[11px] font-bold border bg-emerald-50 text-emerald-900 border-emerald-200/80">
+                            {roleLabelMap[m.role] || m.role}
+                          </span>
+
+                          {isRevoked ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreSubordinate(m.id)}
+                              disabled={processingUserId === m.id}
+                              className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {processingUserId === m.id ? 'Restoring...' : 'Restore Access'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeSubordinate(m.id)}
+                              disabled={processingUserId === m.id}
+                              className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white hover:bg-rose-50 text-rose-700 border border-rose-200 transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                              {processingUserId === m.id ? 'Revoking...' : 'Revoke Access'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Authorize Subordinate Modal */}
+      {showAddSubordinateModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-4 text-xs authority-management-form">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h4 className="text-base font-bold text-slate-900">Authorize Subordinate Personnel</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5">Delegate access to a Linguistic Translator or Centre Operator.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddSubordinateModal(false)}
+                className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center justify-center font-bold text-base cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSubordinate} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-slate-700 font-bold mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  value={subordinateName}
+                  onChange={e => setSubordinateName(e.target.value)}
+                  placeholder="e.g. Smt. Sunita Patil"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Official Email *</label>
+                <input
+                  type="email"
+                  value={subordinateEmail}
+                  onChange={e => setSubordinateEmail(e.target.value)}
+                  placeholder="e.g. sunita.patil@university.ac.in"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Official Contact *</label>
+                <input
+                  type="text"
+                  value={subordinateContact}
+                  onChange={e => setSubordinateContact(e.target.value)}
+                  placeholder="e.g. +91 98220 12345"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Designation *</label>
+                <input
+                  type="text"
+                  value={subordinateDesignation}
+                  onChange={e => setSubordinateDesignation(e.target.value)}
+                  placeholder="e.g. Senior Hindi Translator"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Subordinate Role *</label>
+                <select
+                  value={subordinateRole}
+                  onChange={e => setSubordinateRole(e.target.value as any)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                >
+                  <option value="TRANSLATOR">Linguistic Translator</option>
+                  <option value="CENTRE_OPERATOR">Centre Superintendent & Operator</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-slate-700 font-bold mb-1">Temporary Initial Passphrase *</label>
+                <input
+                  type="password"
+                  value={subordinatePassword}
+                  onChange={e => setSubordinatePassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-slate-900 text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono"
+                />
+              </div>
+
+              <div className="sm:col-span-2 flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddSubordinateModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer"
+                >
+                  Authorize & Issue Credentials
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Subordinate Credentials Issued Modal */}
+      {createdCredentials && (
+        <div className="fixed inset-0 z-50 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-emerald-300 shadow-2xl max-w-lg w-full p-6 space-y-4 text-xs authority-management-form">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+              <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shrink-0">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-slate-900">Subordinate Credentials Issued</h4>
+                <p className="text-[11px] text-slate-500">Provide these temporary credentials to the authorized personnel.</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-200 font-mono text-xs text-slate-800">
+              <div><strong>Name:</strong> {createdCredentials.name}</div>
+              <div><strong>Email:</strong> {createdCredentials.email}</div>
+              <div><strong>Role:</strong> {createdCredentials.role}</div>
+              <div><strong>Temporary Password:</strong> {createdCredentials.password}</div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setCreatedCredentials(null)}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* TRUSTED WORKSTATIONS (HARDWARE TERMINALS)                     */}
+      {/* ============================================================ */}
+      {activeSubTab === 'trusted_devices' && (
+        <div className="space-y-6 authority-management-form">
+          <div className="stat-card-luxury p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  Workstation Security
+                </span>
+                <h3 className="text-lg font-bold text-slate-900 mt-1">
+                  Registered Hardware Terminals & Access Status
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Cryptographic hardware terminal bindings. Devices must be approved before printing or accessing sensitive examinations.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-slate-500">
+                  {devicesList.length} Device{devicesList.length === 1 ? '' : 's'} Registered
+                </span>
+              </div>
+            </div>
+
+            {devicesList.length === 0 ? (
+              <p className="text-xs text-slate-400 py-8 text-center">No hardware terminals registered yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {devicesList.map(d => (
+                  <div
+                    key={d.id}
+                    className="p-4 rounded-xl bg-white hover:bg-slate-50/60 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs transition-all duration-200"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 shrink-0">
+                        <Laptop className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900 text-sm">{d.device_name}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 font-mono">
+                            {d.ip_address || '127.0.0.1'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                          FP: {d.device_fingerprint?.slice(0, 32)}...
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
+                      <span
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold border ${
+                          d.status === 'APPROVED' || d.status === 'TRUSTED'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : d.status === 'PENDING' || d.status === 'PENDING_APPROVAL'
+                            ? 'bg-amber-50 text-amber-800 border-amber-300'
+                            : 'bg-rose-50 text-rose-800 border-rose-300'
+                        }`}
+                      >
+                        {d.status === 'APPROVED' ? 'APPROVED' : d.status}
+                      </span>
+
+                      {d.status === 'PENDING' || d.status === 'PENDING_APPROVAL' ? (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleApproveDevice(d.id)}
+                            disabled={processingDeviceId === d.id}
+                            className="bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-xs transition-colors disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Check className="w-3 h-3" />
+                            <span>{processingDeviceId === d.id ? 'Approving...' : 'Approve'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRejectDevice(d.id)}
+                            disabled={processingDeviceId === d.id}
+                            className="text-rose-600 hover:text-rose-800 text-xs font-bold px-3 py-1.5 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      ) : d.status === 'APPROVED' || d.status === 'TRUSTED' ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRevokeDevice(d.id)}
+                          disabled={processingDeviceId === d.id}
+                          className="text-rose-600 hover:text-rose-800 text-xs font-bold px-3 py-1.5 hover:bg-rose-50 rounded-lg border border-rose-200 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          {processingDeviceId === d.id ? 'Revoking...' : 'Revoke'}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* HIERARCHY MANAGEMENT (5-TIER INSTITUTIONAL AUTHORITY)        */}
+      {/* ============================================================ */}
+      {activeSubTab === 'hierarchy_management' && (
+        <div className="space-y-6 authority-management-form">
+          <div className="stat-card-luxury p-6 sm:p-8 rounded-3xl bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-sm space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                Institutional Security Policy
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-950 mt-2 tracking-tight">
+                Institutional Authority & Role Hierarchy
+              </h3>
+              <p className="text-xs text-slate-600 mt-0.5">
+                ZeroLeak operates under an immutable 5-role institutional governance model. Authority delegation is strictly non-escalating.
+              </p>
+            </div>
+
+            {/* 5-Role Institutional Governance Architecture */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3.5">
+              <div className="p-4 rounded-2xl bg-slate-900 text-white space-y-2 border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold">RANK 100</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                </div>
+                <h4 className="font-bold text-sm text-white">1. Organization Owner / Registrar</h4>
+                <p className="text-[11px] text-slate-400 leading-snug">
+                  Institutional governance, legal entity accreditation, Shamir threshold contributor.
+                </p>
+                <div className="pt-2 text-[10px] font-mono text-emerald-300 border-t border-slate-800">
+                  Delegates: Manager, Auditor
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-emerald-50 text-emerald-950 space-y-2 border-2 border-emerald-500 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-emerald-700 font-bold">RANK 70 (ACTIVE)</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+                </div>
+                <h4 className="font-bold text-sm text-emerald-950">2. Examination Manager</h4>
+                <p className="text-[11px] text-emerald-800 leading-snug">
+                  Controller of Examinations, blueprint config, question ingestion, and paper generation.
+                </p>
+                <div className="pt-2 text-[10px] font-mono text-emerald-800 border-t border-emerald-200">
+                  Delegates: Translator, Operator
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-rose-50 text-rose-950 space-y-2 border border-rose-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-rose-700 font-bold">RANK 70</span>
+                  <span className="w-2 h-2 rounded-full bg-rose-500" />
+                </div>
+                <h4 className="font-bold text-sm text-rose-950">3. Chief Vigilance & Security Auditor</h4>
+                <p className="text-[11px] text-rose-800 leading-snug">
+                  Independent oversight, forensic log analysis, watermark tracking, threat reports.
+                </p>
+                <div className="pt-2 text-[10px] font-mono text-rose-700 border-t border-rose-200">
+                  Delegates: None (Independent)
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-blue-50 text-blue-950 space-y-2 border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-blue-700 font-bold">RANK 40</span>
+                  <span className="w-2 h-2 rounded-full bg-blue-500" />
+                </div>
+                <h4 className="font-bold text-sm text-blue-950">4. Linguistic Translator</h4>
+                <p className="text-[11px] text-blue-800 leading-snug">
+                  Multilingual question translation workbench, ledger auditing, dialect verification.
+                </p>
+                <div className="pt-2 text-[10px] font-mono text-blue-700 border-t border-blue-200">
+                  Delegates: None (Least Privilege)
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-purple-50 text-purple-950 space-y-2 border border-purple-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-purple-700 font-bold">RANK 40</span>
+                  <span className="w-2 h-2 rounded-full bg-purple-500" />
+                </div>
+                <h4 className="font-bold text-sm text-purple-950">5. Centre Superintendent & Operator</h4>
+                <p className="text-[11px] text-purple-800 leading-snug">
+                  Bound hardware terminals, controlled quota decryption, and watermarked printing.
+                </p>
+                <div className="pt-2 text-[10px] font-mono text-purple-700 border-t border-purple-200">
+                  Delegates: None (Least Privilege)
+                </div>
+              </div>
+            </div>
+
+            {/* Delegation Rules Summary */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+              <h4 className="font-bold text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                <span>Authority Enforcement Principles</span>
+              </h4>
+              <ul className="space-y-1.5 text-slate-600 list-disc list-inside">
+                <li><strong>No System Administrator:</strong> No single user has unrestricted or wildcard bypass authority.</li>
+                <li><strong>No Subject Matter Expert (SME):</strong> Question authoring and ingestion is managed directly by the Examination Manager.</li>
+                <li><strong>Strict Hierarchy:</strong> The Examination Manager may only delegate authority to Linguistic Translators and Centre Operators.</li>
+                <li><strong>Cryptographic Isolation:</strong> Privilege escalation attempts are automatically blocked and logged to the Vigilance Auditor ledger.</li>
+              </ul>
+            </div>
           </div>
         </div>
       )}
