@@ -857,6 +857,29 @@ const DynamicCompiledLatexPreview: React.FC<{
     );
   }
 
+  // Empty editor state: show clean ready card instead of hardcoded paper
+  if (!latex || !latex.trim()) {
+    return (
+      <div
+        className="w-full max-w-[590px] bg-white text-black p-8 sm:p-10 rounded-xs shadow-2xl min-h-[840px] text-xs leading-relaxed font-serif relative transition-all border border-slate-300 select-text flex flex-col items-center justify-center text-center"
+        style={{
+          transform: `scale(${zoom})`,
+          transformOrigin: 'top center',
+        }}
+      >
+        <div className="max-w-md p-8 border border-dashed border-slate-300 rounded-xl bg-slate-50 flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">
+            <Play className="w-5 h-5 fill-current" />
+          </div>
+          <h3 className="font-bold text-sm text-slate-800 font-sans">Common LaTeX Compiler Ready</h3>
+          <p className="text-xs text-slate-600 leading-relaxed font-sans">
+            Paste or write your LaTeX code in the editor on the left. Examination papers, question sets, picture environments, and equations compile here in real time.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Mode 2: Standard Academic Question Paper
   return (
     <div
@@ -1185,9 +1208,9 @@ const PrismChromeWebAuthPane: React.FC<{
           </div>
           <span className="font-bold text-sm text-white">Prism</span>
           <span className="text-slate-600">/</span>
-          <span className="text-xs font-medium text-slate-300 truncate">{activeProject}</span>
+          <span className="text-xs font-medium text-slate-300 truncate">Universal LaTeX Compiler</span>
           <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-400 font-semibold hidden sm:inline">
-            ● Connected
+            ● Ready
           </span>
         </div>
 
@@ -1278,74 +1301,47 @@ const PrismChromeWebAuthPane: React.FC<{
         </div>
       </div>
 
-      {/* Main Workspace: Sidebar + Split Editor/Preview */}
+      {/* Main Workspace: 50/50 Split Editor + Live Preview (Common Universal Compiler) */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: Projects */}
-        <div className="w-56 bg-[#1e1f22] border-r border-[#2d2f34] flex flex-col shrink-0 hidden md:flex">
-          <div className="p-3 border-b border-[#2d2f34] flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Your Projects</span>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveProject(`Exam_Paper_${Date.now().toString().slice(-4)}.tex`);
-              }}
-              className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
-            >
-              + New
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            <button
-              type="button"
-              onClick={() => handleSelectProject('Applied Cryptography & Security Paper.tex')}
-              className={`w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer ${
-                activeProject === 'Applied Cryptography & Security Paper.tex'
-                  ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                  : 'text-slate-300 hover:bg-white/5'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">Applied Cryptography & Security Paper.tex</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSelectProject('Operating Systems (Course BTN04605).tex')}
-              className={`w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer ${
-                activeProject === 'Operating Systems (Course BTN04605).tex'
-                  ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                  : 'text-slate-300 hover:bg-white/5'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">Operating Systems (Course BTN04605).tex</span>
-            </button>
-          </div>
-
-          {/* User profile footer */}
-          <div className="p-3 border-t border-[#2d2f34] bg-[#1a1b1e] flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
-              P
-            </div>
-            <div className="truncate flex-1">
-              <p className="text-xs font-bold text-white truncate">Pradnya Jadhav</p>
-              <p className="text-[10px] text-slate-400 truncate">Personal workspace</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Center: Live Interactive LaTeX Editor */}
+        {/* Left: Live Interactive LaTeX Editor */}
         <div className="flex-1 flex flex-col border-r border-[#2d2f34] overflow-hidden">
-          <div className="h-8 px-3 bg-[#1e1f22] border-b border-[#2d2f34] flex items-center justify-between text-xs text-slate-400">
-            <span>source.tex • UTF-8 LaTeX</span>
-            <span>Live Sync</span>
+          <div className="h-8 px-3 bg-[#1e1f22] border-b border-[#2d2f34] flex items-center justify-between text-xs text-slate-400 shrink-0">
+            <div className="flex items-center gap-2">
+              <FileText className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="font-semibold text-slate-200">source.tex</span>
+              <span className="text-slate-500">•</span>
+              <span className="text-[11px] text-slate-400 font-mono">LaTeX Editor (All Subjects)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setLatexDoc(PRISM_DEFAULT_LATEX);
+                  setIsCompiling(true);
+                  setTimeout(() => setIsCompiling(false), 300);
+                }}
+                className="text-[11px] text-slate-300 hover:text-emerald-300 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                title="Load Sample Examination Template"
+              >
+                Sample Template
+              </button>
+              <button
+                type="button"
+                onClick={() => setLatexDoc('')}
+                className="text-[11px] text-slate-300 hover:text-rose-300 px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                title="Clear Editor"
+              >
+                Clear
+              </button>
+              <span className="text-emerald-400 font-semibold text-[10px] hidden sm:inline">● Live Sync</span>
+            </div>
           </div>
           <div className="flex-1 p-3 overflow-auto bg-[#18181b] font-mono text-xs text-slate-200">
             <textarea
               value={latexDoc}
               onChange={(e) => setLatexDoc(e.target.value)}
-              className="w-full h-full bg-transparent border-0 outline-hidden resize-none font-mono text-xs leading-relaxed text-slate-200"
+              placeholder="Paste or write any LaTeX code here (all subjects, standard exam papers, equations, picture environments)..."
+              className="w-full h-full bg-transparent border-0 outline-hidden resize-none font-mono text-xs leading-relaxed text-slate-200 placeholder:text-slate-600"
               spellCheck={false}
             />
           </div>

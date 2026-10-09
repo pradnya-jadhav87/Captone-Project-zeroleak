@@ -357,6 +357,201 @@
       renderApp();
     }
 
+    function parsePictureLatex(chunk) {
+      const items = [];
+      const regex = /\\put\s*\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s*\{/g;
+      let match;
+      while ((match = regex.exec(chunk)) !== null) {
+        const x = parseFloat(match[1]);
+        const y = parseFloat(match[2]);
+        const startIdx = match.index + match[0].length;
+        let depth = 1;
+        let endIdx = startIdx;
+        while (depth > 0 && endIdx < chunk.length) {
+          if (chunk[endIdx] === '{') depth++;
+          else if (chunk[endIdx] === '}') depth--;
+          endIdx++;
+        }
+        const rawContent = chunk.substring(startIdx, endIdx - 1);
+        const fsMatch = rawContent.match(/\\fontsize\{([\d.]+)\}/);
+        const fontSize = fsMatch ? parseFloat(fsMatch[1]) : 11;
+        const isBold = /\\textbf|\\bfseries|\{ptm\}\{b\}/.test(rawContent);
+        const isItalic = /\\textit|\\itshape|\{ptm\}\{it\}/.test(rawContent);
+        const text = rawContent
+          .replace(/\\fontsize\{[^}]*\}\{[^}]*\}/g, '')
+          .replace(/\\usefont\{[^}]*\}\{[^}]*\}\{[^}]*\}\{[^}]*\}/g, '')
+          .replace(/\\selectfont/g, '')
+          .replace(/\\color\{[^}]*\}/g, '')
+          .replace(/\\vphantom\{[^}]*\}/g, '')
+          .replace(/\\rule\{[^}]*\}\{[^}]*\}/g, '')
+          .replace(/[{}]/g, '');
+        items.push({ x, y, fontSize, isBold, isItalic, text });
+      }
+      if (items.length === 0) return null;
+
+      let minY = items[0].y;
+      for (const it of items) if (it.y < minY) minY = it.y;
+      const isNegativeY = items.some(it => it.y < 0);
+
+      const linesMap = new Map();
+      for (const it of items) {
+        let matchedY = null;
+        for (const key of linesMap.keys()) {
+          if (Math.abs(key - it.y) < 3.5) { matchedY = key; break; }
+        }
+        if (matchedY === null) { matchedY = it.y; linesMap.set(matchedY, []); }
+        linesMap.get(matchedY).push(it);
+      }
+
+      const sortedY = Array.from(linesMap.keys()).sort((a, b) => b - a);
+      const lines = sortedY.map(y => {
+        const row = linesMap.get(y);
+        row.sort((a, b) => a.x - b.x);
+        const segments = [];
+        let cur = { x: row[0].x, fontSize: row[0].fontSize, isBold: row[0].isBold, isItalic: row[0].isItalic, text: row[0].text };
+        for (let i = 1; i < row.length; i++) {
+          const it = row[i];
+          const estWidth = cur.text.length * cur.fontSize * 0.52;
+          const gap = it.x - (cur.x + estWidth);
+          if (gap > 20) {
+            segments.push(cur);
+            cur = { x: it.x, fontSize: it.fontSize, isBold: it.isBold, isItalic: it.isItalic, text: it.text };
+          } else {
+            cur.text += it.text;
+            if (it.isBold) cur.isBold = true;
+            if (it.isItalic) cur.isItalic = true;
+          }
+        }
+        segments.push(cur);
+        const top = isNegativeY ? Math.abs(y) : Math.max(0, 842 - y);
+        return { y, top, segments };
+      });
+
+      const pageHeight = Math.max(842, isNegativeY ? Math.abs(minY) + 70 : 842);
+      return { lines, height: pageHeight };
+    }
+
+    function compileLatexLive() {
+      const editor = document.getElementById('latexEditor');
+      const preview = document.getElementById('previewContainer');
+      if (!editor || !preview) return;
+
+      const code = editor.value.trim();
+      if (!code) {
+        preview.innerHTML = `
+          <div class="paper-sheet" style="min-height:500px;display:flex;align-items:center;justify-content:center;text-align:center;">
+            <div style="max-width:360px;padding:30px;border:1px dashed #cbd5e1;border-radius:10px;background:#f8fafc;">
+              <div style="font-size:28px;margin-bottom:10px;">✦</div>
+              <h3 style="font-size:14px;font-weight:bold;color:#1e293b;margin-bottom:6px;">Common LaTeX Compiler Ready</h3>
+              <p style="font-size:11px;color:#64748b;line-height:1.5;">Paste or write your LaTeX code in the editor on the left. All subjects, question papers, equations, and picture environments compile here dynamically.</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // Check for \put picture mode
+      if (code.includes('\\put')) {
+        const pageData = parsePictureLatex(code);
+        if (pageData && pageData.lines.length > 0) {
+          let html = `<div class="paper-sheet" style="position:relative;min-height:${pageData.height}px;height:${pageData.height}px;padding:0;overflow:hidden;">`;
+          pageData.lines.forEach(l => {
+            html += `<div style="position:absolute;top:${l.top}px;left:0;right:0;line-height:1;">`;
+            l.segments.forEach(s => {
+              const weight = s.isBold ? 'font-weight:bold;' : '';
+              const style = s.isItalic ? 'font-style:italic;' : '';
+              html += `<span style="position:absolute;left:${s.x}px;font-size:${s.fontSize}px;color:#000;white-space:pre;${weight}${style}">${escapeHtml(s.text)}</span>`;
+            });
+            html += `</div>`;
+          });
+          html += `
+            <div style="position:absolute;bottom:12px;left:30px;right:30px;border-top:1px solid rgba(0,0,0,0.2);display:flex;justify-content:space-between;font-size:9px;color:#64748b;font-family:sans-serif;padding-top:6px;">
+              <span>SOLAPUR UNIVERSITY • ZEROLEAK</span>
+              <span>Page 1 of 1</span>
+            </div>
+          </div>`;
+          preview.innerHTML = html;
+          return;
+        }
+      }
+
+      // Standard / Structured LaTeX Mode
+      let univ = (code.match(/\\textbf\{([^}]+UNIVERSITY[^}]*)\}/i) || code.match(/([A-Z\s]{8,}UNIVERSITY[A-Z\s,]*)/i) || [])[1] || '';
+      let fac = (code.match(/\\textbf\{([^}]+FACULTY[^}]*)\}/i) || code.match(/(FACULTY OF [^\\\n}]+)/i) || [])[1] || '';
+      let exam = (code.match(/\\textbf\{([^}]+(?:Examination|B\.Tech|T\.Y\.|M\.Tech|Engineering|Diploma)[^}]*)\}/i) || code.match(/((?:B\.Tech|T\.Y\.|Examination)[^\\\n}]+)/i) || [])[1] || '';
+      let marks = (code.match(/Max\.\s*Marks:\s*(\d+)/i) || code.match(/Marks:\s*(\d+)/i) || [])[1] || '';
+      let codeMatch = (code.match(/(?:Paper|Course)\s*Code:\s*([A-Za-z0-9\-_]+)/i) || [])[1] || '';
+      let timeMatch = (code.match(/Time:\s*([0-9\s:AMPMapm.\-–—()Hours]+)/i) || [])[1] || '';
+      let dateMatch = (code.match(/Day\s*\\?&\s*Date:\s*([^\\}\n]+)/i) || [])[1] || '';
+
+      // Clean macros
+      univ = univ.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '').trim();
+      fac = fac.replace(/\\[a-zA-Z]+/g, '').replace(/[{}]/g, '').trim();
+      exam = exam.replace(/\\[a-zA-Z]+/g, '').replace(/---/g, '—').replace(/[{}]/g, '').trim();
+
+      // Extract questions / sections
+      const qMatches = code.match(/\\textbf\{\s*(Q\.\s*\d+[^}]*)\}([\s\S]*?)(?=(?:\\textbf\{\s*Q\.\s*\d+)|\\end\{document\}|$)/gi) || [];
+
+      let innerContent = '';
+      if (qMatches.length > 0) {
+        qMatches.forEach(qBlock => {
+          const title = (qBlock.match(/\\textbf\{\s*(Q\.\s*\d+[^}]*)\}/i) || [])[1] || 'Question';
+          const body = qBlock.replace(/\\textbf\{\s*Q\.\s*\d+[^}]*\}/i, '').replace(/\\hfill\s*\[\s*[^\]]+\s*\]/i, '').trim();
+          innerContent += `
+            <div style="margin-top:14px;border-bottom:1px solid #f1f5f9;padding-bottom:10px;">
+              <div style="font-weight:bold;font-size:12px;color:#0f172a;">${escapeHtml(title)}</div>
+              <div style="margin-top:4px;font-size:11px;color:#334155;line-height:1.6;">${formatLatexBody(body)}</div>
+            </div>
+          `;
+        });
+      } else {
+        // Plain paragraphs
+        const lines = code.split(/\n\s*\n/).map(l => l.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, '').trim()).filter(l => l.length > 0);
+        innerContent = lines.map(p => `<p style="margin-bottom:10px;font-size:11px;color:#334155;line-height:1.6;">${escapeHtml(p)}</p>`).join('');
+      }
+
+      let headerHtml = '';
+      if (univ || fac || exam) {
+        headerHtml = `
+          <div style="text-align:center;margin-bottom:14px;border-bottom:2px solid #000;padding-bottom:8px;">
+            ${univ ? `<div style="font-weight:bold;font-size:13px;text-transform:uppercase;">${escapeHtml(univ)}</div>` : ''}
+            ${fac ? `<div style="font-size:11px;font-weight:600;color:#334155;">${escapeHtml(fac)}</div>` : ''}
+            ${exam ? `<div style="font-weight:bold;font-size:11px;margin-top:2px;">${escapeHtml(exam)}</div>` : ''}
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:8px;border-top:1px solid #cbd5e1;padding-top:4px;">
+              <span>${dateMatch ? escapeHtml(dateMatch.trim()) : 'Day & Date: Examination Day'}</span>
+              <span>Max. Marks: ${marks || '70'}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:2px;">
+              <span>Time: ${timeMatch ? escapeHtml(timeMatch.trim()) : '3 Hours'}</span>
+              <span>Paper Code: ${codeMatch || 'EXAM-CODE'}</span>
+            </div>
+          </div>
+        `;
+      }
+
+      preview.innerHTML = `
+        <div class="paper-sheet">
+          ${headerHtml}
+          ${innerContent || '<p style="color:#64748b;text-align:center;padding:20px;">Document compiled with 0 errors.</p>'}
+          <div style="margin-top:20px;border-top:1px solid #000;padding-top:6px;display:flex;justify-content:space-between;font-size:9px;color:#64748b;font-family:sans-serif;">
+            <span>*** END OF QUESTION PAPER ***</span>
+            <span>SOLAPUR UNIVERSITY • ZEROLEAK</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function formatLatexBody(text) {
+      return escapeHtml(text)
+        .replace(/\\item/g, '<br>• ')
+        .replace(/\\textbf\{([^}]+)\}/g, '<b>$1</b>')
+        .replace(/\\textit\{([^}]+)\}/g, '<i>$1</i>');
+    }
+
     function renderApp() {
       const viewport = document.getElementById('appViewport');
       if (!isAuthenticated) {
@@ -392,59 +587,40 @@
               <div style="display:flex;align-items:center;gap:10px;">
                 <span style="font-weight:700;color:#fff;font-size:14px;">✦ Prism</span>
                 <span style="color:#64748b;">/</span>
-                <span style="font-size:12px;color:#cbd5e1;">Applied Cryptography & Security Paper.tex</span>
-                <span style="font-size:10px;color:#34d399;font-weight:600;background:rgba(52,211,153,0.15);padding:2px 8px;border-radius:10px;">● Connected</span>
+                <span style="font-size:12px;color:#cbd5e1;font-weight:600;">Universal LaTeX Compiler</span>
+                <span style="font-size:10px;color:#34d399;font-weight:600;background:rgba(52,211,153,0.15);padding:2px 8px;border-radius:10px;">● Ready</span>
               </div>
               <div style="display:flex;align-items:center;gap:8px;">
-                <button class="btn-sub" style="margin:0;padding:6px 12px;background:#059669;color:#fff;font-weight:600;" onclick="alert('Compiling LaTeX to PDF preview...')">▶ Compile LaTeX</button>
-                <button class="btn-sub" style="margin:0;padding:6px 12px;" onclick="launchRealPrismWindow()">Real Window ↗</button>
+                <button class="btn-sub" style="margin:0;padding:6px 12px;background:#059669;color:#fff;font-weight:600;" onclick="compileLatexLive()">▶ Compile LaTeX</button>
+                <button class="btn-sub" style="margin:0;padding:6px 12px;" onclick="document.getElementById('latexEditor').value = ''; compileLatexLive();">Clear</button>
+                <button class="btn-sub" style="margin:0;padding:6px 12px;" onclick="document.getElementById('latexEditor').value = DEFAULT_LATEX; compileLatexLive();">Sample Template</button>
+                <button class="btn-sub" style="margin:0;padding:6px 12px;" onclick="window.print()">Print</button>
                 <button class="btn-sub" style="margin:0;padding:6px 12px;color:#f87171;" onclick="doSignOut()">Sign out</button>
               </div>
             </div>
-            <div class="workspace-main">
-              <div class="workspace-sidebar">
-                <div style="padding:10px 14px;border-bottom:1px solid #2d2f34;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Projects</div>
-                <div style="padding:8px;">
-                  <div style="padding:8px 10px;border-radius:6px;background:rgba(52,211,153,0.15);color:#34d399;font-size:12px;font-weight:600;">Applied Cryptography.tex</div>
-                  <div style="padding:8px 10px;border-radius:6px;color:#94a3b8;font-size:12px;margin-top:4px;">ZeroLeak Paper.tex</div>
+            <div class="workspace-main" style="display:flex;flex:1;overflow:hidden;">
+              <!-- 50/50 Split Editor (No Sidebar) -->
+              <div class="workspace-editor" style="flex:1;display:flex;flex-direction:column;border-right:1px solid #2d2f34;background:#18181b;">
+                <div style="height:32px;padding:0 12px;background:#1e1f22;border-bottom:1px solid #2d2f34;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#94a3b8;">
+                  <span>source.tex • Universal LaTeX Editor</span>
+                  <span style="color:#34d399;">● Live Sync</span>
                 </div>
-                <div class="profile-pill">
-                  <div class="avatar">P</div>
-                  <div style="overflow:hidden;">
-                    <div style="font-size:12px;font-weight:700;color:#fff;">Pradnya Jadhav</div>
-                    <div style="font-size:10px;color:#94a3b8;">Personal workspace</div>
-                  </div>
-                </div>
+                <textarea id="latexEditor" class="editor-textarea" spellcheck="false" placeholder="Paste or write any LaTeX code here (all subjects, standard exam papers, equations, picture environments)...">${DEFAULT_LATEX}</textarea>
               </div>
-              <div class="workspace-editor">
-                <textarea class="editor-textarea" spellcheck="false">${DEFAULT_LATEX}</textarea>
-              </div>
-              <div class="workspace-preview">
-                <div class="paper-sheet">
-                  <div style="text-align:center;margin-bottom:12px;">
-                    <div style="font-weight:bold;font-size:13px;">PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR</div>
-                    <div style="font-size:11px;">Faculty of Science & Technology</div>
-                    <div style="font-weight:bold;font-size:11px;">B.Tech. Examination — Applied Cryptography & Information Security</div>
-                    <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:6px;border-bottom:1px solid #000;padding-bottom:3px;">
-                      <span>Max. Marks: 70</span>
-                      <span>Paper Code: SLR-VB-602</span>
-                      <span>Time: 3 Hours</span>
-                    </div>
-                  </div>
-                  <div style="font-weight:bold;margin:10px 0 4px 0;">Q.1 Choose the correct alternative: [14 Marks]</div>
-                  <div style="margin-left:12px;margin-top:6px;">
-                    <div>1) In symmetric cryptography with n participants, total keys needed:</div>
-                    <div style="color:#059669;margin-left:16px;">(b) n(n - 1) / 2 (Correct)</div>
-                  </div>
-                  <div style="margin-left:12px;margin-top:6px;">
-                    <div>2) In RSA cryptosystem, public exponent e and private exponent d satisfy:</div>
-                    <div style="color:#059669;margin-left:16px;">(a) e · d ≡ 1 (mod φ(n)) (Correct)</div>
-                  </div>
-                </div>
+              <!-- Live Compiled Preview -->
+              <div class="workspace-preview" style="flex:1;display:flex;flex-direction:column;background:#2b2d31;overflow:auto;padding:24px;align-items:center;">
+                <div id="previewContainer" style="width:100%;display:flex;justify-content:center;"></div>
               </div>
             </div>
           </div>
         `;
+
+        // Wire live compiler
+        const editor = document.getElementById('latexEditor');
+        if (editor) {
+          editor.addEventListener('input', compileLatexLive);
+          compileLatexLive();
+        }
       }
     }
 
