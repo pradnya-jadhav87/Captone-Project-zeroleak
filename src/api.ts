@@ -461,23 +461,31 @@ export interface CompileDiagnostics {
   log?: string;
 }
 
-export function saveLocalTransferredJob(job: any) {
+// Zero-Leak Security Protocol:
+// Examination papers are NEVER persisted in browser localStorage or personal laptop disk!
+// All transferred papers are held strictly in ephemeral volatile memory (RAM) and secure server enclave.
+const inMemoryTransferredJobs: any[] = [];
+
+if (typeof window !== 'undefined' && window.localStorage) {
   try {
-    if (typeof window === 'undefined' || !window.localStorage) return;
-    const existing: any[] = JSON.parse(window.localStorage.getItem('zeroleak_transferred_jobs') || '[]');
-    const filtered = existing.filter((j: any) => j.id !== job.id && j.paperId !== job.paperId);
-    filtered.unshift(job);
-    window.localStorage.setItem('zeroleak_transferred_jobs', JSON.stringify(filtered.slice(0, 20)));
+    window.localStorage.removeItem('zeroleak_transferred_jobs');
+    window.localStorage.removeItem('zeroleak_active_paper_latex');
   } catch {}
 }
 
-export function getLocalTransferredJobs(): any[] {
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) return [];
-    return JSON.parse(window.localStorage.getItem('zeroleak_transferred_jobs') || '[]');
-  } catch {
-    return [];
+export function saveLocalTransferredJob(job: any) {
+  const existingIdx = inMemoryTransferredJobs.findIndex(
+    j => j.id === job.id || j.paperId === job.paperId
+  );
+  if (existingIdx >= 0) {
+    inMemoryTransferredJobs[existingIdx] = job;
+  } else {
+    inMemoryTransferredJobs.unshift(job);
   }
+}
+
+export function getLocalTransferredJobs(): any[] {
+  return [...inMemoryTransferredJobs];
 }
 
 export const api = {

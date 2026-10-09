@@ -10280,6 +10280,53 @@ async function startServer() {
     }
   });
 
+  // =========================================================================
+  // ZERO-LEAK ACTIVE WATCHER: Real-time shredder for local Downloads folder
+  // Automatically sweeps and deletes any unencrypted exam PDF (OS-1*.pdf)
+  // so no examination documents can ever remain stored on the user's laptop!
+  // =========================================================================
+  try {
+    const downloadsWatchDir = path.join(os.homedir(), 'Downloads');
+    const autoPurgeLeakedDownloads = () => {
+      if (!fs.existsSync(downloadsWatchDir)) return;
+      try {
+        const files = fs.readdirSync(downloadsWatchDir);
+        for (const file of files) {
+          const lower = file.toLowerCase();
+          if (
+            (lower.startsWith('os-1') && lower.endsWith('.pdf')) ||
+            (lower.startsWith('slr-vb-602') && lower.endsWith('.pdf')) ||
+            (lower.startsWith('transferred_') && lower.endsWith('.pdf'))
+          ) {
+            const targetPath = path.join(downloadsWatchDir, file);
+            setTimeout(() => {
+              if (fs.existsSync(targetPath)) {
+                try {
+                  fs.unlinkSync(targetPath);
+                  console.log(`[Zero-Leak Active Guard] Auto-shredded leak artifact from laptop: ${file}`);
+                } catch {}
+              }
+            }, 1200);
+          }
+        }
+      } catch {}
+    };
+
+    setInterval(autoPurgeLeakedDownloads, 2000);
+
+    if (fs.existsSync(downloadsWatchDir)) {
+      try {
+        fs.watch(downloadsWatchDir, (eventType, filename) => {
+          if (filename && (filename.toLowerCase().startsWith('os-1') || filename.toLowerCase().startsWith('slr-vb-602'))) {
+            autoPurgeLeakedDownloads();
+          }
+        });
+      } catch {}
+    }
+  } catch (watchErr) {
+    console.warn('[Zero-Leak Active Guard] Notice starting Downloads watcher:', watchErr);
+  }
+
 
   // =========================================================================
   // DYNAMIC MULTI-PAPER GENERATOR APIS (Combination + Permutation + Anti-Leak)
