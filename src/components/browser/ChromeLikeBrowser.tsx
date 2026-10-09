@@ -4,6 +4,7 @@ import React, {
   useImperativeHandle,
   useRef,
   useState,
+  useMemo,
 } from 'react';
 import {
   ArrowLeft,
@@ -31,6 +32,10 @@ import {
   ChevronDown,
   Printer,
   ShieldCheck,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  CheckCircle2,
 } from 'lucide-react';
 import { LaTeXText } from '../common/LaTeXText';
 import { TransferToPrintingManagerModal } from '../printing/TransferToPrintingManagerModal';
@@ -155,6 +160,19 @@ const PRISM_DEFAULT_LATEX = `\\documentclass[11pt,a4paper]{article}
 
 \\noindent\\rule{\\linewidth}{0.8pt}
 
+\\noindent \\textbf{General Instructions:}
+\\begin{enumerate}[label=\\textbf{\\arabic*)}]
+    \\item All questions are compulsory. Figures to the right indicate full marks.
+    \\item Q.1 Objective Type Questions to be solved in the first 30 minutes.
+    \\item Assume suitable data if necessary and state them clearly.
+\\end{enumerate}
+
+\\noindent\\rule{\\linewidth}{0.5pt}
+
+\\begin{center}
+    {\\large \\textbf{SECTION --- I}}
+\\end{center}
+
 \\noindent \\textbf{Q.1 Choose the correct alternative for each of the following:} \\hfill \\textbf{[14 Marks]}
 
 \\begin{enumerate}[label=\\textbf{\\arabic*)}]
@@ -171,10 +189,507 @@ const PRISM_DEFAULT_LATEX = `\\documentclass[11pt,a4paper]{article}
         \\item $e \\cdot d \\equiv 1 \\pmod{\\phi(n)}$ (Correct)
         \\item $e \\cdot d \\equiv 0 \\pmod{n}$
         \\item $e + d = \\phi(n)$
+        \\item $e^d \\equiv 1 \\pmod{n}$
+    \\end{enumerate}
+
+    \\item Which block cipher mode of operation converts a block cipher into a stream cipher without padding?
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Electronic Codebook (ECB)
+        \\item Cipher Block Chaining (CBC)
+        \\item Output Feedback (OFB) / Counter (CTR) (Correct)
+        \\item Propagating CBC (PCBC)
+    \\end{enumerate}
+
+    \\item In authenticated encryption algorithms such as AES-GCM, message integrity is verified using:
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item GMAC Galois Message Authentication Code (Correct)
+        \\item HMAC-MD5 tag
+        \\item Merkle-Damgard extension
+        \\item Feistel permutation
+    \\end{enumerate}
+
+    \\item In Diffie-Hellman Key Exchange over prime field $\\mathbb{F}_p$, security relies directly on the hardness of:
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Discrete Logarithm Problem (DLP) (Correct)
+        \\item Integer Factorization Problem (IFP)
+        \\item Shortest Vector Problem (SVP)
+        \\item Elliptic Curve Isogeny
     \\end{enumerate}
 \\end{enumerate}
 
+\\vspace{8pt}
+\\noindent \\textbf{Q.2 Attempt any three of the following:} \\hfill \\textbf{[12 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Explain the Feistel Cipher structure with an illustrative block diagram. How do round keys ensure confusion and diffusion?
+    \\item Explain AES-256 key schedule expansion algorithm and describe ShiftRows and MixColumns transformations.
+    \\item Describe RSA Key Generation, Encryption, and Decryption with a numerical example using $p = 11, q = 13, e = 7$.
+    \\item Compare symmetric-key ciphers and asymmetric-key ciphers with respect to computational complexity and key distribution.
+\\end{enumerate}
+
+\\vspace{8pt}
+\\noindent \\textbf{Q.3 Algorithmic Derivation:} \\hfill \\textbf{[08 Marks]}\\\\
+Explain Shamir's $(3, 5)$ Threshold Secret Sharing Scheme. Derive Lagrange's interpolation polynomial used by authorized quorum holders to reconstruct secret $S$ from any 3 arbitrary shares.
+
+\\noindent\\rule{\\linewidth}{0.5pt}
+
+\\begin{center}
+    {\\large \\textbf{SECTION --- II}}
+\\end{center}
+
+\\noindent \\textbf{Q.4 Attempt any three of the following:} \\hfill \\textbf{[12 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Explain Zero-Knowledge Proofs and contrast Interactive vs. Non-Interactive Zero-Knowledge Arguments (zk-SNARKs).
+    \\item Explain the design of SHA-3 (Keccak) cryptographic sponge construction (absorbing and squeezing phases).
+    \\item Describe Elliptic Curve Cryptography (ECC) and derive point addition on Weierstrass curve $y^2 = x^3 + ax + b$.
+    \\item Discuss Man-in-the-Middle (MitM) attacks on Diffie-Hellman and how Digital Certificates (X.509) mitigate them.
+\\end{enumerate}
+
+\\vspace{8pt}
+\\noindent \\textbf{Q.5 Cryptanalysis Problem:} \\hfill \\textbf{[08 Marks]}\\\\
+A Birthday Attack on an $m$-bit cryptographic hash function requires approximately how many evaluations to find a collision? Derive the probability of collision using the Poisson approximation.
+
 \\end{document}`;
+
+const PRISM_OS_LATEX = `\\documentclass[11pt,a4paper]{article}
+\\usepackage[margin=0.75in]{geometry}
+\\usepackage{amsmath,amssymb}
+\\usepackage{graphicx}
+\\usepackage{array}
+\\usepackage{enumitem}
+
+\\begin{document}
+
+\\begin{center}
+    {\\large \\textbf{PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR}}\\\\[3pt]
+    {\\textbf{FACULTY OF SCIENCE \\& TECHNOLOGY}}\\\\[2pt]
+    {\\textbf{T.Y. B.Tech. (Semester II) Examination --- OPERATING SYSTEMS}}\\\\[2pt]
+    \\textbf{Day \\& Date:} Saturday, 17-05-2025 \\hfill \\textbf{Max. Marks: 70}\\\\
+    \\textbf{Time:} 10:00 AM to 01:00 PM (3 Hours) \\hfill \\textbf{Course Code: BTN04605}
+\\end{center}
+
+\\noindent\\rule{\\linewidth}{0.8pt}
+
+\\noindent \\textbf{General Instructions:}
+\\begin{enumerate}[label=\\textbf{\\arabic*)}]
+    \\item Question 1 is compulsory and should be completed in the first 30 minutes.
+    \\item In Questions 2 to 5, follow the choice specified for each question.
+    \\item Figures to the right indicate full marks. Assume suitable data if necessary.
+    \\item Draw neat, labeled diagrams wherever required.
+\\end{enumerate}
+
+\\noindent\\rule{\\linewidth}{0.5pt}
+
+\\begin{center}
+    {\\large \\textbf{SECTION --- I}}
+\\end{center}
+
+\\noindent \\textbf{Q.1 Choose the correct alternative for each of the following:} \\hfill \\textbf{[14 Marks]}
+
+\\begin{enumerate}[label=\\textbf{\\arabic*)}]
+    \\item In the many-to-one threading model, if a thread makes a blocking system call, what occurs?
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Only that individual thread blocks
+        \\item The entire process blocks completely (Correct)
+        \\item A new thread is immediately spawned
+        \\item Kernel panic occurs
+    \\end{enumerate}
+
+    \\item Which system call suspends a parent process until one of its child processes terminates?
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item \\texttt{fork()}
+        \\item \\texttt{exec()}
+        \\item \\texttt{wait()} (Correct)
+        \\item \\texttt{exit()}
+    \\end{enumerate}
+
+    \\item Round-robin CPU scheduling is categorized as which type of scheduling algorithm?
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Preemptive scheduling (Correct)
+        \\item Non-preemptive scheduling
+        \\item Static priority scheduling
+        \\item First-Come First-Served scheduling
+    \\end{enumerate}
+
+    \\item A process that is continually denied access to the CPU/resources it requires is experiencing:
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Deadlock
+        \\item Starvation (Correct)
+        \\item Thrashing
+        \\item Aging
+    \\end{enumerate}
+
+    \\item Which page replacement algorithm suffers from Belady's Anomaly?
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Optimal Algorithm (OPT)
+        \\item Least Recently Used (LRU)
+        \\item First-In First-Out (FIFO) (Correct)
+        \\item Least Frequently Used (LFU)
+    \\end{enumerate}
+
+    \\item In Dijkstra's Banker's Algorithm for deadlock avoidance, if a Safe State exists, the system is:
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Completely free from deadlock (Correct)
+        \\item In immediate deadlock
+        \\item Experiencing resource starvation
+        \\item Thrashing
+    \\end{enumerate}
+
+    \\item The Translation Lookaside Buffer (TLB) in virtual memory hardware caches:
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item Virtual page number to physical frame translations (Correct)
+        \\item Secondary storage disk blocks
+        \\item CPU general-purpose registers
+        \\item Open file descriptors
+    \\end{enumerate}
+\\end{enumerate}
+
+\\vspace{8pt}
+\\noindent \\textbf{Q.2 Attempt any three of the following:} \\hfill \\textbf{[12 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Explain the components of a Process Control Block (PCB) with an illustrative block diagram.
+    \\item Compare user-level threads and kernel-level threads with trade-offs.
+    \\item Describe the four Coffman conditions necessary for a Deadlock to occur.
+    \\item Differentiate between Round Robin (RR) and Shortest Job First (SJF) scheduling.
+\\end{enumerate}
+
+\\vspace{8pt}
+\\noindent \\textbf{Q.3 Algorithmic Derivation:} \\hfill \\textbf{[08 Marks]}\\\\
+Explain Peterson's Algorithm for mutual exclusion between two cooperating processes. Prove how it satisfies Mutual Exclusion, Progress, and Bounded Waiting.
+
+\\noindent\\rule{\\linewidth}{0.5pt}
+
+\\begin{center}
+    {\\large \\textbf{SECTION --- II}}
+\\end{center}
+
+\\noindent \\textbf{Q.4 Attempt any three of the following:} \\hfill \\textbf{[12 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Explain Demand Paging and detail the complete step-by-step Page Fault handling procedure.
+    \\item Differentiate between Internal and External Fragmentation. How does Paging solve external fragmentation?
+    \\item Compare Contiguous, Linked, and Indexed File Allocation methods.
+    \\item Explain FCFS, SSTF, SCAN, and C-SCAN Disk Scheduling algorithms with illustrations.
+\\end{enumerate}
+
+\\vspace{8pt}
+\\noindent \\textbf{Q.5 Memory Management Problem:} \\hfill \\textbf{[08 Marks]}\\\\
+Given page reference string: $7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1$ with 3 allocated physical frames. Calculate the total number of page faults using (i) FIFO Page Replacement and (ii) LRU Page Replacement.
+
+\\end{document}`;
+
+interface ParsedLatexDoc {
+  university: string;
+  faculty: string;
+  examTitle: string;
+  dayDate?: string;
+  time?: string;
+  maxMarks?: string;
+  paperCode?: string;
+  instructions: string[];
+  sections: {
+    title?: string;
+    questions: {
+      number?: string;
+      title: string;
+      marks?: string;
+      options?: string[];
+    }[];
+  }[];
+}
+
+function parseLatexDocument(latex: string): ParsedLatexDoc {
+  const result: ParsedLatexDoc = {
+    university: 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR',
+    faculty: 'FACULTY OF SCIENCE & TECHNOLOGY',
+    examTitle: 'B.Tech. Examination',
+    instructions: [
+      '1) All questions are compulsory. Figures to the right indicate full marks.',
+      '2) Question 1 is compulsory. Follow specified choices for other questions.',
+      '3) Draw neat diagrams wherever required.',
+    ],
+    sections: [],
+  };
+
+  if (!latex || !latex.trim()) return result;
+
+  const lines = latex.split('\n');
+  const bodyLines: string[] = [];
+  let inPreamble = true;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('%')) continue;
+    if (trimmed.includes('\\begin{document}')) {
+      inPreamble = false;
+      continue;
+    }
+    if (trimmed.includes('\\end{document}')) {
+      break;
+    }
+    if (!inPreamble) {
+      bodyLines.push(line);
+    }
+  }
+
+  const cleanBody = (bodyLines.length > 0 ? bodyLines : lines).join('\n');
+
+  // Extract University name
+  const univMatch = cleanBody.match(/\\textbf\{([^}]+UNIVERSITY[^}]*)\}/i) ||
+                    cleanBody.match(/([A-Z\s]{8,}UNIVERSITY[A-Z\s,]*)/i);
+  if (univMatch && univMatch[1]) {
+    result.university = univMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/\\large/g, '').trim();
+  }
+
+  // Extract Faculty
+  const facMatch = cleanBody.match(/\\textbf\{([^}]+FACULTY[^}]*)\}/i) ||
+                   cleanBody.match(/(FACULTY OF [^\\\n}]+)/i);
+  if (facMatch && facMatch[1]) {
+    result.faculty = facMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/\\&/g, '&').trim();
+  }
+
+  // Extract Examination title
+  const examMatch = cleanBody.match(/\\textbf\{([^}]+(?:Examination|B\.Tech|T\.Y\.|M\.Tech|Engineering)[^}]*)\}/i) ||
+                    cleanBody.match(/((?:B\.Tech|T\.Y\.|Examination)[^\\\n}]+)/i);
+  if (examMatch && examMatch[1]) {
+    result.examTitle = examMatch[1].replace(/\\\[.*?\]/g, '').replace(/\\\\/g, '').replace(/---/g, '—').replace(/\\&/g, '&').trim();
+  }
+
+  // Extract Max Marks
+  const marksMatch = cleanBody.match(/Max\.\s*Marks:\s*(\d+)/i) || cleanBody.match(/Marks:\s*(\d+)/i);
+  if (marksMatch) {
+    result.maxMarks = marksMatch[1];
+  }
+
+  // Extract Paper Code
+  const codeMatch = cleanBody.match(/(?:Paper|Course)\s*Code:\s*([A-Za-z0-9\-_]+)/i);
+  if (codeMatch) {
+    result.paperCode = codeMatch[1];
+  }
+
+  // Extract Time
+  const timeMatch = cleanBody.match(/Time:\s*([^\\}\n]+)/i);
+  if (timeMatch) {
+    result.time = timeMatch[1].replace(/\\hfill.*/, '').replace(/\\\\/, '').trim();
+  }
+
+  // Extract Day & Date
+  const dateMatch = cleanBody.match(/Day\s*\\?&\s*Date:\s*([^\\}\n]+)/i);
+  if (dateMatch) {
+    result.dayDate = dateMatch[1].replace(/\\hfill.*/, '').replace(/\\\\/, '').trim();
+  }
+
+  // Split into Sections
+  const rawSections = cleanBody.split(/(?=\\section|SECTION\s*---\s*[I|V|X]+|SECTION\s*-\s*[I|V|X]+)/i);
+
+  rawSections.forEach((secChunk) => {
+    const secTrimmed = secChunk.trim();
+    if (!secTrimmed) return;
+
+    let secTitle = '';
+    const titleMatch = secTrimmed.match(/(?:\\section\{([^}]+)\}|SECTION\s*---?\s*[I|V|X]+[^}\n\\]*)/i);
+    if (titleMatch) {
+      secTitle = (titleMatch[1] || titleMatch[0])
+        .replace(/\\textbf\{([^}]+)\}/g, '$1')
+        .replace(/\\large/g, '')
+        .replace(/---/g, '—')
+        .replace(/[{}]/g, '')
+        .trim();
+    }
+
+    const currentSection: {
+      title?: string;
+      questions: {
+        number?: string;
+        title: string;
+        marks?: string;
+        options?: string[];
+      }[];
+    } = {
+      title: secTitle,
+      questions: [],
+    };
+
+    // Split questions by \textbf{Q. or \item
+    const qBlocks = secTrimmed.split(/(?=(?:\\noindent\s*)?\\textbf\{\s*Q\.\s*\d+)/i);
+
+    qBlocks.forEach((qChunk) => {
+      const qTrim = qChunk.trim();
+      if (!qTrim) return;
+
+      const qHeaderMatch = qTrim.match(/(?:\\noindent\s*)?\\textbf\{\s*(Q\.\s*\d+[^}]*)\}/i);
+      const marksMatchInQ = qTrim.match(/\[\s*(\d+\s*Marks)\s*\]/i);
+
+      if (qHeaderMatch) {
+        const headerText = qHeaderMatch[1].trim();
+
+        // Check if there are items inside this question
+        const items = qTrim.split(/\\item\s+/).slice(1);
+
+        if (items.length > 0) {
+          // Push question header
+          currentSection.questions.push({
+            title: headerText,
+            marks: marksMatchInQ ? marksMatchInQ[1] : undefined,
+          });
+
+          items.forEach((itemText, iIdx) => {
+            const cleanItem = itemText.trim();
+            // Check for sub-options (a, b, c, d)
+            const optParts = cleanItem.split(/\\item\s+/).slice(1);
+            const mainText = cleanItem.split(/\\begin\{enumerate\}/)[0].replace(/\\end\{enumerate\}[\s\S]*/, '').trim();
+
+            const options: string[] = [];
+            if (optParts.length > 0) {
+              optParts.forEach((opt) => {
+                const optClean = opt.replace(/\\end\{enumerate\}[\s\S]*/, '').replace(/\\item.*/, '').trim();
+                if (optClean) options.push(optClean);
+              });
+            }
+
+            currentSection.questions.push({
+              number: `${iIdx + 1}`,
+              title: mainText || cleanItem,
+              options: options.length > 0 ? options : undefined,
+            });
+          });
+        } else {
+          // Descriptive question
+          const descContent = qTrim.replace(/(?:\\noindent\s*)?\\textbf\{\s*Q\.\s*\d+[^}]*\}\s*(?:\\hfill\s*\[\s*\d+\s*Marks\s*\])?/i, '').trim();
+          currentSection.questions.push({
+            title: headerText + (descContent ? ` ${descContent}` : ''),
+            marks: marksMatchInQ ? marksMatchInQ[1] : undefined,
+          });
+        }
+      } else if (qTrim.startsWith('\\item')) {
+        const itemClean = qTrim.replace(/^\\item\s*/, '').trim();
+        if (itemClean) {
+          currentSection.questions.push({
+            title: itemClean,
+          });
+        }
+      }
+    });
+
+    if (currentSection.questions.length > 0 || currentSection.title) {
+      result.sections.push(currentSection);
+    }
+  });
+
+  return result;
+}
+
+const DynamicCompiledLatexPreview: React.FC<{
+  latex: string;
+  isCompiling: boolean;
+  zoom: number;
+}> = ({ latex, isCompiling, zoom }) => {
+  const parsed = useMemo(() => parseLatexDocument(latex), [latex]);
+
+  return (
+    <div
+      className="w-full max-w-[590px] bg-white text-black p-8 sm:p-10 rounded-xs shadow-2xl min-h-[840px] text-xs leading-relaxed font-serif relative transition-all border border-slate-300 select-text"
+      style={{
+        transform: `scale(${zoom})`,
+        transformOrigin: 'top center',
+      }}
+    >
+      {/* Compiling Spinner Overlay */}
+      {isCompiling && (
+        <div className="absolute inset-0 bg-white/70 backdrop-blur-2xs z-30 flex flex-col items-center justify-center gap-2">
+          <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+          <span className="text-xs font-mono font-bold text-slate-800">
+            pdfTeX 3.141592653 compiling LaTeX AST...
+          </span>
+        </div>
+      )}
+
+      {/* Official Academic Header */}
+      <div className="text-center mb-5 pb-3 border-b-2 border-black">
+        <h3 className="font-bold text-sm tracking-wide uppercase font-serif">
+          {parsed.university}
+        </h3>
+        <p className="text-[11px] font-semibold text-slate-800 tracking-tight mt-0.5">
+          {parsed.faculty}
+        </p>
+        <p className="text-[11px] font-bold mt-1 text-slate-900">
+          {parsed.examTitle}
+        </p>
+
+        <div className="flex justify-between items-center text-[10px] text-slate-900 mt-3 pt-1 border-t border-black/40 font-semibold font-sans">
+          <span>{parsed.dayDate || 'Day & Date: Wednesday, 14-05-2026'}</span>
+          <span>Max. Marks: {parsed.maxMarks || '70'}</span>
+        </div>
+        <div className="flex justify-between items-center text-[10px] text-slate-900 font-semibold font-sans mt-0.5">
+          <span>Time: {parsed.time || '3.00 PM to 6.00 PM (3 Hours)'}</span>
+          <span>Paper Code: {parsed.paperCode || 'SLR-VB-602'}</span>
+        </div>
+      </div>
+
+      {/* General Instructions */}
+      <div className="mb-5 p-2.5 bg-slate-50 border border-black/20 rounded text-[10px] font-sans space-y-0.5">
+        <p className="font-bold text-black uppercase tracking-wide">Instructions:</p>
+        {parsed.instructions.map((inst, idx) => (
+          <p key={idx} className="text-slate-800">
+            {inst}
+          </p>
+        ))}
+      </div>
+
+      {/* Sections and Questions */}
+      <div className="space-y-6">
+        {parsed.sections.length > 0 ? (
+          parsed.sections.map((sec, sIdx) => (
+            <div key={sIdx} className="space-y-3">
+              {sec.title && (
+                <div className="text-center py-1 border-y border-black font-bold uppercase text-xs tracking-wider bg-slate-100/70 my-3">
+                  <span>{sec.title}</span>
+                </div>
+              )}
+
+              <div className="space-y-3.5">
+                {sec.questions.map((q, qIdx) => (
+                  <div key={qIdx} className="space-y-1 text-[11px]">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="font-semibold text-black leading-snug">
+                        {q.number && <span className="font-bold mr-1.5">{q.number})</span>}
+                        <LaTeXText text={q.title} />
+                      </div>
+                      {q.marks && (
+                        <span className="font-bold text-[10px] text-slate-900 shrink-0 font-sans">
+                          [{q.marks}]
+                        </span>
+                      )}
+                    </div>
+
+                    {q.options && q.options.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 pl-4 pt-1 text-[10px] text-slate-900">
+                        {q.options.map((opt, oIdx) => (
+                          <div key={oIdx} className="flex items-start gap-1">
+                            <span className="font-semibold text-slate-700">({String.fromCharCode(97 + oIdx)})</span>
+                            <LaTeXText text={opt.replace(/^\([a-d]\)\s*/, '')} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="py-8 text-center text-slate-500 font-mono text-xs">
+            LaTeX document compiled with 0 errors. Add sections and questions in the editor.
+          </div>
+        )}
+      </div>
+
+      {/* Academic End-of-Paper Footer */}
+      <div className="mt-12 pt-4 border-t border-black text-center text-[10px] font-sans text-slate-600 flex items-center justify-between">
+        <span>*** END OF QUESTION PAPER ***</span>
+        <span className="font-mono text-[9px]">SOLAPUR UNIVERSITY • ZEROLEAK</span>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Authentic OpenAI Prism Workspace & Auth Enclave.
@@ -200,6 +715,8 @@ const PrismChromeWebAuthPane: React.FC<{
   const [copiedCode, setCopiedCode] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [compileNotice, setCompileNotice] = useState<string | null>(null);
 
   const authWindowRef = useRef<Window | null>(null);
 
@@ -258,9 +775,27 @@ const PrismChromeWebAuthPane: React.FC<{
 
   const handleCompile = useCallback(() => {
     setIsCompiling(true);
+    setCompileNotice(null);
     setTimeout(() => {
       setIsCompiling(false);
-    }, 600);
+      setCompileNotice('✓ pdfTeX 3.141592653: 0 errors, 0 warnings (100% Compiled)');
+      setTimeout(() => setCompileNotice(null), 3500);
+    }, 450);
+  }, []);
+
+  const handleSelectProject = useCallback((projectName: string) => {
+    setActiveProject(projectName);
+    if (projectName === 'Operating Systems (Course BTN04605).tex') {
+      setLatexDoc(PRISM_OS_LATEX);
+    } else if (projectName === 'Applied Cryptography & Security Paper.tex') {
+      setLatexDoc(PRISM_DEFAULT_LATEX);
+    }
+    setIsCompiling(true);
+    setTimeout(() => {
+      setIsCompiling(false);
+      setCompileNotice(`✓ Loaded & compiled ${projectName}`);
+      setTimeout(() => setCompileNotice(null), 3000);
+    }, 350);
   }, []);
 
   const handleCopyCode = useCallback(async () => {
@@ -471,7 +1006,7 @@ const PrismChromeWebAuthPane: React.FC<{
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             <button
               type="button"
-              onClick={() => setActiveProject('Applied Cryptography & Security Paper.tex')}
+              onClick={() => handleSelectProject('Applied Cryptography & Security Paper.tex')}
               className={`w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer ${
                 activeProject === 'Applied Cryptography & Security Paper.tex'
                   ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
@@ -484,15 +1019,15 @@ const PrismChromeWebAuthPane: React.FC<{
 
             <button
               type="button"
-              onClick={() => setActiveProject('ZeroLeak AI LaTeX Paper.tex')}
+              onClick={() => handleSelectProject('Operating Systems (Course BTN04605).tex')}
               className={`w-full px-2.5 py-2 rounded-lg text-left text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer ${
-                activeProject === 'ZeroLeak AI LaTeX Paper.tex'
+                activeProject === 'Operating Systems (Course BTN04605).tex'
                   ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                   : 'text-slate-300 hover:bg-white/5'
               }`}
             >
               <FileText className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">ZeroLeak AI LaTeX Paper.tex</span>
+              <span className="truncate">Operating Systems (Course BTN04605).tex</span>
             </button>
           </div>
 
@@ -526,37 +1061,68 @@ const PrismChromeWebAuthPane: React.FC<{
 
         {/* Right: Live Compiled Document Preview */}
         <div className="flex-1 flex flex-col overflow-hidden bg-slate-900 hidden lg:flex">
-          <div className="h-8 px-3 bg-[#1e1f22] border-b border-[#2d2f34] flex items-center justify-between text-xs text-slate-400">
-            <span>PDF Preview (Compiled)</span>
-            <span className="text-emerald-400 font-semibold">100% Ready</span>
-          </div>
-          <div className="flex-1 p-6 overflow-auto bg-[#2b2d31] flex justify-center">
-            <div className="w-full max-w-[560px] bg-white text-black p-8 rounded-md shadow-2xl min-h-[600px] text-xs leading-relaxed font-serif">
-              <div className="text-center mb-4">
-                <h3 className="font-bold text-sm">PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR</h3>
-                <p className="text-[11px] font-semibold text-slate-700">Faculty of Science & Technology</p>
-                <p className="text-[11px] font-bold">B.Tech. Examination — Applied Cryptography & Information Security</p>
-                <div className="flex justify-between text-[10px] text-slate-600 mt-2 border-b border-black pb-1">
-                  <span>Max. Marks: 70</span>
-                  <span>Paper Code: SLR-VB-602</span>
-                  <span>Time: 3 Hours</span>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <p className="font-bold text-xs mb-2">Q.1 Choose the correct alternative: [14 Marks]</p>
-                <div className="space-y-2 text-[11px]">
-                  <div>
-                    <p className="font-semibold">1) In symmetric cryptography with n participants, total symmetric keys needed:</p>
-                    <p className="pl-4 text-emerald-700 font-medium">(b) n(n - 1) / 2 (Correct)</p>
-                  </div>
-                  <div>
-                    <p className="font-semibold">2) In RSA public-key cryptosystem, public exponent e and private exponent d satisfy:</p>
-                    <p className="pl-4 text-emerald-700 font-medium">(a) e · d ≡ 1 (mod φ(n)) (Correct)</p>
-                  </div>
-                </div>
-              </div>
+          <div className="h-8 px-3 bg-[#1e1f22] border-b border-[#2d2f34] flex items-center justify-between text-xs text-slate-400 shrink-0">
+            <div className="flex items-center gap-2">
+              <span>PDF Preview (pdfTeX 3.141592653)</span>
+              <span className="text-emerald-400 font-semibold text-[10px]">
+                ● {isCompiling ? 'Compiling AST...' : '100% Ready'}
+              </span>
             </div>
+            <div className="flex items-center gap-1 text-slate-400">
+              <button
+                type="button"
+                onClick={() => setZoomLevel((z) => Math.max(0.7, Number((z - 0.1).toFixed(1))))}
+                className="p-1 hover:text-white rounded hover:bg-white/10 transition-colors cursor-pointer"
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-[10px] font-mono px-1">{Math.round(zoomLevel * 100)}%</span>
+              <button
+                type="button"
+                onClick={() => setZoomLevel((z) => Math.min(1.4, Number((z + 0.1).toFixed(1))))}
+                className="p-1 hover:text-white rounded hover:bg-white/10 transition-colors cursor-pointer"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoomLevel(1)}
+                className="p-1 hover:text-white rounded hover:bg-white/10 transition-colors ml-1 text-[10px] font-mono cursor-pointer"
+                title="Reset Zoom"
+              >
+                100%
+              </button>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="p-1 hover:text-white rounded hover:bg-white/10 transition-colors ml-1 cursor-pointer"
+                title="Print Document"
+              >
+                <Printer className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {compileNotice && (
+            <div className="bg-emerald-600/90 text-white text-[11px] font-mono font-medium px-3 py-1 flex items-center justify-between shrink-0 animate-in fade-in">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {compileNotice}
+              </span>
+              <button type="button" onClick={() => setCompileNotice(null)} className="hover:opacity-80 cursor-pointer">
+                ✕
+              </button>
+            </div>
+          )}
+
+          <div className="flex-1 p-6 overflow-auto bg-[#2b2d31] flex justify-center">
+            <DynamicCompiledLatexPreview
+              latex={latexDoc}
+              isCompiling={isCompiling}
+              zoom={zoomLevel}
+            />
           </div>
         </div>
       </div>
@@ -565,9 +1131,9 @@ const PrismChromeWebAuthPane: React.FC<{
       <TransferToPrintingManagerModal
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
-        paperTitle="T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)"
-        subject="OPERATING SYSTEMS"
-        courseCode="BTN04605"
+        paperTitle={activeProject.replace(/\.tex$/i, '')}
+        subject={activeProject.includes('Operating') ? 'OPERATING SYSTEMS' : 'APPLIED CRYPTOGRAPHY'}
+        courseCode={activeProject.includes('Operating') ? 'BTN04605' : 'SLR-VB-602'}
         totalMarks={70}
         durationHours={3}
         latexSource={latexDoc}
