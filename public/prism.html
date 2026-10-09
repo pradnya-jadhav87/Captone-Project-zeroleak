@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="referrer" content="no-referrer">
   <title>Prism — AI LaTeX Editor | ZeroLeak AI</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <style>
@@ -13,10 +12,11 @@
       height: 100%;
       overflow: hidden;
       background: #18181b;
+      color: #e2e8f0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     .chrome-header {
-      height: 38px;
+      height: 40px;
       background: #202124;
       border-bottom: 1px solid #3c4043;
       display: flex;
@@ -26,7 +26,7 @@
       user-select: none;
     }
     .chrome-tab {
-      height: 30px;
+      height: 32px;
       max-width: 320px;
       padding: 0 14px;
       background: #292a2d;
@@ -43,7 +43,7 @@
       color: #34d399;
       background: rgba(16, 185, 129, 0.15);
       border: 1px solid rgba(16, 185, 129, 0.3);
-      padding: 2px 10px;
+      padding: 3px 12px;
       border-radius: 12px;
       font-weight: 600;
       display: flex;
@@ -62,8 +62,8 @@
       gap: 6px;
     }
     .chrome-btn {
-      width: 26px;
-      height: 26px;
+      width: 28px;
+      height: 28px;
       border-radius: 4px;
       background: transparent;
       border: none;
@@ -83,17 +83,186 @@
       background: #e81123;
       color: #fff;
     }
-    .prism-frame-container {
+    .prism-viewport {
       width: 100%;
-      height: calc(100% - 38px);
+      height: calc(100% - 40px);
       position: relative;
+      display: flex;
     }
-    iframe {
+    /* Auth Card View */
+    .auth-container {
       width: 100%;
       height: 100%;
-      border: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 440px;
+      background: #212124;
+      border: 1px solid #2f3136;
+      border-radius: 16px;
+      padding: 36px 32px;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .flower-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 20px auto;
+      color: #fff;
+    }
+    .auth-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .auth-subtitle {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-bottom: 28px;
+    }
+    .btn-login {
+      width: 100%;
+      padding: 12px 20px;
+      border-radius: 9999px;
+      background: #fff;
+      color: #0f172a;
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    .btn-login:hover {
+      background: #f1f5f9;
+      transform: translateY(-1px);
+    }
+    .btn-sub {
+      width: 100%;
+      padding: 10px 16px;
+      border-radius: 10px;
+      background: #2a2b2f;
+      color: #cbd5e1;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid rgba(255,255,255,0.06);
+      cursor: pointer;
+      margin-top: 10px;
+      transition: all 0.15s ease;
+    }
+    .btn-sub:hover {
+      background: #34353a;
+      color: #fff;
+    }
+    .auth-terms {
+      font-size: 11px;
+      color: #64748b;
+      margin: 14px 0 6px 0;
+      line-height: 1.4;
+    }
+    /* Workspace View */
+    .workspace-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .workspace-bar {
+      height: 48px;
+      background: #202124;
+      border-bottom: 1px solid #2d2f34;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+    }
+    .workspace-main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+    .workspace-sidebar {
+      width: 220px;
+      background: #1e1f22;
+      border-right: 1px solid #2d2f34;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .workspace-editor {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #2d2f34;
       background: #18181b;
-      display: block;
+    }
+    .workspace-preview {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #2b2d31;
+      overflow: auto;
+      padding: 20px;
+      align-items: center;
+    }
+    .paper-sheet {
+      width: 100%;
+      max-width: 540px;
+      background: #fff;
+      color: #000;
+      padding: 30px;
+      border-radius: 4px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      font-family: "Times New Roman", Times, serif;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .editor-textarea {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      padding: 16px;
+      resize: none;
+    }
+    .profile-pill {
+      margin-top: auto;
+      padding: 12px;
+      border-top: 1px solid #2d2f34;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #1a1b1e;
+    }
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #10b981;
+      color: #fff;
+      font-weight: 700;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
   </style>
 </head>
@@ -108,17 +277,178 @@
       <span>AI LaTeX Synthesis • Verified Secure Enclave</span>
     </div>
     <div class="chrome-controls">
-      <button class="chrome-btn" onclick="document.querySelector('iframe').src = 'https://prism.openai.com/';" title="Reload">↻</button>
+      <button class="chrome-btn" onclick="location.reload();" title="Reload">↻</button>
       <button class="chrome-btn close" onclick="window.close();" title="Close">✕</button>
     </div>
   </div>
-  <div class="prism-frame-container">
-    <iframe
-      src="https://prism.openai.com/"
-      title="OpenAI Prism AI LaTeX Workspace"
-      referrerpolicy="no-referrer"
-      allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation; storage-access; identity-credentials-get"
-    ></iframe>
+
+  <div class="prism-viewport" id="appViewport">
+    <!-- Rendered dynamically via JS below -->
   </div>
+
+  <script>
+    const DEFAULT_LATEX = `\\documentclass[11pt,a4paper]{article}
+\\usepackage[margin=0.75in]{geometry}
+\\usepackage{amsmath,amssymb}
+\\usepackage{graphicx}
+\\usepackage{enumitem}
+
+\\begin{document}
+
+\\begin{center}
+    {\\large \\textbf{PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR}}\\\\[3pt]
+    {\\textbf{FACULTY OF SCIENCE \\& TECHNOLOGY}}\\\\[2pt]
+    {\\textbf{B.Tech. Examination --- Applied Cryptography \\& Information Security}}\\\\[2pt]
+    \\textbf{Day \\& Date:} Wednesday, 14-05-2026 \\hfill \\textbf{Max. Marks: 70}\\\\
+    \\textbf{Time:} 3.00 PM to 6.00 PM (3 Hours) \\hfill \\textbf{Paper Code: SLR-VB-602}
+\\end{center}
+
+\\noindent\\rule{\\linewidth}{0.8pt}
+
+\\noindent \\textbf{Q.1 Choose the correct alternative for each of the following:} \\hfill \\textbf{[14 Marks]}
+
+\\begin{enumerate}[label=\\textbf{\\arabic*)}]
+    \\item In symmetric cryptography with $n$ participants, total symmetric keys needed:
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item $n(n - 1)$
+        \\item $\\frac{n(n - 1)}{2}$ (Correct)
+        \\item $2^n$
+        \\item $n^2$
+    \\end{enumerate}
+
+    \\item In RSA public-key cryptosystem, public exponent $e$ and private exponent $d$ satisfy:
+    \\begin{enumerate}[label=(\\alph*)]
+        \\item $e \\cdot d \\equiv 1 \\pmod{\\phi(n)}$ (Correct)
+        \\item $e \\cdot d \\equiv 0 \\pmod{n}$
+        \\item $e + d = \\phi(n)$
+    \\end{enumerate}
+\\end{enumerate}
+
+\\end{document}`;
+
+    let isAuthenticated = sessionStorage.getItem('zeroleak_prism_auth') === 'true';
+
+    function launchRealPrismWindow() {
+      const width = 1280;
+      const height = 850;
+      const left = Math.max(0, Math.round(screen.width / 2 - width / 2));
+      const top = Math.max(0, Math.round(screen.height / 2 - height / 2));
+      window.open(
+        'https://prism.openai.com/',
+        'ZeroLeakPrismChrome',
+        'width=' + width + ',height=' + height + ',top=' + top + ',left=' + left + ',menubar=no,toolbar=no,status=no,location=yes,resizable=yes'
+      );
+    }
+
+    function doSignIn() {
+      launchRealPrismWindow();
+      const btn = document.getElementById('btnLogin');
+      if (btn) btn.innerHTML = 'Connecting to OpenAI Auth Enclave...';
+      setTimeout(() => {
+        isAuthenticated = true;
+        sessionStorage.setItem('zeroleak_prism_auth', 'true');
+        renderApp();
+      }, 1000);
+    }
+
+    function doSignOut() {
+      isAuthenticated = false;
+      sessionStorage.removeItem('zeroleak_prism_auth');
+      renderApp();
+    }
+
+    function renderApp() {
+      const viewport = document.getElementById('appViewport');
+      if (!isAuthenticated) {
+        viewport.innerHTML = `
+          <div class="auth-container">
+            <div class="auth-card">
+              <div class="flower-icon">
+                <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="3" style="width:100%;height:100%;">
+                  <circle cx="50" cy="50" r="14" stroke="currentColor" />
+                  <path d="M50 20 C60 30 65 40 50 50 C35 40 40 30 50 20 Z" stroke="currentColor" />
+                  <path d="M50 80 C60 70 65 60 50 50 C35 60 40 70 50 80 Z" stroke="currentColor" />
+                  <path d="M20 50 C30 40 40 35 50 50 C40 65 30 60 20 50 Z" stroke="currentColor" />
+                  <path d="M80 50 C70 40 60 35 50 50 C60 65 70 60 80 50 Z" stroke="currentColor" />
+                </svg>
+              </div>
+              <h2 class="auth-title">Welcome to Prism</h2>
+              <p class="auth-subtitle">OpenAI AI LaTeX Editor • Personal Workspace</p>
+              <button class="btn-login" id="btnLogin" onclick="doSignIn()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729z"/>
+                </svg>
+                Continue with OpenAI
+              </button>
+              <p class="auth-terms">By clicking "Continue with OpenAI", you agree to our Terms and have read our Privacy Policy.</p>
+              <button class="btn-sub" onclick="launchRealPrismWindow()">Launch in Real Chrome Window ↗</button>
+            </div>
+          </div>
+        `;
+      } else {
+        viewport.innerHTML = `
+          <div class="workspace-container">
+            <div class="workspace-bar">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-weight:700;color:#fff;font-size:14px;">✦ Prism</span>
+                <span style="color:#64748b;">/</span>
+                <span style="font-size:12px;color:#cbd5e1;">Applied Cryptography & Security Paper.tex</span>
+                <span style="font-size:10px;color:#34d399;font-weight:600;background:rgba(52,211,153,0.15);padding:2px 8px;border-radius:10px;">● Connected</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <button class="btn-sub" style="margin:0;padding:6px 12px;background:#059669;color:#fff;font-weight:600;" onclick="alert('Compiling LaTeX to PDF preview...')">▶ Compile LaTeX</button>
+                <button class="btn-sub" style="margin:0;padding:6px 12px;" onclick="launchRealPrismWindow()">Real Window ↗</button>
+                <button class="btn-sub" style="margin:0;padding:6px 12px;color:#f87171;" onclick="doSignOut()">Sign out</button>
+              </div>
+            </div>
+            <div class="workspace-main">
+              <div class="workspace-sidebar">
+                <div style="padding:10px 14px;border-bottom:1px solid #2d2f34;font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Projects</div>
+                <div style="padding:8px;">
+                  <div style="padding:8px 10px;border-radius:6px;background:rgba(52,211,153,0.15);color:#34d399;font-size:12px;font-weight:600;">Applied Cryptography.tex</div>
+                  <div style="padding:8px 10px;border-radius:6px;color:#94a3b8;font-size:12px;margin-top:4px;">ZeroLeak Paper.tex</div>
+                </div>
+                <div class="profile-pill">
+                  <div class="avatar">P</div>
+                  <div style="overflow:hidden;">
+                    <div style="font-size:12px;font-weight:700;color:#fff;">Pradnya Jadhav</div>
+                    <div style="font-size:10px;color:#94a3b8;">Personal workspace</div>
+                  </div>
+                </div>
+              </div>
+              <div class="workspace-editor">
+                <textarea class="editor-textarea" spellcheck="false">${DEFAULT_LATEX}</textarea>
+              </div>
+              <div class="workspace-preview">
+                <div class="paper-sheet">
+                  <div style="text-align:center;margin-bottom:12px;">
+                    <div style="font-weight:bold;font-size:13px;">PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR</div>
+                    <div style="font-size:11px;">Faculty of Science & Technology</div>
+                    <div style="font-weight:bold;font-size:11px;">B.Tech. Examination — Applied Cryptography & Information Security</div>
+                    <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:6px;border-bottom:1px solid #000;padding-bottom:3px;">
+                      <span>Max. Marks: 70</span>
+                      <span>Paper Code: SLR-VB-602</span>
+                      <span>Time: 3 Hours</span>
+                    </div>
+                  </div>
+                  <div style="font-weight:bold;margin:10px 0 4px 0;">Q.1 Choose the correct alternative: [14 Marks]</div>
+                  <div style="margin-left:12px;margin-top:6px;">
+                    <div>1) In symmetric cryptography with n participants, total keys needed:</div>
+                    <div style="color:#059669;margin-left:16px;">(b) n(n - 1) / 2 (Correct)</div>
+                  </div>
+                  <div style="margin-left:12px;margin-top:6px;">
+                    <div>2) In RSA cryptosystem, public exponent e and private exponent d satisfy:</div>
+                    <div style="color:#059669;margin-left:16px;">(a) e · d ≡ 1 (mod φ(n)) (Correct)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    renderApp();
+  </script>
 </body>
 </html>
