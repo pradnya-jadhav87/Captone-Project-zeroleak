@@ -1024,10 +1024,10 @@ app.post('/api/delivery/fetch-local-document', (req, res) => {
     transferredAt: now.toISOString(),
     custodyHash: hash,
     foundOnPc: true,
-    localFilePath: `C:\\Users\\ASUS\\Downloads\\${targetFilename}`,
-    filename: targetFilename,
-    sizeBytes: 48678,
-    pdfUrl: `/compiled_papers/${targetFilename}`,
+    localFilePath: '[Zero-Leak Secure Enclave — Local PC Download Blocked & Purged]',
+    filename: effectiveFilename,
+    sizeBytes: fileData ? Math.round(fileData.length * 0.75) : 48678,
+    pdfUrl: `/compiled_papers/${effectiveFilename}`,
     latexSource: latexSource || '',
     paperContent: {
       exam_name: cleanTitle,
@@ -1334,6 +1334,36 @@ app.get('/api/delivery/released-exams', (req, res) => {
 
   res.json({
     examinations: formattedExams,
+  });
+});
+
+// 2b. Competitive Exam Papers assigned to Centre Operator
+app.get('/api/competitive/operator/assigned-papers', (req, res) => {
+  const now = new Date();
+  const papers = transferredPrintingJobs.map(job => ({
+    id: job.paperId || job.id,
+    title: job.title,
+    exam_name: job.title,
+    subject: job.subject || 'OPERATING SYSTEMS',
+    subject_code: job.courseCode || 'BTN04605',
+    course_code: job.courseCode || 'BTN04605',
+    exam_type: 'UNIVERSITY_TRANSFERRED',
+    encryptionStatus: 'UNLOCKED_READY',
+    assignedCentreCode: 'CTR-101',
+    centreName: 'Apex National Engineering Examination Centre 101',
+    total_marks: 70,
+    duration_minutes: 180,
+    isTransferredJob: true,
+    transferredAt: job.transferredAt,
+    custodyHash: job.custodyHash,
+    status: 'READY_FOR_PRINT',
+    paperContent: job.paperContent,
+  }));
+  res.json({
+    success: true,
+    papers,
+    serverTimeIso: now.toISOString(),
+    serverTimestampMs: now.getTime(),
   });
 });
 

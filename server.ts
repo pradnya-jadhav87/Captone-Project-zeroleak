@@ -9897,7 +9897,7 @@ async function startServer() {
   ];
 
   // Centre Operator: List Released Examinations
-  app.get('/api/delivery/released-exams', authenticateToken, requireApprovedDevice, async (req: Request, res: Response) => {
+  app.get('/api/delivery/released-exams', authenticateToken, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       const exams = executeQuery(

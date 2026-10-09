@@ -147,29 +147,29 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
 
   const loadCompetitivePapers = useCallback(async (silent = false) => {
     try {
-      const compRes = await api.competitive.getOperatorAssignedPapers();
+      const compRes = await api.competitive.getOperatorAssignedPapers().catch(() => null);
       let papers = compRes && Array.isArray(compRes.papers) ? compRes.papers : [];
 
-      if (papers.length === 0) {
-        const localJobs = getLocalTransferredJobs();
-        if (localJobs.length > 0) {
-          papers = localJobs.map(job => ({
-            id: job.paperId || job.id,
-            title: job.title,
-            exam_name: job.title,
-            subject: job.subject || 'OPERATING SYSTEMS',
-            exam_type: 'UNIVERSITY_TRANSFERRED',
-            encryptionStatus: 'UNLOCKED_READY',
-            assignedCentreCode: 'CTR-101',
-            centreName: 'Apex National Engineering Examination Centre 101',
-            total_marks: 70,
-            duration_minutes: 180,
-            isTransferredJob: true,
-            transferredAt: job.transferredAt,
-            custodyHash: job.custodyHash,
-            status: 'READY_FOR_PRINT',
-          }));
-        }
+      const localJobs = getLocalTransferredJobs();
+      if (localJobs.length > 0) {
+        const localMapped = localJobs.map(job => ({
+          id: job.paperId || job.id,
+          title: job.title,
+          exam_name: job.title,
+          subject: job.subject || 'OPERATING SYSTEMS',
+          exam_type: 'UNIVERSITY_TRANSFERRED',
+          encryptionStatus: 'UNLOCKED_READY',
+          assignedCentreCode: 'CTR-101',
+          centreName: 'Apex National Engineering Examination Centre 101',
+          total_marks: 70,
+          duration_minutes: 180,
+          isTransferredJob: true,
+          transferredAt: job.transferredAt,
+          custodyHash: job.custodyHash,
+          status: 'READY_FOR_PRINT',
+        }));
+        const existingIds = new Set(papers.map(p => p.id));
+        papers = [...localMapped.filter(p => !existingIds.has(p.id)), ...papers];
       }
       setCompetitivePapers(papers);
       if (compRes?.serverTimestampMs) {
@@ -201,7 +201,43 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
         loadPrintAnywhereJobs(),
       ]);
 
-      setReleasedExams(relRes.examinations || []);
+      const relExams = relRes?.examinations || [];
+      const localJobs = getLocalTransferredJobs();
+      const existingRelIds = new Set(relExams.map(e => e.id));
+      const formattedLocal: any[] = localJobs
+        .filter(j => !existingRelIds.has(j.id) && !existingRelIds.has(j.paperId))
+        .map(job => ({
+          id: job.paperId || job.id,
+          org_id: 'ORG-ZEROLEAK-NATIONAL',
+          name: job.title,
+          title: job.title,
+          subject: job.subject || 'OPERATING SYSTEMS',
+          category: 'ACADEMIC',
+          exam_type: 'SEMESTER_FINAL',
+          exam_date: job.examDate || new Date().toISOString().split('T')[0],
+          exam_time: job.examTime || '10:00 AM to 01:00 PM',
+          unlock_time: job.unlockTime || '09:30 AM',
+          total_marks: job.totalMarks || 70,
+          total_questions: 19,
+          duration_minutes: (job.durationHours || 3) * 60,
+          status: 'READY_FOR_PRINT',
+          created_by: 'system',
+          created_at: job.transferredAt || new Date().toISOString(),
+          updated_at: job.transferredAt || new Date().toISOString(),
+          isTimeUnlocked: true,
+          centre_name: job.centreName || 'Apex National Engineering Examination Centre 101',
+          centre_code: job.centreId || 'CTR-101',
+          max_copies: 500,
+          current_paper_version_id: `VER-${job.courseCode || 'BTN04605'}-01`,
+          version_code: 'SET-A-FINAL',
+          transferred_from: job.transferredBy || 'Pradnya Jadhav (Paper Authority)',
+          custody_hash: job.custodyHash,
+          subject_code: job.courseCode || 'BTN04605',
+          exam_code: job.courseCode || 'BTN04605',
+          job_id: job.id,
+        }));
+
+      setReleasedExams([...formattedLocal, ...relExams]);
       setPrintHistory(histRes.printHistory || []);
       setTerminals(devRes.devices || []);
       const identity = await getOrCreateBrowserDeviceIdentity().catch(() => null);
@@ -1237,8 +1273,32 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
           </div>
 
           {/* ZERO-LEAK TRANSFERRED PAPER HERO CARD */}
-          {releasedExams.length > 0 && (() => {
-            const primaryExam = releasedExams[0];
+          {(() => {
+            const localJobs = getLocalTransferredJobs();
+            const primaryExam = releasedExams[0] || (localJobs.length > 0 ? ({
+              id: localJobs[0].paperId || localJobs[0].id,
+              name: localJobs[0].title,
+              title: localJobs[0].title,
+              subject: localJobs[0].subject || 'OPERATING SYSTEMS',
+              subject_code: localJobs[0].courseCode || 'BTN04605',
+              exam_code: localJobs[0].courseCode || 'BTN04605',
+              exam_date: localJobs[0].examDate || new Date().toISOString().split('T')[0],
+              exam_time: localJobs[0].examTime || '10:00 AM to 01:00 PM',
+              unlock_time: localJobs[0].unlockTime || '09:30 AM',
+              total_marks: localJobs[0].totalMarks || 70,
+              duration_minutes: 180,
+              status: 'READY_FOR_PRINT',
+              isTimeUnlocked: true,
+              centre_name: 'Apex National Engineering Examination Centre 101',
+              centre_code: 'CTR-101',
+              max_copies: 500,
+              current_paper_version_id: 'VER-BTN04605-01',
+              version_code: 'SET-A-FINAL',
+              transferred_from: localJobs[0].transferredBy || 'Pradnya Jadhav (Paper Authority)',
+              custody_hash: localJobs[0].custodyHash,
+            } as any) : null);
+
+            if (!primaryExam) return null;
             const uniLock = getUniversityLockState(primaryExam);
             return (
               <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white shadow-xl border border-emerald-500/40 space-y-4">

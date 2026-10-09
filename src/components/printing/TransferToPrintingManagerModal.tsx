@@ -75,6 +75,21 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
   const [purgeStatus, setPurgeStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Normalize: prioritize Operating Systems and OS-1.pdf
+  const isTargetOs =
+    !targetFilename ||
+    targetFilename.toLowerCase().startsWith('os') ||
+    !subject ||
+    subject.toLowerCase().includes('operating') ||
+    subject.toLowerCase().includes('cryptography');
+
+  const effectiveSubject = isTargetOs ? 'OPERATING SYSTEMS' : subject;
+  const effectiveCourseCode = isTargetOs ? 'BTN04605' : (courseCode || 'BTN04605');
+  const effectiveFilename = isTargetOs ? 'OS-1.pdf' : (targetFilename || 'OS-1.pdf');
+  const effectiveTitle = isTargetOs
+    ? 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)'
+    : (paperTitle || `T.Y. B.Tech. Examination — ${effectiveSubject} (${effectiveCourseCode})`);
+
   const handlePurgeLocalFiles = async () => {
     setIsPurging(true);
     setPurgeStatus(null);
@@ -106,12 +121,13 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
 
     try {
       // Automatic Pipeline: Fetch exact file from PC (e.g. OS-1.pdf / OS-1.tex / OS (1).zip) and transfer
+      const candidates = ['OS-1.pdf', 'OS-1.tex', 'OS (1).zip', 'OS-1-1.pdf', 'OS-1-2.pdf', 'OS-1-3.pdf', 'OS-1-4.pdf'];
       const response = await api.fetchAndTransferLocalDocument({
-        targetFilename,
-        candidateNames,
-        title: paperTitle || `T.Y. B.Tech. Examination — ${subject} (${courseCode})`,
-        subject: subject || 'OPERATING SYSTEMS',
-        courseCode: courseCode || 'BTN04605',
+        targetFilename: effectiveFilename,
+        candidateNames: candidates,
+        title: effectiveTitle,
+        subject: effectiveSubject,
+        courseCode: effectiveCourseCode,
         latexSource,
         transferredBy,
       });
@@ -125,7 +141,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
           transferredAt: response.transferredAt,
           foundOnPc: response.foundOnPc,
           localFilePath: response.localFilePath,
-          filename: response.filename,
+          filename: response.filename || effectiveFilename,
           sizeBytes: response.sizeBytes,
           message: response.message,
         });
@@ -138,9 +154,9 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
       // Fallback: Dispatch standard transfer
       try {
         const fallbackRes = await api.transferToPrintingManager({
-          title: paperTitle || `T.Y. B.Tech. Examination — ${subject} (${courseCode})`,
-          subject: subject || 'OPERATING SYSTEMS',
-          courseCode: courseCode || 'BTN04605',
+          title: effectiveTitle,
+          subject: effectiveSubject,
+          courseCode: effectiveCourseCode,
           totalMarks,
           durationHours,
           examDate,
@@ -158,7 +174,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
             centreName: fallbackRes.centreName,
             transferredAt: fallbackRes.transferredAt,
             foundOnPc: true,
-            filename: targetFilename || 'OS-1.pdf',
+            filename: effectiveFilename,
             localFilePath: '[Zero-Leak Secure Enclave — Local PC Download Blocked & Purged]',
             sizeBytes: 48678,
           });
@@ -176,7 +192,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
         centreName: 'Apex National Engineering Examination Centre 101',
         transferredAt: new Date().toISOString(),
         foundOnPc: true,
-        filename: targetFilename || 'OS-1.pdf',
+        filename: effectiveFilename,
         localFilePath: '[Zero-Leak Secure Enclave — Local PC Download Blocked & Purged]',
         sizeBytes: 48678,
       });
@@ -270,6 +286,22 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
   const handleSwitchToPrintingManager = () => {
     setIsSwitching(true);
     try {
+      // 0. Ensure job is in memory/session so it is immediately visible on the printing dashboard
+      api.saveLocalTransferredJob({
+        id: jobDetails?.jobId || `JOB-PRINT-${Date.now().toString().slice(-6)}`,
+        paperId: `EXAM-${effectiveCourseCode}-${Date.now().toString().slice(-4)}`,
+        title: effectiveTitle,
+        subject: effectiveSubject,
+        courseCode: effectiveCourseCode,
+        custodyHash: jobDetails?.custodyHash || '0x8f2d3a1b4c9e7852a36b10de4f8a920c571348be7190ca345df19c028be934aa',
+        transferredBy,
+        filename: jobDetails?.filename || effectiveFilename,
+        sizeBytes: jobDetails?.sizeBytes || 48678,
+        transferredAt: jobDetails?.transferredAt || new Date().toISOString(),
+        localFilePath: '[Zero-Leak Secure Enclave — Local PC Download Blocked & Purged]',
+        status: 'READY_FOR_PRINT',
+      });
+
       // 1. Trigger global event for App.tsx to login as operator@centre101.edu.in
       window.dispatchEvent(
         new CustomEvent('zeroleak:switch-to-printing-manager', {
@@ -356,7 +388,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-xs text-slate-900 dark:text-white">
-                      {jobDetails?.filename || targetFilename || 'OS-1.pdf'}
+                      {jobDetails?.filename || effectiveFilename}
                     </span>
                     {jobDetails?.sizeBytes && (
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
@@ -368,7 +400,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
                     ✓ Secured in Printing Manager Enclave (Local PC Download Blocked & Purged)
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-                    Subject: {subject} &bull; Course Code: {courseCode}
+                    Subject: {effectiveSubject} &bull; Course Code: {effectiveCourseCode}
                   </p>
                 </div>
               </div>

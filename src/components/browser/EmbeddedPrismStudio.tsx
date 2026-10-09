@@ -34,7 +34,6 @@ const SOLAPUR_STANDARD_TEMPLATE = `\\documentclass[11pt,a4paper]{article}
 \\usepackage[margin=0.75in]{geometry}
 \\usepackage{amsmath,amssymb}
 \\usepackage{graphicx}
-\\usepackage{tikz}
 \\usepackage{array}
 \\usepackage{enumitem}
 
@@ -46,204 +45,133 @@ const SOLAPUR_STANDARD_TEMPLATE = `\\documentclass[11pt,a4paper]{article}
 \\begin{center}
     {\\large \\textbf{PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY, SOLAPUR}}\\\\[3pt]
     {\\textbf{FACULTY OF SCIENCE \\& TECHNOLOGY}}\\\\[2pt]
-    {\\textbf{B.Tech. / S.E. (Computer Science and Engineering) (Part-I) (CBCS) Examination}}\\\\[2pt]
-    {\\textbf{APPLIED CRYPTOGRAPHY \\& INFORMATION SECURITY}}\\\\[2pt]
-    \\textbf{Day \\& Date:} Wednesday, 14-05-2026 \\hfill \\textbf{Max. Marks: 70}\\\\
-    \\textbf{Time:} 3.00 PM to 6.00 PM (3 Hours) \\hfill \\textbf{Paper Code: SLR-VB-602}\\\\
-    \\textbf{Q.P. Set Code:} \\textbf{P}
+    {\\textbf{T. Y. (B.Tech.) (Electronics Engineering) (Semester - II) (New) (CBCS) Examination: March/April - 2026}}\\\\[2pt]
+    {\\large \\textbf{Operating Systems (BTN04605)}}\\\\[2pt]
+    \\textbf{Day \\& Date:} Monday, 25-05-2026 \\hfill \\textbf{Max. Marks: 70}\\\\
+    \\textbf{Time:} 10:00 AM To 01:00 PM \\hfill \\textbf{Course Code: BTN04605}
 \\end{center}
 
 \\noindent\\rule{\\linewidth}{0.8pt}
 
 \\noindent \\textbf{Instructions:}\\\\
-1) All questions are compulsory.\\\\
-2) Figures to the right indicate full marks.\\\\
-3) Q. No. 1 is compulsory. It should be solved in the first 30 minutes in Answer Book Page No. 3. Each question carries one mark.\\\\
-4) Answer MCQ/Objective type questions on Page No. 3 only. Don't forget to mention Q.P. Set (P/Q/R/S) on top of the page.\\\\
-5) Draw neat diagrams and flowcharts wherever necessary.
+1) Q. No. 1 is compulsory. It should be solved in the first 30 minutes in Answer Book Page no 03 (Starting page of the Answer Book). Each question carries one mark.\\\\
+2) Don't forget to Mention question paper set (P/Q/R/S) on top of page.\\\\
+3) Figures to the right indicate full marks.\\\\
+4) Assume suitable data if necessary.
 
-\\noindent\\rule{\\linewidth}{0.8pt}
+\\noindent\\rule{\\linewidth}{0.5pt}
 
-% =========================================================================
-% Q.1: COMPULSORY 14 MCQs (14 x 1 = 14 Marks)
-% =========================================================================
-\\noindent \\textbf{Q.1 Choose the correct alternative for each of the following:} \\hfill \\textbf{[14 Marks]}
+\\begin{center}
+    {\\large \\textbf{MCQ / OBJECTIVE TYPE QUESTIONS}} \\hfill \\textbf{[Duration: 30 Minutes]} \\hfill \\textbf{[14 Marks]}
+\\end{center}
+
+\\noindent \\textbf{Q.1 Choose the correct answer:} \\hfill \\textbf{[14 Marks]}
 
 \\begin{enumerate}[label=\\textbf{\\arabic*)}]
-    \\item In symmetric cryptography, if $n$ participants want to communicate securely via pair-wise shared secret keys, the total number of symmetric keys required is:
+    \\item In the Many to One model, if a thread makes a blocking system call \\underline{\\hspace{2cm}}.
     \\begin{enumerate}[label=(\\alph*)]
-        \\item $n(n - 1)$
-        \\item $\\frac{n(n - 1)}{2}$
-        \\item $2^n$
-        \\item $n^2$
+        \\item the entire process will be blocked (Correct)
+        \\item a part of the process will stay blocked, with the rest running
+        \\item the entire process will run
+        \\item None of these
     \\end{enumerate}
 
-    \\item Which block cipher mode of operation converts a block cipher into a stream cipher without requiring padding?
+    \\item What is the primary purpose of cooperating processes in an operating system?
     \\begin{enumerate}[label=(\\alph*)]
-        \\item Electronic Codebook (ECB)
-        \\item Cipher Block Chaining (CBC)
-        \\item Cipher Feedback Mode (CFB)
-        \\item Output Feedback (OFB) / Counter (CTR)
+        \\item To enhance CPU scheduling algorithms
+        \\item To share system resources and data among multiple processes (Correct)
+        \\item To reduce the number of system calls
+        \\item To improve disk access speed
     \\end{enumerate}
 
-    \\item The Avalanche Effect in cryptographic substitution-permutation networks ensures that:
+    \\item A parent process calling \\underline{\\hspace{2cm}} system call will be suspended until children processes terminate.
     \\begin{enumerate}[label=(\\alph*)]
-        \\item Changing one bit of plaintext or key changes at least 50\\% of ciphertext bits
-        \\item The ciphertext length equals the key length
-        \\item Decryption executes in constant polynomial time
-        \\item Keys cannot be brute-forced even with quantum circuits
+        \\item fork
+        \\item wait (Correct)
+        \\item exit
+        \\item exec
     \\end{enumerate}
 
-    \\item In RSA public-key cryptosystem, the public exponent $e$ and private exponent $d$ satisfy:
+    \\item To ensure difficulties do not arise in the readers - writers problem, \\underline{\\hspace{2cm}} are given exclusive access to the shared object.
     \\begin{enumerate}[label=(\\alph*)]
-        \\item $e \\cdot d \\equiv 1 \\pmod{\\phi(n)}$
-        \\item $e \\cdot d \\equiv 0 \\pmod{n}$
-        \\item $e + d = \\phi(n)$
-        \\item $e^d \\equiv 1 \\pmod{n}$
+        \\item readers
+        \\item writers (Correct)
+        \\item readers and writers
+        \\item None of these
     \\end{enumerate}
 
-    \\item In Diffie-Hellman Key Exchange over prime field $\\mathbb{F}_p$, security directly relies upon the hardness of:
+    \\item A state is safe if the system can allocate resources to each process in some order and still avoid a \\underline{\\hspace{2cm}}.
     \\begin{enumerate}[label=(\\alph*)]
-        \\item Integer Factorization Problem (IFP)
-        \\item Discrete Logarithm Problem (DLP)
-        \\item Elliptic Curve Isogeny Computation
-        \\item Shortest Vector Problem (SVP) in lattices
+        \\item deadlock (Correct)
+        \\item starvation
+        \\item termination
+        \\item finite loop
     \\end{enumerate}
 
-    \\item In Shamir's $(k, n)$ threshold secret sharing scheme, the threshold polynomial $f(x)$ has degree:
+    \\item Which scheduling algorithm allocates CPU to process with highest priority?
     \\begin{enumerate}[label=(\\alph*)]
-        \\item $k$
-        \\item $k - 1$
-        \\item $n - 1$
-        \\item $n - k$
+        \\item Priority Scheduling (Correct)
+        \\item First-Come First-Served (FCFS)
+        \\item Shortest Job First (SJF)
+        \\item Round Robin (RR)
     \\end{enumerate}
 
-    \\item SHA-256 cryptographic hash function maps arbitrary input messages to a message digest of length:
+    \\item An interrupt that is triggered by software directly is known as a:
     \\begin{enumerate}[label=(\\alph*)]
-        \\item 128 bits
-        \\item 160 bits
-        \\item 256 bits
-        \\item 512 bits
+        \\item Trap or System Call (Correct)
+        \\item Signal
+        \\item Hardware Timer
+        \\item Exception Bus
     \\end{enumerate}
+\\end{enumerate}
 
-    \\item In the Advanced Encryption Standard (AES), the byte substitution step (SubBytes) uses an S-Box constructed over:
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item Galois Field $GF(2^8)$
-        \\item Ring $\\mathbb{Z}_{256}$
-        \\item Elliptic Curve Group $E(\\mathbb{F}_{2^{256}})$
-        \\item Modular Arithmetic Group $\\mathbb{Z}_p^*$
-    \\end{enumerate}
+\\newpage
 
-    \\item Which zero-knowledge proof system enables proving statement validity without revealing any witness information?
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item Schnorr Protocol
-        \\item Diffie-Hellman Protocol
-        \\item ElGamal Signature
-        \\item RSA Blind Signature
-    \\end{enumerate}
+\\begin{center}
+    {\\large \\textbf{SECTION --- I}}
+\\end{center}
 
-    \\item A Birthday Attack on an $m$-bit cryptographic hash function requires approximately how many evaluations to find a collision?
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item $2^m$
-        \\item $2^{m/2}$
-        \\item $2^{m/4}$
-        \\item $m^2$
-    \\end{enumerate}
-
-    \\item Which protocol provides authenticated end-to-end security at the Transport Layer of the OSI stack?
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item IPsec ESP
-        \\item TLS 1.3
-        \\item WPA3
-        \\item SSH-2
-    \\end{enumerate}
-
-    \\item In Digital Signature Standard (DSS / ECDSA), nonces ($k$) must be kept strictly secret and never reused because:
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item Reusing nonce $k$ immediately exposes the signer's private key
-        \\item It produces duplicate public keys
-        \\item Hash collision occurs instantly
-        \\item Verification polynomial degree increases
-    \\end{enumerate}
-
-    \\item In authenticated encryption algorithms such as AES-GCM, integrity is guaranteed using:
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item GMAC Galois Message Authentication Code
-        \\item HMAC-MD5
-        \\item Merkle-Damgard Extension
-        \\item Feistel permutation tag
-    \\end{enumerate}
-
-    \\item A timing attack on cryptographic comparison operations is mitigated by:
-    \\begin{enumerate}[label=(\\alph*)]
-        \\item Constant-time comparison algorithms
-        \\item Increasing clock frequency
-        \\item Random byte stuffing at network layer
-        \\item Multi-threaded pipeline execution
-    \\end{enumerate}
+\\noindent \\textbf{Q.2 Answer the following. (Any Four)} \\hfill \\textbf{[16 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item What is the main purpose of an operating system? Explain the different functions of an OS.
+    \\item Explain the concept of process states and the process state transition diagram with neat sketch.
+    \\item Describe different types of schedulers: Short term, Medium term, and Long term scheduler.
+    \\item What are the criteria for CPU scheduling? Compare preemptive and non-preemptive scheduling.
+    \\item Explain critical section problem and discuss requirements that must be satisfied by any valid solution.
 \\end{enumerate}
 
 \\vspace{10pt}
-\\noindent\\rule{\\linewidth}{0.5pt}
-
-% =========================================================================
-% SECTION - I (28 Marks)
-% =========================================================================
-\\begin{center}
-    {\\large \\textbf{SECTION - I}}
-\\end{center}
-
-\\noindent \\textbf{Q.2 Attempt any three of the following:} \\hfill \\textbf{[12 Marks]}
+\\noindent \\textbf{Q.3 Answer the following. (Any Two)} \\hfill \\textbf{[12 Marks]}
 \\begin{enumerate}[label=\\textbf{\\alph*)}]
-    \\item Explain the Feistel Cipher structure with an illustrative block diagram. How do round keys ensure confusion and diffusion?
-    \\item Explain AES-256 key schedule expansion algorithm and describe the byte substitution, ShiftRows, and MixColumns transformations.
-    \\item Describe the mathematical steps of RSA algorithm: Key generation, Encryption, and Decryption with a numerical example using $p = 11, q = 13, e = 7$.
-    \\item Compare symmetric-key ciphers and asymmetric-key ciphers with respect to computational complexity, key distribution, and security primitives.
+    \\item Consider the following set of processes with CPU burst time given in milliseconds:
+    Process P1 (Burst: 10, Priority: 3), P2 (Burst: 1, Priority: 1), P3 (Burst: 2, Priority: 4), P4 (Burst: 1, Priority: 2), P5 (Burst: 5, Priority: 2).
+    How these processes will be scheduled according to priority scheduling algorithm? Compute average waiting time and turnaround time.
+    \\item Explain Banker's Algorithm for deadlock avoidance with suitable data structures.
+    \\item Describe interprocess communication (IPC) using shared memory and message passing systems.
 \\end{enumerate}
 
-\\vspace{8pt}
-\\noindent \\textbf{Q.3 Algorithmic \\& Mathematical Derivation:} \\hfill \\textbf{[08 Marks]}\\\\
-Explain Diffie-Hellman Key Exchange Protocol. Show how Alice and Bob agree upon a common shared key $K$ over an insecure channel. Explain the Man-in-the-Middle (MitM) vulnerability and how digital signatures prevent it.
+\\newpage
 
-\\vspace{8pt}
-\\noindent \\textbf{Q.4 Descriptive Question with Internal Choice:} \\hfill \\textbf{[08 Marks]}\\\\
-Explain Shamir's $(3, 5)$ Threshold Secret Sharing Scheme. Derive Lagrange's interpolation polynomial used by authorized quorum holders to reconstruct secret $S$ from any 3 arbitrary shares.
-\\\\[4pt]
 \\begin{center}
-\\textbf{--- OR ---}
+    {\\large \\textbf{SECTION --- II}}
 \\end{center}
-Explain the design and operation of SHA-3 (Keccak) cryptographic sponge construction. Detail the absorbing phase, squeezing phase, and state permutation matrix $A[5][5][w]$.
+
+\\noindent \\textbf{Q.4 Answer the following. (Any Four)} \\hfill \\textbf{[16 Marks]}
+\\begin{enumerate}[label=\\textbf{\\alph*)}]
+    \\item Elaborate terms swapping and paging. Compare swapping and paging.
+    \\item Explain various methods for recovery from deadlock.
+    \\item What is page fault? How is it handled by OS?
+    \\item What is resource allocation graph in OS? What are the different elements of RAG? How is RAG utilized to decide about presence of deadlock?
+    \\item What are the drawbacks of paging? Describe segmentation mechanism in OS.
+\\end{enumerate}
 
 \\vspace{10pt}
-\\noindent\\rule{\\linewidth}{0.5pt}
-
-% =========================================================================
-% SECTION - II (28 Marks)
-% =========================================================================
-\\begin{center}
-    {\\large \\textbf{SECTION - II}}
-\\end{center}
-
-\\noindent \\textbf{Q.5 Attempt any three of the following:} \\hfill \\textbf{[12 Marks]}
+\\noindent \\textbf{Q.5 Answer the following. (Any Two)} \\hfill \\textbf{[12 Marks]}
 \\begin{enumerate}[label=\\textbf{\\alph*)}]
-    \\item Explain Elliptic Curve Cryptography (ECC) point addition and point doubling on Weierstrass form $y^2 = x^3 + ax + b \\pmod{p}$.
-    \\item Describe the Handshake Protocol and Record Protocol of Transport Layer Security (TLS 1.3) with key exchange message flow.
-    \\item Explain the format of X.509 Public Key Certificate and describe Certificate Revocation Lists (CRLs) and OCSP stapling.
-    \\item Discuss Zero-Knowledge Succinct Non-Interactive Arguments of Knowledge (zk-SNARKs) and their applications in confidential examinations.
+    \\item Explain FIFO and optimal page replacement algorithm in detail.
+    \\item Explain various free space management approaches in OS.
+    \\item What is internal and external fragmentation in OS? Differentiate between internal and external fragmentation.
 \\end{enumerate}
-
-\\vspace{8pt}
-\\noindent \\textbf{Q.6 Descriptive Question with Internal Choice:} \\hfill \\textbf{[08 Marks]}\\\\
-Explain the architecture of IPsec protocol suite. Compare Authentication Header (AH) and Encapsulating Security Payload (ESP) in Transport Mode vs. Tunnel Mode with header packet layouts.
-\\\\[4pt]
-\\begin{center}
-\\textbf{--- OR ---}
-\\end{center}
-Explain SQL Injection, Cross-Site Scripting (XSS), and Cross-Site Request Forgery (CSRF) vulnerabilities. Provide secure coding practices, parameterized queries, and defensive CSP headers.
-
-\\vspace{8pt}
-\\noindent \\textbf{Q.7 Comprehensive Analysis Question:} \\hfill \\textbf{[08 Marks]}\\\\
-Design an end-to-end Zero-Knowledge Examination Distribution Protocol. Explain how examination papers can be encrypted, time-locked using threshold secret sharing, and decrypted only at the designated exam start time without single-point compromise.
 
 \\end{document}
 `;
@@ -329,8 +257,9 @@ interface Message {
 export const EmbeddedPrismStudio: React.FC = () => {
   const [latexCode, setLatexCode] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
-      if (saved && saved.trim().length > 50) return saved;
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {}
     }
     return SOLAPUR_STANDARD_TEMPLATE;
   });
@@ -358,12 +287,12 @@ export const EmbeddedPrismStudio: React.FC = () => {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
 
-  // Autosave to localStorage
+  // Zero-Leak Security: Unencrypted examination files are NEVER stored in browser localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(DRAFT_STORAGE_KEY, latexCode);
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
     } catch {}
-  }, [latexCode]);
+  }, []);
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -1081,10 +1010,10 @@ You can use the **Insert into Editor** button below to paste this into your pape
       <TransferToPrintingManagerModal
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
-        paperTitle={latexCode.toLowerCase().includes('cryptography') ? 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY — APPLIED CRYPTOGRAPHY (SLR-VB-602)' : 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)'}
-        subject={latexCode.toLowerCase().includes('cryptography') ? 'APPLIED CRYPTOGRAPHY & INFORMATION SECURITY' : 'OPERATING SYSTEMS'}
-        courseCode={latexCode.toLowerCase().includes('cryptography') ? 'SLR-VB-602' : 'BTN04605'}
-        targetFilename={latexCode.toLowerCase().includes('cryptography') ? 'SLR-VB-602.pdf' : 'OS-1.pdf'}
+        paperTitle={latexCode.toLowerCase().includes('cryptography') && !latexCode.toLowerCase().includes('operating') ? 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY — APPLIED CRYPTOGRAPHY (SLR-VB-602)' : 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)'}
+        subject={latexCode.toLowerCase().includes('cryptography') && !latexCode.toLowerCase().includes('operating') ? 'APPLIED CRYPTOGRAPHY & INFORMATION SECURITY' : 'OPERATING SYSTEMS'}
+        courseCode={latexCode.toLowerCase().includes('cryptography') && !latexCode.toLowerCase().includes('operating') ? 'SLR-VB-602' : 'BTN04605'}
+        targetFilename={latexCode.toLowerCase().includes('cryptography') && !latexCode.toLowerCase().includes('operating') ? 'SLR-VB-602.pdf' : 'OS-1.pdf'}
         candidateNames={['OS-1.pdf', 'OS-1-1.pdf', 'OS-1-2.pdf', 'OS-1-3.pdf', 'OS-1-4.pdf', 'OS (1).zip', 'Operating_Systems_BTN04605.pdf', 'SLR-VB-602.pdf']}
         totalMarks={70}
         durationHours={3}
