@@ -288,6 +288,10 @@ const BrowserPane = React.forwardRef<
             src={tab.url || 'https://prism.openai.com/'}
             title={`ZeroLeak tab ${tab.id}`}
             className="w-full h-full border-0 bg-white"
+            // PANE_SANDBOX_FLAGS includes allow-popups + allow-popups-to-escape-sandbox.
+            // Without these, Prism's own window.open() for the OAuth popup returns null
+            // and the provider reports openai-provider-validation-failed.
+            sandbox={PANE_SANDBOX_FLAGS}
             onLoad={() => {
               statusRef.current.onStop();
               statusRef.current.onTitle(tab.title || 'OpenAI Prism');

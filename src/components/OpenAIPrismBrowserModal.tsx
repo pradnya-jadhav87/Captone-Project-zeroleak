@@ -716,6 +716,62 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
             onOpenExternal={handleOpenExternal}
             chrome={showChrome ?? desktopShell}
           />
+          {/*
+           * Web sign-in helper overlay (iframe path only).
+           *
+           * When Prism loads in an iframe the user sees the real "Welcome to Prism"
+           * page, but clicking "Continue with OpenAI" inside it ALWAYS fails in a
+           * plain browser tab. The reason is threefold:
+           *  1. Third-party cookies are partitioned — prism.openai.com cookies cannot
+           *     be set while the page is embedded in our origin.
+           *  2. The OAuth popup Prism opens from inside an iframe may be blocked.
+           *  3. Even if the popup opens, the OAuth callback writes the session to
+           *     prism.openai.com's first-party jar, which the embedded iframe cannot
+           *     read across origins.
+           *
+           * The fix: open prism.openai.com in a REAL top-level window (via
+           * openAuthWindow), let the user complete OAuth there, then reload the
+           * embedded iframe so it picks up the cookie that was written first-party.
+           *
+           * This banner is hidden in Electron (where webview does its own OAuth)
+           * and when a streamed browser is active (which also has full first-party access).
+           */}
+          {!desktopShell && !streamingHere && (
+            <div className="shrink-0 bg-slate-900 border-t border-slate-700/60 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-xs text-slate-300 min-w-0">
+                <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="leading-snug">
+                  <strong className="text-white">Sign-in note:</strong>{' '}
+                  The <em>"Continue with OpenAI"</em> button inside the embedded frame
+                  won't work — browser cookie isolation blocks OAuth in iframes.
+                  Click <strong className="text-emerald-400">Sign in to Prism ↗</strong> below to
+                  open Prism in a real browser window, complete sign-in there, then
+                  click{' '}
+                  <strong className="text-slate-200">I've signed in</strong> to reload this panel.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {mayConfirmSignIn && (
+                  <button
+                    type="button"
+                    onClick={handleConfirmSignedIn}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    I've signed in
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => openAuthWindow(PRISM_SIGN_IN_URL, 'sign-in banner')}
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  Sign in to Prism ↗
+                </button>
+              </div>
+            </div>
+          )}
           {downloadNotice && (
             <div className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-lg rounded-lg border border-emerald-800/70 bg-emerald-950/95 px-3 py-2 text-[11px] text-emerald-100 shadow-lg">
               {downloadNotice}
