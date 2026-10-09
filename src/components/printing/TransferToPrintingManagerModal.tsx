@@ -289,9 +289,10 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
             <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
               <strong className="font-semibold block mb-0.5">Zero-Leak Security Enforcement Policy:</strong>
-              When you click <strong>Download</strong>, local unwatermarked saving is blocked. Instead, the exact file
-              document is automatically retrieved from your PC and dispatched directly to the{' '}
-              <strong>Printing Manager (operator@centre101.edu.in)</strong> for physical watermarked printing.
+              Saving or downloading papers directly to your personal laptop is strictly blocked and restricted.
+              Instead, the document is automatically routed directly to the{' '}
+              <strong>Printing Manager (operator@centre101.edu.in)</strong> and is immediately visible on the{' '}
+              <strong>Printing Dashboard</strong> for controlled watermarked printing.
             </div>
           </div>
 

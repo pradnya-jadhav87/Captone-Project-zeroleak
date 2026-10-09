@@ -603,6 +603,14 @@
       }
     }
 
+    // Zero-Leak Enforcement: Intercept Ctrl+S / Ctrl+P to block local saving/printing and route to Printing Manager
+    window.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'p')) {
+        e.preventDefault();
+        doTransferToPrintingManager();
+      }
+    });
+
     function parseTabularHtml(raw) {
       const match = raw.match(/\\begin\{tabular\}\{[^}]*\}([\s\S]*?)\\end\{tabular\}/i);
       if (!match) return null;

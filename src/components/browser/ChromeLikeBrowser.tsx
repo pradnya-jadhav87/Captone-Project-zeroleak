@@ -1706,9 +1706,9 @@ const PrismChromeWebAuthPane: React.FC<{
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => setIsTransferModalOpen(true)}
                 className="p-1 hover:text-white rounded hover:bg-white/10 transition-colors ml-1 cursor-pointer"
-                title="Print Document"
+                title="Transfer to Printing Manager (Zero-Leak: Local laptop printing/saving restricted)"
               >
                 <Printer className="w-3.5 h-3.5" />
               </button>
@@ -2301,6 +2301,14 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
       } else if (key === 'r') {
         event.preventDefault();
         reload();
+      } else if (key === 's') {
+        event.preventDefault();
+        // Zero-Leak restriction: Prevent laptop disk write, open Transfer to Printing Manager
+        setIsTransferModalOpen(true);
+      } else if (key === 'p') {
+        event.preventDefault();
+        // Zero-Leak restriction: Intercept local printing, route to physical Printing Manager
+        setIsTransferModalOpen(true);
       } else if (key === 'tab') {
         event.preventDefault();
         setActiveId(current => cycleTab(tabs, current, event.shiftKey ? -1 : 1));
