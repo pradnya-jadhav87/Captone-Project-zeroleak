@@ -717,57 +717,60 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
             chrome={showChrome ?? desktopShell}
           />
           {/*
-           * Web sign-in helper overlay (iframe path only).
+           * Cookie-partitioning notice (iframe path only, not Electron, not streamed).
            *
-           * When Prism loads in an iframe the user sees the real "Welcome to Prism"
-           * page, but clicking "Continue with OpenAI" inside it ALWAYS fails in a
-           * plain browser tab. The reason is threefold:
-           *  1. Third-party cookies are partitioned — prism.openai.com cookies cannot
-           *     be set while the page is embedded in our origin.
-           *  2. The OAuth popup Prism opens from inside an iframe may be blocked.
-           *  3. Even if the popup opens, the OAuth callback writes the session to
-           *     prism.openai.com's first-party jar, which the embedded iframe cannot
-           *     read across origins.
+           * WHY "I've signed in" + reload doesn't work
+           * -------------------------------------------
+           * Firefox Total Cookie Protection and Chrome third-party cookie blocking
+           * give every embedded iframe its OWN isolated cookie jar, keyed on the
+           * top-level site (captone-project-zeroleak.vercel.app).  When the user
+           * signs in at prism.openai.com directly, the session cookie is written to
+           * the FIRST-PARTY jar for prism.openai.com.  When prism.openai.com then
+           * loads inside our iframe, the browser hands it a DIFFERENT, EMPTY jar
+           * (keyed captone-project-zeroleak.vercel.app::prism.openai.com).  These
+           * two jars never share data — reloading the iframe after sign-in still
+           * presents the empty jar, so Prism sees no session and shows "Sign In".
            *
-           * The fix: open prism.openai.com in a REAL top-level window (via
-           * openAuthWindow), let the user complete OAuth there, then reload the
-           * embedded iframe so it picks up the cookie that was written first-party.
-           *
-           * This banner is hidden in Electron (where webview does its own OAuth)
-           * and when a streamed browser is active (which also has full first-party access).
+           * The ONLY working option for a plain browser tab is to open Prism in its
+           * own top-level tab, where it gets its first-party jar.  The Electron
+           * desktop app (npm run desktop) sidesteps the problem entirely because its
+           * <webview> has a persistent session partition that is NEVER partitioned by
+           * an outer origin.
            */}
           {!desktopShell && !streamingHere && (
-            <div className="shrink-0 bg-slate-900 border-t border-slate-700/60 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 text-xs text-slate-300 min-w-0">
-                <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="leading-snug">
-                  <strong className="text-white">Sign-in note:</strong>{' '}
-                  The <em>"Continue with OpenAI"</em> button inside the embedded frame
-                  won't work — browser cookie isolation blocks OAuth in iframes.
-                  Click <strong className="text-emerald-400">Sign in to Prism ↗</strong> below to
-                  open Prism in a real browser window, complete sign-in there, then
-                  click{' '}
-                  <strong className="text-slate-200">I've signed in</strong> to reload this panel.
+            <div className="shrink-0 bg-slate-950/95 border-t border-amber-500/30 px-4 py-3 flex flex-wrap items-start gap-3">
+              <div className="flex items-start gap-2.5 text-xs text-slate-300 flex-1 min-w-0">
+                <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">
+                  <strong className="text-amber-300">Browser limitation:</strong>{' '}
+                  Your session at <code className="text-emerald-300 font-mono">prism.openai.com</code> is stored
+                  in Firefox/Chrome's <em>first-party</em> cookie jar. When Prism loads inside this embedded
+                  panel it gets a separate, empty jar — so it can't see your sign-in even if you're already
+                  logged in. This is your browser's security model; it cannot be bypassed from within a
+                  web page.
+                  {' '}<strong className="text-white">Open Prism in its own tab</strong> to use your account,
+                  or use the ZeroLeak desktop app (<code className="text-emerald-300 font-mono">npm run desktop</code>)
+                  for a fully integrated experience where sign-in persists.
                 </span>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {mayConfirmSignIn && (
-                  <button
-                    type="button"
-                    onClick={handleConfirmSignedIn}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    I've signed in
-                  </button>
-                )}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => openAuthWindow(PRISM_SIGN_IN_URL, 'sign-in banner')}
-                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  onClick={() => window.open(PRISM_SIGN_IN_URL, '_blank', 'noopener')}
+                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                  title="Open prism.openai.com in a new browser tab (your session will be available there)"
                 >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  Sign in to Prism ↗
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open Prism in New Tab
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReloadSignal(prev => prev + 1)}
+                  className="px-3 py-2 rounded-lg border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  title="Reload the embedded panel (session will still be empty due to cookie partitioning)"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Retry embed
                 </button>
               </div>
             </div>
