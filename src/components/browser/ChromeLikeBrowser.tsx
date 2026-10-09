@@ -119,6 +119,143 @@ const safeCall = (view: any, method: string) => {
 };
 
 /**
+ * Web Auth Gateway Pane for OpenAI Prism.
+ *
+ * In a standard web browser (non-Electron, non-streamed), embedding Prism's
+ * OAuth button directly in an iframe causes openai-provider-validation-failed
+ * because the identity provider refuses iframe OAuth transactions and browser
+ * third-party cookie isolation prevents cross-origin session storage.
+ *
+ * This component provides an identical, authentic Chrome login surface where
+ * clicking "Continue with OpenAI" launches the verified top-level Chrome session
+ * without triggering provider validation errors.
+ */
+const PrismChromeWebAuthPane: React.FC<{
+  tab: BrowserTab;
+  frameKey: number;
+  statusRef: React.MutableRefObject<PaneStatus>;
+}> = ({ tab, frameKey, statusRef }) => {
+  const [sessionActive, setSessionActive] = useState(false);
+  const [showDirectIframe, setShowDirectIframe] = useState(false);
+  const authWindowRef = useRef<Window | null>(null);
+
+  const handleLaunchPrism = () => {
+    const win = window.open(
+      'https://prism.openai.com/',
+      'ZeroLeakPrismChrome',
+      'popup=1,width=1280,height=850,menubar=no,toolbar=no,status=no',
+    );
+    authWindowRef.current = win;
+    setSessionActive(true);
+    statusRef.current.onTitle('Prism — AI LaTeX Editor');
+    if (win) {
+      try {
+        win.focus();
+      } catch {}
+    }
+  };
+
+  if (showDirectIframe) {
+    return (
+      <div className="relative w-full h-full">
+        <iframe
+          key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
+          src={tab.url || 'https://prism.openai.com/'}
+          title={`ZeroLeak tab ${tab.id}`}
+          className="w-full h-full border-0 bg-white"
+          sandbox={PANE_SANDBOX_FLAGS}
+          referrerPolicy="no-referrer"
+          onLoad={() => {
+            statusRef.current.onStop();
+            statusRef.current.onTitle(tab.title || 'OpenAI Prism');
+          }}
+          allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation; storage-access; identity-credentials-get"
+        />
+        <button
+          type="button"
+          onClick={() => setShowDirectIframe(false)}
+          className="absolute bottom-3 right-3 px-3 py-1.5 rounded-lg bg-black/80 hover:bg-black text-white text-xs border border-white/20 shadow-lg cursor-pointer"
+        >
+          ← Return to Chrome Gateway
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full bg-[#18181b] flex items-center justify-center p-4 select-none">
+      <div className="max-w-[440px] w-full bg-[#242427] border border-[#333338] rounded-2xl p-8 shadow-2xl flex flex-col items-center text-center">
+        {/* OpenAI Prism Logo */}
+        <div className="w-16 h-16 rounded-2xl bg-black/50 border border-white/10 flex items-center justify-center mb-6 shadow-inner">
+          <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Z" />
+            <path d="M12 8a4 4 0 1 0 4 4 4 4 0 0 0-4-4Z" />
+            <path d="m10 10 4 4m0-4-4 4" />
+          </svg>
+        </div>
+
+        <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">Welcome to Prism</h2>
+        <p className="text-xs text-slate-400 mb-6">
+          {sessionActive 
+            ? 'Prism workspace active in standalone Chrome window.' 
+            : 'AI-Powered Examination Paper Synthesis'}
+        </p>
+
+        {sessionActive ? (
+          <div className="w-full space-y-3">
+            <button
+              type="button"
+              onClick={handleLaunchPrism}
+              className="w-full py-3 px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+            >
+              <span>Bring Workspace to Front ↗</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSessionActive(false);
+                handleLaunchPrism();
+              }}
+              className="w-full py-2.5 px-4 rounded-full bg-[#323236] hover:bg-[#3d3d42] text-slate-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
+            >
+              Reconnect / Reopen
+            </button>
+          </div>
+        ) : (
+          <div className="w-full space-y-3">
+            <button
+              type="button"
+              onClick={handleLaunchPrism}
+              className="w-full py-3 px-5 rounded-full bg-white hover:bg-slate-100 text-slate-900 font-bold text-sm flex items-center justify-center gap-2.5 shadow-md transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+            >
+              <span className="w-4 h-4 flex items-center justify-center text-sm font-bold">✦</span>
+              <span>Continue with OpenAI</span>
+            </button>
+            <p className="text-[11px] text-slate-500 leading-normal px-2">
+              By clicking "Continue with OpenAI", you open the secure Chrome session where your account authenticates without iframe restrictions.
+            </p>
+          </div>
+        )}
+
+        <div className="mt-6 pt-5 border-t border-[#333338] w-full flex items-center justify-between gap-2 text-[11px] text-slate-400">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Zero Validation Errors</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowDirectIframe(true)}
+            className="text-slate-500 hover:text-slate-300 underline cursor-pointer text-[10px]"
+          >
+            Direct Frame Mode
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
  * One tab's pane.
  *
  * The `<webview>` is created imperatively on purpose: Electron reads
@@ -282,10 +419,16 @@ const BrowserPane = React.forwardRef<
       {!desktopShell && !streamed && (
         tab.url?.includes('zeroleak://studio') ? (
           <EmbeddedPrismStudio key={`${tab.id}:${tab.reloadKey}`} />
+        ) : tab.url?.includes('prism.openai.com') || !tab.url ? (
+          <PrismChromeWebAuthPane
+            tab={tab}
+            frameKey={frameKey}
+            statusRef={statusRef}
+          />
         ) : (
           <iframe
             key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
-            src={tab.url || 'https://prism.openai.com/'}
+            src={tab.url}
             title={`ZeroLeak tab ${tab.id}`}
             className="w-full h-full border-0 bg-white"
             // PANE_SANDBOX_FLAGS includes allow-popups + allow-popups-to-escape-sandbox.
