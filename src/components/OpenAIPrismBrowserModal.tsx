@@ -673,6 +673,11 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
 
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px]">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span>Allow pop-ups in browser or click:</span>
+            </div>
+
             <button
               type="button"
               onClick={() => handleOpenExternal('https://prism.openai.com/')}

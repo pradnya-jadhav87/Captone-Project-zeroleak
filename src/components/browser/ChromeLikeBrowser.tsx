@@ -293,7 +293,6 @@ const BrowserPane = React.forwardRef<
               statusRef.current.onTitle(tab.title || 'ZeroLeak AI');
             }}
             allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation; storage-access; identity-credentials-get"
-            sandbox={PANE_SANDBOX_FLAGS}
           />
         )
       )}
