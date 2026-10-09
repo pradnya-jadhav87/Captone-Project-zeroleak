@@ -546,6 +546,7 @@ export const api = {
       body: JSON.stringify({ url, emailDomain }),
     }),
   login: (payload: any) => request<{ message: string; token?: string; user: User; device?: any; deviceWarning?: string; requiresDeviceBinding?: boolean; nextStep?: 'DEVICE_REGISTRATION' | 'DEVICE_CHALLENGE' | 'PENDING_APPROVAL'; challengeId?: string; challenge?: string; deviceUuid?: string; deviceStatus?: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ ...payload, device_fingerprint: getDeviceFingerprint() }) }),
+  getOAuthLoginUrl: (returnUrl?: string) => `/api/auth/oauth/openai/start?returnUrl=${encodeURIComponent(returnUrl || (typeof window !== 'undefined' ? window.location.hash : '') || '/')}`,
   registerDeviceChallenge: (payload: any) => request<{ message: string; token?: string; user?: User; deviceUuid: string; status: string; requiresApproval: boolean; device?: any }>('/api/auth/device/register', { method: 'POST', body: JSON.stringify(payload) }),
   verifyDeviceChallenge: (payload: { challengeId: string; signature: string; deviceUuid: string }) => request<{ message: string; token: string; user: User; device: any }>('/api/auth/device/verify', { method: 'POST', body: JSON.stringify(payload) }),
   getMe: () => request<{ user: User }>('/api/auth/me'),

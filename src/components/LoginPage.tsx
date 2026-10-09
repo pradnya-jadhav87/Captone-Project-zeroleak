@@ -135,9 +135,66 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [replacementStatus, setReplacementStatus] = useState<string | null>(null);
   const [copiedRole, setCopiedRole] = useState<string | null>(null);
   const [copiedFp, setCopiedFp] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
 
   const navigateRegister = onRegisterRedirect || onNavigateRegister;
   const deviceFp = getDeviceFingerprint();
+
+  const handleOpenAILogin = () => {
+    setOauthLoading(true);
+    setErrorMessage(null);
+
+    const width = 520;
+    const height = 660;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    const startUrl = api.getOAuthLoginUrl(window.location.hash || '/');
+    const popup = window.open(
+      startUrl,
+      'ZeroLeakOAuthWindow',
+      `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
+    );
+
+    if (!popup) {
+      setOauthLoading(false);
+      setErrorMessage('Sign-in popup was blocked by your browser. Please allow popups for this site.');
+      return;
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      // Security check: verify origin strictly matches window.location.origin
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      if (event.data?.type === 'ZEROLEAK_OAUTH_SUCCESS') {
+        window.removeEventListener('message', handleMessage);
+        const { token, user } = event.data;
+        if (token && user) {
+          setStoredAuth(token, user);
+          onLoginSuccess(user, token);
+        } else {
+          setOauthLoading(false);
+          setErrorMessage('OpenAI authentication succeeded but no session token was received.');
+        }
+      } else if (event.data?.type === 'ZEROLEAK_OAUTH_ERROR') {
+        window.removeEventListener('message', handleMessage);
+        setOauthLoading(false);
+        setErrorMessage(event.data.error || 'OpenAI authentication failed.');
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosed);
+        window.removeEventListener('message', handleMessage);
+        setOauthLoading(false);
+      }
+    }, 1000);
+  };
 
   const handleCopyFp = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -526,6 +583,27 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 >
                   <KeyRound className="w-4 h-4 text-white" />
                   <span>{loading ? 'Authenticating Terminal...' : 'SIGN IN TO ENCLAVE'}</span>
+                </button>
+
+                {/* Secure Divider */}
+                <div className="relative my-3.5">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-[#DCE7EA]" />
+                  </div>
+                  <div className="relative flex justify-center text-[10.5px] uppercase font-bold tracking-wider">
+                    <span className="bg-white px-3 text-[#6B7D84]">Or continue with</span>
+                  </div>
+                </div>
+
+                {/* Continue with OpenAI / Prism Button */}
+                <button
+                  type="button"
+                  onClick={handleOpenAILogin}
+                  disabled={oauthLoading || loading}
+                  className="w-full h-[50px] rounded-[10px] bg-white border border-[#D0D7DE] hover:border-[#10A37F] hover:bg-[#F9FCFA] text-[#142B38] font-bold flex items-center justify-center gap-2.5 shadow-2xs hover:shadow-xs transition-all text-xs cursor-pointer disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4 text-[#10A37F]" />
+                  <span>{oauthLoading ? 'Connecting to OpenAI / Prism...' : 'Continue with OpenAI / Prism'}</span>
                 </button>
               </form>
 

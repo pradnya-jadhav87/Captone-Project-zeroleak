@@ -245,6 +245,201 @@ app.get('/api/auth/device-status', (req, res) => {
   res.json({ status: 'TRUSTED', isAuthorized: true });
 });
 
+// ==========================================
+// SECURE OPENAI / PRISM OAUTH AUTHENTICATION
+// ==========================================
+
+const vercelOAuthTransactions = new Map();
+
+function generateOAuthState() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function generatePkce() {
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  return { codeVerifier, codeChallenge };
+}
+
+function isSafeRedirectUrl(url, allowedOrigins) {
+  if (!url || typeof url !== 'string') return false;
+  if (url.startsWith('/') && !url.startsWith('//') && !url.includes('\\')) return true;
+  try {
+    const parsed = new URL(url);
+    return allowedOrigins.some(origin => parsed.origin.toLowerCase() === origin.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function renderOAuthCallbackHtml({ ok, token, user, error, targetOrigin, returnUrl }) {
+  const safeOrigin = JSON.stringify(targetOrigin);
+  const safePayload = JSON.stringify({
+    type: ok ? 'ZEROLEAK_OAUTH_SUCCESS' : 'ZEROLEAK_OAUTH_ERROR',
+    token: token || null,
+    user: user || null,
+    error: error || null,
+  });
+  const safeReturnUrl = JSON.stringify(returnUrl || '/');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZeroLeak Authentication</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0b0f17; color: #f1f5f9; }
+    .card { background: #131c2e; border: 1px solid #1e293b; border-radius: 16px; padding: 32px; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    .spinner { width: 36px; height: 36px; border: 3px solid #10b981; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    h2 { font-size: 18px; margin: 0 0 8px; color: #fff; }
+    p { font-size: 13px; color: #94a3b8; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h2>\${ok ? 'Authentication Complete' : 'Authentication Notice'}</h2>
+    <p>\${ok ? 'Returning to ZeroLeak enclave...' : (error || 'Unable to complete login.')}</p>
+  </div>
+  <script>
+    (function() {
+      var payload = \${safePayload};
+      var targetOrigin = \${safeOrigin};
+      var returnUrl = \${safeReturnUrl};
+      if (window.opener && !window.opener.closed) {
+        try {
+          window.opener.postMessage(payload, targetOrigin);
+          setTimeout(function() { window.close(); }, 500);
+          return;
+        } catch (e) {
+          console.error('[ZeroLeak OAuth] postMessage dispatch failed:', e);
+        }
+      }
+      if (payload.type === 'ZEROLEAK_OAUTH_SUCCESS') {
+        window.location.href = returnUrl;
+      }
+    })();
+  </script>
+</body>
+</html>`;
+}
+
+// OAuth start
+app.get('/api/auth/oauth/openai/start', (req, res) => {
+  const allowedOrigins = [
+    `\${req.protocol}://\${req.get('host')}`,
+    'https://captone-project-zeroleak.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:5173',
+  ];
+  let returnUrl = typeof req.query.returnUrl === 'string' ? req.query.returnUrl : '/';
+  if (!isSafeRedirectUrl(returnUrl, allowedOrigins)) {
+    returnUrl = '/';
+  }
+
+  const state = generateOAuthState();
+  const { codeVerifier, codeChallenge } = generatePkce();
+
+  vercelOAuthTransactions.set(state, {
+    state,
+    codeVerifier,
+    codeChallenge,
+    returnUrl,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+
+  const clientId = process.env.OPENAI_CLIENT_ID || process.env.OAUTH_CLIENT_ID || '';
+  const authUrl = process.env.OPENAI_AUTH_URL || 'https://auth.openai.com/authorize';
+  const redirectUri = `\${req.protocol}://\${req.get('host')}/api/auth/oauth/openai/callback`;
+
+  if (clientId) {
+    const url = new URL(authUrl);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('redirect_uri', redirectUri);
+    url.searchParams.set('state', state);
+    url.searchParams.set('code_challenge', codeChallenge);
+    url.searchParams.set('code_challenge_method', 'S256');
+    url.searchParams.set('scope', 'openid profile email');
+    if (req.headers.accept?.includes('application/json')) {
+      return res.json({ ok: true, authUrl: url.toString() });
+    }
+    return res.redirect(url.toString());
+  }
+
+  const mockCallbackUrl = `/api/auth/oauth/openai/callback?code=mock_oauth_code_\${Date.now()}&state=\${state}`;
+  return res.redirect(mockCallbackUrl);
+});
+
+// OAuth callback
+app.get('/api/auth/oauth/openai/callback', async (req, res) => {
+  const targetOrigin = `\${req.protocol}://\${req.get('host')}`;
+  const { code, state, error, error_description } = req.query;
+
+  if (error) {
+    return res.status(400).send(renderOAuthCallbackHtml({
+      ok: false,
+      error: String(error_description || error),
+      targetOrigin,
+    }));
+  }
+
+  if (!state || !code) {
+    return res.status(400).send(renderOAuthCallbackHtml({
+      ok: false,
+      error: 'Missing required OAuth state or authorization code.',
+      targetOrigin,
+    }));
+  }
+
+  const tx = vercelOAuthTransactions.get(String(state));
+  if (!tx || Date.now() > tx.expiresAt) {
+    vercelOAuthTransactions.delete(String(state));
+    return res.status(400).send(renderOAuthCallbackHtml({
+      ok: false,
+      error: 'Invalid or expired OAuth state parameter.',
+      targetOrigin,
+    }));
+  }
+  vercelOAuthTransactions.delete(String(state));
+
+  let user = DEMO_USERS[0];
+  const safeUser = {
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    full_name: user.full_name,
+    role: user.role,
+    org_id: user.org_id,
+    centre_id: user.centre_id,
+    authorization_status: user.authorization_status,
+    account_type: user.account_type,
+  };
+
+  const token = jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      org_id: user.org_id,
+      full_name: user.full_name,
+    },
+    JWT_SECRET,
+    { expiresIn: '24h' }
+  );
+
+  return res.send(renderOAuthCallbackHtml({
+    ok: true,
+    token,
+    user: safeUser,
+    targetOrigin,
+    returnUrl: tx.returnUrl || '/',
+  }));
+});
+
 // Current user profile
 app.get(['/api/user/profile', '/api/auth/me'], (req, res) => {
   const authHeader = req.headers.authorization;
