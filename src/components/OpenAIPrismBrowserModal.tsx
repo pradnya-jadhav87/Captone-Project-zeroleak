@@ -669,6 +669,25 @@ export const OpenAIPrismBrowserModal: React.FC<OpenAIPrismBrowserModalProps> = (
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>{desktopShell ? 'Desktop Native' : streamedBrowser.ready ? 'Live Browser' : 'ZeroLeak AI Studio'}</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setReloadSignal((prev) => prev + 1)}
+              title="Reload page"
+              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOpenExternal('https://prism.openai.com/')}
+              title="Open Prism in new browser tab"
+              className="p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+            </button>
+
             <button
               type="button"
               onClick={() => setIsMaximized(!isMaximized)}

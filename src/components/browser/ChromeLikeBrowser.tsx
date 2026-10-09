@@ -26,7 +26,6 @@ import {
   type StreamedBrowserStatus,
 } from '../../api';
 import { StreamedBrowserSurface } from './StreamedBrowserSurface';
-import { EmbeddedPrismStudio } from './EmbeddedPrismStudio';
 import { ZeroLeakLogo } from '../ZeroLeakLogo';
 import { PANE_PARTITION, PANE_SANDBOX_FLAGS } from '../../utils/prismAuth';
 import {
@@ -271,22 +270,17 @@ const BrowserPane = React.forwardRef<
       )}
 
       {!desktopShell && !streamed && (
-        tab.url?.includes('prism.openai.com') || tab.url?.includes('zeroleak') || !tab.url || tab.url === 'about:blank' ? (
-          <EmbeddedPrismStudio />
-        ) : (
-          <iframe
-            key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
-            src={tab.url || NEW_TAB_URL}
-            title={`ZeroLeak tab ${tab.id}`}
-            className="w-full h-full border-0 bg-white"
-            onLoad={() => {
-              statusRef.current.onStop();
-              statusRef.current.onTitle('');
-            }}
-            allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation"
-            sandbox={PANE_SANDBOX_FLAGS}
-          />
-        )
+        <iframe
+          key={`${tab.id}:${tab.reloadKey}:${frameKey}`}
+          src={tab.url || 'https://prism.openai.com/'}
+          title={`ZeroLeak tab ${tab.id}`}
+          className="w-full h-full border-0 bg-white"
+          onLoad={() => {
+            statusRef.current.onStop();
+            statusRef.current.onTitle('OpenAI Prism');
+          }}
+          allow="clipboard-write; clipboard-read; camera; microphone; fullscreen; display-capture; geolocation; storage-access; identity-credentials-get"
+        />
       )}
     </div>
   );
