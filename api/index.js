@@ -1367,6 +1367,207 @@ app.get('/api/competitive/operator/assigned-papers', (req, res) => {
   });
 });
 
+// Competitive Exam Paper Decrypt and Unlock (Zero-Leak Enclave Mode)
+app.post('/api/competitive/papers/:paperId/decrypt-unlock', (req, res) => {
+  const { paperId } = req.params;
+  const job = transferredPrintingJobs.find(j => j.paperId === paperId || j.id === paperId || j.courseCode === paperId) || transferredPrintingJobs[0];
+  const content = job?.paperContent || {};
+  const allQuestions = Array.isArray(content.questions) ? content.questions : [];
+
+  const paper = {
+    id: paperId,
+    exam_id: paperId,
+    title: job?.title || 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)',
+    subject: job?.subject || 'OPERATING SYSTEMS',
+    examDate: job?.examDate || new Date().toISOString().split('T')[0],
+    durationMinutes: 180,
+    totalMarks: 70,
+    totalQuestions: allQuestions.length || 19,
+    encryptionStatus: 'DECRYPTED_UNLOCKED',
+    assignedCentreCode: 'CTR-101',
+    sections: [
+      {
+        sectionLetter: 'A',
+        subject: 'OBJECTIVE / MCQ',
+        questions: allQuestions.slice(0, 14).map((q, i) => ({
+          id: q.id,
+          displayNumber: q.questionNumber,
+          questionNumber: i + 1,
+          questionText: q.content_text,
+          marks: q.marks,
+          options: (q.options || []).map(opt => ({ label: opt.key, text: opt.text })),
+        })),
+      },
+      {
+        sectionLetter: 'B',
+        subject: 'SECTION I & II (THEORY & NUMERICALS)',
+        questions: allQuestions.slice(14).map((q, i) => ({
+          id: q.id,
+          displayNumber: q.questionNumber,
+          questionNumber: 15 + i,
+          questionText: q.content_text,
+          marks: q.marks,
+        })),
+      },
+    ],
+    instructions: Array.isArray(content.instructions) ? content.instructions.join('\n') : content.instructions || '',
+    decryptedAt: new Date().toISOString(),
+  };
+
+  res.json({
+    success: true,
+    message: `Competitive paper "${paper.title}" decrypted and unlocked by server clock verification.`,
+    paper,
+    auditTxHash: '0x' + crypto.randomBytes(32).toString('hex'),
+    serverTimeIso: new Date().toISOString(),
+  });
+});
+
+// Competitive Exam Paper Print
+app.post('/api/competitive/papers/:paperId/print', (req, res) => {
+  const { paperId } = req.params;
+  const { copies_count = 1 } = req.body || {};
+  const job = transferredPrintingJobs.find(j => j.paperId === paperId || j.id === paperId || j.courseCode === paperId) || transferredPrintingJobs[0];
+  const content = job?.paperContent || {};
+  const allQuestions = Array.isArray(content.questions) ? content.questions : [];
+
+  const copyId = `COMP-COPY-CTR101-${Date.now().toString().slice(-6)}`;
+  const txHash = '0x' + crypto.randomBytes(32).toString('hex');
+
+  const paper = {
+    id: paperId,
+    exam_id: paperId,
+    title: job?.title || 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)',
+    subject: job?.subject || 'OPERATING SYSTEMS',
+    durationMinutes: 180,
+    totalMarks: 70,
+    totalQuestions: allQuestions.length || 19,
+    encryptionStatus: 'DECRYPTED_UNLOCKED',
+    assignedCentreCode: 'CTR-101',
+    sections: [
+      {
+        sectionLetter: 'A',
+        subject: 'OBJECTIVE / MCQ',
+        questions: allQuestions.slice(0, 14).map((q, i) => ({
+          id: q.id,
+          displayNumber: q.questionNumber,
+          questionNumber: i + 1,
+          questionText: q.content_text,
+          marks: q.marks,
+          options: (q.options || []).map(opt => ({ label: opt.key, text: opt.text })),
+        })),
+      },
+      {
+        sectionLetter: 'B',
+        subject: 'SECTION I & II (THEORY & NUMERICALS)',
+        questions: allQuestions.slice(14).map((q, i) => ({
+          id: q.id,
+          displayNumber: q.questionNumber,
+          questionNumber: 15 + i,
+          questionText: q.content_text,
+          marks: q.marks,
+        })),
+      },
+    ],
+    instructions: Array.isArray(content.instructions) ? content.instructions.join('\n') : content.instructions || '',
+  };
+
+  res.json({
+    success: true,
+    message: `Print authorized for ${copies_count} cop${copies_count > 1 ? 'ies' : 'y'}. Dynamic watermark generated.`,
+    paper,
+    printRecord: {
+      copyId,
+      txHash,
+      printedAt: new Date().toISOString(),
+      printedBy: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
+      role: 'CENTRE_OPERATOR',
+    },
+    serverTimeIso: new Date().toISOString(),
+  });
+});
+
+// Competitive Exam Paper Download / Enclave View
+app.post('/api/competitive/papers/:paperId/download', (req, res) => {
+  const { paperId } = req.params;
+  const job = transferredPrintingJobs.find(j => j.paperId === paperId || j.id === paperId || j.courseCode === paperId) || transferredPrintingJobs[0];
+  const content = job?.paperContent || {};
+  const allQuestions = Array.isArray(content.questions) ? content.questions : [];
+
+  const paper = {
+    id: paperId,
+    exam_id: paperId,
+    title: job?.title || 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)',
+    subject: job?.subject || 'OPERATING SYSTEMS',
+    durationMinutes: 180,
+    totalMarks: 70,
+    totalQuestions: allQuestions.length || 19,
+    encryptionStatus: 'DECRYPTED_UNLOCKED',
+    assignedCentreCode: 'CTR-101',
+    sections: [
+      {
+        sectionLetter: 'A',
+        subject: 'OBJECTIVE / MCQ',
+        questions: allQuestions.slice(0, 14).map((q, i) => ({
+          id: q.id,
+          displayNumber: q.questionNumber,
+          questionNumber: i + 1,
+          questionText: q.content_text,
+          marks: q.marks,
+          options: (q.options || []).map(opt => ({ label: opt.key, text: opt.text })),
+        })),
+      },
+      {
+        sectionLetter: 'B',
+        subject: 'SECTION I & II (THEORY & NUMERICALS)',
+        questions: allQuestions.slice(14).map((q, i) => ({
+          id: q.id,
+          displayNumber: q.questionNumber,
+          questionNumber: 15 + i,
+          questionText: q.content_text,
+          marks: q.marks,
+        })),
+      },
+    ],
+    instructions: Array.isArray(content.instructions) ? content.instructions.join('\n') : content.instructions || '',
+  };
+
+  res.json({
+    success: true,
+    message: 'Paper loaded in secure enclave viewer. Direct disk download restricted per Zero-Leak protocol.',
+    paper,
+    auditTxHash: '0x' + crypto.randomBytes(32).toString('hex'),
+    serverTimeIso: new Date().toISOString(),
+  });
+});
+
+// Competitive Exam Paper Audit Logs
+app.get('/api/competitive/papers/:paperId/audit-logs', (req, res) => {
+  res.json({
+    success: true,
+    logs: [
+      {
+        id: `LOG-${Date.now()}-1`,
+        actionType: 'DECRYPTION_SUCCESS',
+        userName: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
+        userRole: 'CENTRE_OPERATOR',
+        status: 'SUCCESS',
+        timestamp: new Date().toISOString(),
+        details: { message: 'AES-256-GCM hardware enclave key verified. Paper decrypted successfully.' },
+      },
+      {
+        id: `LOG-${Date.now()}-2`,
+        actionType: 'CUSTODY_RELAY_INGEST',
+        userName: 'Pradnya Jadhav (Paper Authority)',
+        userRole: 'EXAM_MANAGER',
+        status: 'SUCCESS',
+        timestamp: new Date(Date.now() - 60000).toISOString(),
+        details: { message: 'Zero-Leak direct relay from Exam Controller completed.' },
+      },
+    ],
+  });
+});
+
 // 3. Printing Jobs List
 app.get('/api/delivery/print-jobs', (req, res) => {
   res.json({

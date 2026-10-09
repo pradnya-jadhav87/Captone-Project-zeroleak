@@ -133,7 +133,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
       });
 
       if (response && response.success) {
-        setJobDetails({
+        const details = {
           jobId: response.jobId,
           custodyHash: response.custodyHash,
           assignedPrintingManager: response.assignedPrintingManager,
@@ -144,6 +144,22 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
           filename: response.filename || effectiveFilename,
           sizeBytes: response.sizeBytes,
           message: response.message,
+        };
+        setJobDetails(details);
+        api.saveLocalTransferredJob({
+          id: details.jobId,
+          paperId: `EXAM-${effectiveCourseCode}-${Date.now().toString().slice(-4)}`,
+          title: effectiveTitle,
+          subject: effectiveSubject,
+          courseCode: effectiveCourseCode,
+          custodyHash: details.custodyHash,
+          transferredBy,
+          filename: details.filename,
+          sizeBytes: details.sizeBytes,
+          transferredAt: details.transferredAt,
+          localFilePath: '[Zero-Leak Secure Enclave — Local PC Download Blocked & Purged]',
+          status: 'READY_FOR_PRINT',
+          paperContent,
         });
         setIsSuccess(true);
       } else {
@@ -167,7 +183,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
           transferredBy,
         });
         if (fallbackRes && fallbackRes.success) {
-          setJobDetails({
+          const details = {
             jobId: fallbackRes.jobId,
             custodyHash: fallbackRes.custodyHash,
             assignedPrintingManager: fallbackRes.assignedPrintingManager,
@@ -177,6 +193,22 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
             filename: effectiveFilename,
             localFilePath: '[Zero-Leak Secure Enclave — Local PC Download Blocked & Purged]',
             sizeBytes: 48678,
+          };
+          setJobDetails(details);
+          api.saveLocalTransferredJob({
+            id: details.jobId,
+            paperId: `EXAM-${effectiveCourseCode}-${Date.now().toString().slice(-4)}`,
+            title: effectiveTitle,
+            subject: effectiveSubject,
+            courseCode: effectiveCourseCode,
+            custodyHash: details.custodyHash,
+            transferredBy,
+            filename: details.filename,
+            sizeBytes: details.sizeBytes,
+            transferredAt: details.transferredAt,
+            localFilePath: '[Zero-Leak Secure Enclave — Local PC Download Blocked & Purged]',
+            status: 'READY_FOR_PRINT',
+            paperContent,
           });
           setIsSuccess(true);
           return;
@@ -185,7 +217,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
 
       const fallbackHash =
         '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-      setJobDetails({
+      const fallbackDetails = {
         jobId: `JOB-PRINT-${Date.now().toString().slice(-6)}`,
         custodyHash: fallbackHash,
         assignedPrintingManager: 'operator@centre101.edu.in',
@@ -195,6 +227,22 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
         filename: effectiveFilename,
         localFilePath: '[Zero-Leak Secure Enclave — Local PC Download Blocked & Purged]',
         sizeBytes: 48678,
+      };
+      setJobDetails(fallbackDetails);
+      api.saveLocalTransferredJob({
+        id: fallbackDetails.jobId,
+        paperId: `EXAM-${effectiveCourseCode}-${Date.now().toString().slice(-4)}`,
+        title: effectiveTitle,
+        subject: effectiveSubject,
+        courseCode: effectiveCourseCode,
+        custodyHash: fallbackDetails.custodyHash,
+        transferredBy,
+        filename: fallbackDetails.filename,
+        sizeBytes: fallbackDetails.sizeBytes,
+        transferredAt: fallbackDetails.transferredAt,
+        localFilePath: '[Zero-Leak Secure Enclave — Local PC Download Blocked & Purged]',
+        status: 'READY_FOR_PRINT',
+        paperContent,
       });
       setIsSuccess(true);
     } finally {
