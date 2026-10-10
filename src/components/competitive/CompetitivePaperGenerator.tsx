@@ -89,7 +89,11 @@ export const CompetitivePaperGenerator: React.FC<PaperGeneratorProps> = ({
     setGenerationError(null);
 
     try {
-      const resp = await api.competitive.generateFinalPaper(examId, { subjects });
+      const resp = await api.competitive.generateFinalPaper(
+        examId,
+        { subjects },
+        { exam_details: examDetails }
+      );
       if (resp && resp.success && resp.paper) {
         setGeneratedPaper(resp.paper);
       } else {

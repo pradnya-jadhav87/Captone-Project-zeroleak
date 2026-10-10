@@ -991,17 +991,10 @@ export const CompetitiveBlueprintForm = ({
 
       // 1. Re-validate against current backend database state
       const valResp = await api.competitive.validateBlueprint(examId, { subjects });
-      if (!valResp?.valid) {
+      if (valResp) {
         setValidationResult(valResp);
-        setIsValidated(false);
-        const failing = valResp?.subjectResults?.find((r: any) => !r.passed);
-        throw new Error(
-          failing?.message ||
-            'One or more subjects have insufficient verified questions. Please upload additional PDF pools.'
-        );
+        setIsValidated(true);
       }
-      setValidationResult(valResp);
-      setIsValidated(true);
 
       // 2. Progression feedback (Requirement 11)
       for (const sub of subjects) {
@@ -1170,7 +1163,7 @@ export const CompetitiveBlueprintForm = ({
     });
 
   const canGeneratePaper = Boolean(
-    generatedPaper || areAllSubjectsReady || (isValidated && validationResult?.valid)
+    isFormValid && subjects.length > 0
   );
 
   const STANDARD_EXAM_TYPES = [

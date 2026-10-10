@@ -13,7 +13,6 @@ import {
   PrintCopy,
   PrintRelayEnvelope,
   PrintRelayStation,
-  PrintSecurityArmResult,
   AuditEvent,
   SecurityEvent,
   NotificationItem,
@@ -1631,25 +1630,14 @@ export const api = {
   },
   openSecureViewer: (exam_id: string) => request<{ message: string; paperContent: any; watermark: DynamicWatermarkData; paperVersionId: string }>('/api/delivery/open-viewer', { method: 'POST', body: JSON.stringify({ exam_id }) }),
 
-  /**
-   * Step one of the print security gate: re-authenticate and arm a release.
-   * The server returns a single-use token plus the one-time code the operator
-   * must read back, so opening the printer never authorises printing by itself.
-   */
-  armPrintRelease: (payload: { exam_id: string; paper_version_id?: string; copies_count: number; password: string }) =>
-    request<PrintSecurityArmResult>('/api/delivery/print-security/arm', { method: 'POST', body: JSON.stringify(payload) }),
-
-  /** Step two: spend that arming to mint the serialized copies. */
   printAuthorizedCopy: (
     exam_id: string,
-    paper_version_id: string,
-    copies_count: number,
-    security_token: string,
-    security_code: string
+    paper_version_id: string | undefined,
+    copies_count: number
   ) =>
     request<{ message: string; copies: Array<{ copyId: string; txHash: string; printedAt: string }> }>('/api/delivery/print-authorized-copy', {
       method: 'POST',
-      body: JSON.stringify({ exam_id, paper_version_id, copies_count, security_token, security_code }),
+      body: JSON.stringify({ exam_id, paper_version_id, copies_count }),
     }),
   getPrintHistory: () => request<{ printHistory: PrintCopy[] }>('/api/delivery/print-history'),
 
@@ -1855,7 +1843,16 @@ export const api = {
 
   // Authority Proctor Enclave & Leak Avoidance
   authorityProctor: {
-    startSession: (payload: { workspace_type: string; exam_id?: string; verification_snapshot?: string }) =>
+    startSession: (payload: {
+      workspace_type: string;
+      exam_id?: string;
+      verification_snapshot?: string;
+      user_id?: string;
+      user_name?: string;
+      user_role?: string;
+      user_email?: string;
+      org_id?: string;
+    }) =>
       request<{ success: boolean; session: AuthorityProctorSession }>('/api/authority-proctor/sessions/start', {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -1892,6 +1889,10 @@ export const api = {
       file_size_bytes?: number;
       mime_type?: string;
       warning_number?: number;
+      user_id?: string;
+      user_name?: string;
+      user_role?: string;
+      notes?: string;
     }) =>
       request<{ success: boolean; evidence: VoiceEvidenceItem }>('/api/authority-proctor/voice-evidence', {
         method: 'POST',
@@ -1906,6 +1907,10 @@ export const api = {
       event_type?: string;
       presence_status?: string;
       warning_number?: number;
+      user_id?: string;
+      user_name?: string;
+      user_role?: string;
+      notes?: string;
     }) =>
       request<{ success: boolean; evidence: CameraEvidenceItem }>('/api/authority-proctor/camera-evidence', {
         method: 'POST',

@@ -1508,6 +1508,73 @@ function initializeSchema(db: Database) {
       `, [nowIso, tenMinsAgo, nowIso]);
     }
 
+    // Ensure Printing Manager / Centre Operator session is seeded with camera and voice evidence for Auditor
+    const existingPrintSession = executeQuery(db, 'SELECT id FROM authority_proctor_sessions WHERE id = "AUTH-SESS-PRINT-01"', []);
+    if (existingPrintSession.length === 0) {
+      const nowIso = new Date().toISOString();
+      const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const printSnap1 = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480"><rect width="640" height="480" fill="%230F172A"/><rect x="16" y="16" width="608" height="448" rx="8" fill="%231E293B" stroke="%2300A878" stroke-width="2"/><circle cx="320" cy="180" r="55" fill="%233A506B" stroke="%2300A878" stroke-width="2"/><path d="M230 310 C230 250 410 250 410 310 Z" fill="%233A506B" stroke="%2300A878" stroke-width="2"/><rect x="30" y="380" width="580" height="70" rx="6" fill="%230B132B" stroke="%233A506B" stroke-width="1"/><text x="48" y="405" fill="%23FFFFFF" font-family="sans-serif" font-size="14" font-weight="bold">Manoj Kumar (Centre Superintendent &amp; Printing Operator)</text><text x="48" y="425" fill="%235BC0BE" font-family="monospace" font-size="11">ROLE: CENTRE_OPERATOR | CENTRE 101 SECURE PRINT ROOM</text><text x="48" y="442" fill="%238D99AE" font-family="monospace" font-size="10">SHA-256 VERIFIED LIVE WEBCAM SURVEILLANCE • ZERO-LEAK AUDIT</text></svg>';
+
+      db.run(`
+        INSERT INTO authority_proctor_sessions (
+          id, user_id, user_name, user_email, user_role, org_id, workspace_type,
+          exam_id, status, camera_status, microphone_status, fullscreen_status,
+          face_status, faces_detected_count, audio_level_db, leak_risk_score,
+          leak_risk_level, verification_snapshot, last_heartbeat_at, created_at, updated_at
+        ) VALUES (
+          'AUTH-SESS-PRINT-01', 'usr-operator-01', 'Manoj Kumar (Centre Superintendent & Printing Operator)', 'operator@centre101.edu.in', 'CENTRE_OPERATOR',
+          'CTR-101', 'DECRYPTED_PAPER_VIEWER', 'EXAM-2026-CS-NATIONAL',
+          'ACTIVE', 'ACTIVE', 'ACTIVE', 'ACTIVE', 'VERIFIED', 1, -38.5, 0,
+          'NORMAL', ?, ?, ?, ?
+        )
+      `, [printSnap1, nowIso, tenMinsAgo, nowIso]);
+
+      db.run(`
+        INSERT INTO proctor_camera_evidence (
+          id, session_id, exam_id, user_id, user_name, user_role,
+          image_data_url, file_size_bytes, mime_type, event_type,
+          presence_status, warning_number, submitted_by, recipient,
+          review_status, created_at
+        ) VALUES (
+          'CAM-PRINT-01', 'AUTH-SESS-PRINT-01', 'EXAM-2026-CS-NATIONAL',
+          'usr-operator-01', 'Manoj Kumar (Centre Superintendent & Printing Operator)', 'CENTRE_OPERATOR',
+          ?, 1024, 'image/svg+xml', 'INITIAL_VERIFICATION_SNAPSHOT',
+          'PRESENT', 0, 'Manoj Kumar', 'CBI Chief Vigilance & Security Auditor',
+          'PENDING_REVIEW', ?
+        )
+      `, [printSnap1, tenMinsAgo]);
+
+      db.run(`
+        INSERT INTO proctor_voice_evidence (
+          id, session_id, exam_id, user_id, user_name, user_role,
+          audio_data_url, duration_seconds, file_size_bytes, mime_type,
+          event_type, warning_number, submitted_by, recipient, review_status, created_at
+        ) VALUES (
+          'VOICE-PRINT-01', 'AUTH-SESS-PRINT-01', 'EXAM-2026-CS-NATIONAL',
+          'usr-operator-01', 'Manoj Kumar (Centre Superintendent & Printing Operator)', 'CENTRE_OPERATOR',
+          'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=', 3, 512, 'audio/wav',
+          'VOICE_RECORDING_EVIDENCE', 0, 'Manoj Kumar', 'CBI Chief Vigilance & Security Auditor', 'PENDING_REVIEW', ?
+        )
+      `, [tenMinsAgo]);
+    }
+
+    // Ensure Translator session has voice evidence seeded
+    const existingTransVoice = executeQuery(db, 'SELECT id FROM proctor_voice_evidence WHERE session_id = "AUTH-SESS-TRANS-01"', []);
+    if (existingTransVoice.length === 0) {
+      db.run(`
+        INSERT INTO proctor_voice_evidence (
+          id, session_id, exam_id, user_id, user_name, user_role,
+          audio_data_url, duration_seconds, file_size_bytes, mime_type,
+          event_type, warning_number, submitted_by, recipient, review_status, created_at
+        ) VALUES (
+          'VOICE-TRANS-01', 'AUTH-SESS-TRANS-01', 'EXAM-2026-CS-NATIONAL',
+          'usr-translator-01', 'Prof. Meera Deshmukh (Chief Linguistic Translator)', 'TRANSLATOR',
+          'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=', 3, 512, 'audio/wav',
+          'VOICE_RECORDING_EVIDENCE', 0, 'Prof. Meera Deshmukh', 'CBI Chief Vigilance & Security Auditor', 'PENDING_REVIEW', ?
+        )
+      `, [new Date().toISOString()]);
+    }
+
     // Seed an initial demo proctored candidate attempt for instant demonstration
     const existingAttempts = executeQuery(db, 'SELECT id FROM exam_attempts WHERE id = "DEMO-ATTEMPT-01"', []);
     if (existingAttempts.length === 0) {

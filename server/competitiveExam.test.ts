@@ -14,6 +14,8 @@ import {
   validateCompetitivePaperVisuals,
   generateCompetitiveExamPdfBuffer,
   handleDeleteCompetitiveExam,
+  handleValidateBlueprint,
+  handleGenerateCompetitivePaper,
 } from './competitiveExam.ts';
 import { getDb, executeQuery, executeRun } from './db.ts';
 
@@ -802,6 +804,75 @@ test('11. handleDeleteCompetitiveExam cascades deletion across all competitive a
   assert.equal(executeQuery(db, 'SELECT id FROM competitive_exams WHERE id = ?', [testExamId]).length, 0);
   assert.equal(executeQuery(db, 'SELECT id FROM examinations WHERE id = ?', [testExamId]).length, 0);
   assert.equal(executeQuery(db, 'SELECT id FROM competitive_questions WHERE exam_id = ?', [testExamId]).length, 0);
+});
+
+test('12. handleValidateBlueprint auto-provisions and passes validation when questions are initially insufficient', async () => {
+  const testExamId = 'test-bp-auto-' + Date.now();
+  const orgId = 'ORG-DEV-001';
+
+  let jsonResult: any = null;
+  let statusCode = 200;
+  const mockReq: any = {
+    body: {
+      exam_id: testExamId,
+      blueprint: {
+        subjects: [
+          { id: 'sub-p1', subjectName: 'Physics', numberOfQuestions: 5, marksPerQuestion: 4, negativeMarks: 1, questionType: 'MCQ' },
+          { id: 'sub-c1', subjectName: 'Chemistry', numberOfQuestions: 5, marksPerQuestion: 4, negativeMarks: 1, questionType: 'MCQ' }
+        ]
+      }
+    },
+    user: { id: 'admin', org_id: orgId, role: 'EXAM_MANAGER' }
+  };
+  const mockRes: any = {
+    status(code: number) { statusCode = code; return this; },
+    json(data: any) { jsonResult = data; return this; }
+  };
+
+  await handleValidateBlueprint(mockReq, mockRes);
+  assert.equal(statusCode, 200);
+  assert.equal(jsonResult.success, true);
+  assert.equal(jsonResult.valid, true, 'Blueprint must pass validation via auto-provisioning');
+  assert.equal(jsonResult.subjectResults.length, 2);
+  assert.ok(jsonResult.subjectResults.every((r: any) => r.passed === true));
+});
+
+test('13. handleGenerateCompetitivePaper generates paper seamlessly without blocking errors', async () => {
+  const testExamId = 'test-gen-auto-' + Date.now();
+  const orgId = 'ORG-DEV-001';
+
+  let jsonResult: any = null;
+  let statusCode = 200;
+  const mockReq: any = {
+    body: {
+      exam_id: testExamId,
+      blueprint: {
+        subjects: [
+          { id: 'sub-m1', subjectName: 'Mathematics', numberOfQuestions: 5, marksPerQuestion: 4, negativeMarks: 1, questionType: 'MCQ', subjectOrder: 1 }
+        ]
+      },
+      exam_details: {
+        name: 'National Competitive Test in Mathematics',
+        exam_type: 'Competitive Examination',
+        duration_minutes: 90
+      }
+    },
+    user: { id: 'admin', org_id: orgId, role: 'EXAM_MANAGER' }
+  };
+  const mockRes: any = {
+    status(code: number) { statusCode = code; return this; },
+    json(data: any) { jsonResult = data; return this; }
+  };
+
+  await handleGenerateCompetitivePaper(mockReq, mockRes);
+  assert.equal(statusCode, 200, `Expected 200, received status ${statusCode} with error: ${jsonResult?.error}`);
+  assert.equal(jsonResult.success, true);
+  assert.ok(jsonResult.paper, 'Generated paper must be present');
+  assert.equal(jsonResult.paper.totalQuestions, 5);
+  assert.equal(jsonResult.paper.totalMarks, 20);
+  assert.equal(jsonResult.paper.sections.length, 1);
+  assert.equal(jsonResult.paper.questions.length, 5);
+  assert.ok(jsonResult.paper.paperFingerprint, 'Paper must have fingerprint hash');
 });
 
 

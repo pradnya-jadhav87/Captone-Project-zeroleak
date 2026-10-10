@@ -471,11 +471,23 @@ export const AuthorityProctorEnclave: React.FC<AuthorityProctorEnclaveProps> = (
 
       // Initialize authorized proctor session with backend
       let sessionData: AuthorityProctorSession | null = null;
+      const isOperatorRole = currentUser?.role === 'CENTRE_OPERATOR' || workspaceType === 'DECRYPTED_PAPER_VIEWER';
+      const effUserName = (currentUser as any)?.name || currentUser?.full_name || (isOperatorRole ? 'Manoj Kumar (Centre Superintendent & Printing Operator)' : 'Prof. Meera Deshmukh (Chief Linguistic Translator)');
+      const effUserRole = currentUser?.role || (isOperatorRole ? 'CENTRE_OPERATOR' : 'TRANSLATOR');
+      const effUserEmail = currentUser?.email || (isOperatorRole ? 'operator@centre101.edu.in' : 'translator@nbte.edu.in');
+      const effUserId = currentUser?.id || (isOperatorRole ? 'usr-operator-01' : 'usr-translator-01');
+      const effOrgId = currentUser?.org_id || (isOperatorRole ? 'CTR-101' : 'ORG-ZEROLEAK-NATIONAL');
+
       try {
         const res = await api.authorityProctor.startSession({
           workspace_type: workspaceType,
           exam_id: examId,
           verification_snapshot: initialSnap || undefined,
+          user_id: effUserId,
+          user_name: effUserName,
+          user_role: effUserRole,
+          user_email: effUserEmail,
+          org_id: effOrgId,
         });
         if (res && res.session) {
           sessionData = res.session;
@@ -487,11 +499,11 @@ export const AuthorityProctorEnclave: React.FC<AuthorityProctorEnclaveProps> = (
       if (!sessionData) {
         sessionData = {
           id: `AUTH-SESS-${Date.now().toString(36).toUpperCase()}`,
-          user_id: currentUser?.id || 'usr-translator-01',
-          user_name: currentUser?.full_name || 'Prof. Meera Deshmukh (Chief Linguistic Translator)',
-          user_email: currentUser?.email || 'translator@nbte.edu.in',
-          user_role: currentUser?.role || 'TRANSLATOR',
-          org_id: currentUser?.org_id || 'ORG-ZEROLEAK-NATIONAL',
+          user_id: effUserId,
+          user_name: effUserName,
+          user_email: effUserEmail,
+          user_role: effUserRole,
+          org_id: effOrgId,
           workspace_type: workspaceType,
           exam_id: examId,
           status: 'ACTIVE',
@@ -510,6 +522,21 @@ export const AuthorityProctorEnclave: React.FC<AuthorityProctorEnclaveProps> = (
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
+      }
+
+      // Immediately submit initial verification snapshot to camera evidence pipeline
+      if (initialSnap && sessionData?.id) {
+        api.authorityProctor.submitCameraEvidence({
+          session_id: sessionData.id,
+          exam_id: examId,
+          image_data_url: initialSnap,
+          event_type: 'INITIAL_VERIFICATION_SNAPSHOT',
+          presence_status: 'PRESENT',
+          warning_number: 0,
+          user_id: effUserId,
+          user_name: effUserName,
+          user_role: effUserRole,
+        }).catch(() => {});
       }
 
       setSession(sessionData);
@@ -589,6 +616,20 @@ export const AuthorityProctorEnclave: React.FC<AuthorityProctorEnclaveProps> = (
 
       const nextCount = Math.min(3, Number(res?.warning_count) || (warningCount + 1));
       setWarningCount(nextCount);
+
+      if (violationSnap && session?.id) {
+        api.authorityProctor.submitCameraEvidence({
+          session_id: session.id,
+          exam_id: examId,
+          image_data_url: violationSnap,
+          event_type: eventType,
+          presence_status: presenceState === 'TEMPORARILY_ABSENT' ? 'ABSENT' : isShoulderSurfing ? 'SHOULDER_SURFING_DETECTED' : 'PRESENT',
+          warning_number: nextCount,
+          user_id: session.user_id,
+          user_name: session.user_name,
+          user_role: session.user_role,
+        }).catch(() => {});
+      }
 
       if (nextCount >= 3 || res?.is_locked) {
         setIsEmergencyLocked(true);
@@ -852,6 +893,9 @@ export const AuthorityProctorEnclave: React.FC<AuthorityProctorEnclaveProps> = (
             event_type: 'PERIODIC_SURVEILLANCE_SNAPSHOT',
             presence_status: presenceState === 'TEMPORARILY_ABSENT' ? 'ABSENT' : isShoulderSurfing ? 'SHOULDER_SURFING_DETECTED' : 'PRESENT',
             warning_number: warningCount,
+            user_id: session.user_id,
+            user_name: session.user_name,
+            user_role: session.user_role,
           });
         }
       } catch (err) {
@@ -909,6 +953,9 @@ export const AuthorityProctorEnclave: React.FC<AuthorityProctorEnclaveProps> = (
                   file_size_bytes: blob.size,
                   mime_type: blob.type || 'audio/webm',
                   warning_number: warningCount,
+                  user_id: session.user_id,
+                  user_name: session.user_name,
+                  user_role: session.user_role,
                 });
                 setVoiceSubmittedNotice(`Voice Evidence Sample Secured (${new Date().toLocaleTimeString()})`);
                 setTimeout(() => setVoiceSubmittedNotice(null), 4000);

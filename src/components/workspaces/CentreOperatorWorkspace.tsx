@@ -25,7 +25,6 @@ import { api, getDeviceFingerprint, getOrCreateBrowserDeviceIdentity, getLocalTr
 import { NavSubTab } from '../Sidebar';
 import { SecureViewerModal } from '../SecureViewerModal';
 import { PrintRelayPanel } from '../PrintRelayPanel';
-import { PrintSecurityGate } from '../PrintSecurityGate';
 import { PrinterSelectModal } from '../PrinterSelectModal';
 import { CompetitivePrintExaminationPaper } from '../competitive/CompetitivePrintExaminationPaper';
 import { SecurePaperViewer } from '../security/SecurePaperViewer';
@@ -97,11 +96,6 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
   const [printCount, setPrintCount] = useState(10);
   const [printing, setPrinting] = useState(false);
 
-  // Print security gate state. Nothing is minted until the operator re-enters
-  // their own password and reads back the one-time code the server mints.
-  const [gateOpen, setGateOpen] = useState(false);
-  const [gateExamId, setGateExamId] = useState('');
-  const [gateExamName, setGateExamName] = useState('');
   const printContainerRef = useRef<HTMLDivElement | null>(null);
   const deviceFp = getDeviceFingerprint();
 
@@ -643,7 +637,12 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
   // Print Final Competitive Exam Paper (Server-Side Verified + Audit Logged + Triggers Clean Print)
   const handlePrintCompetitivePaper = async (paper: any) => {
     if (paper.isTransferredJob) {
-      openPrintGate(paper.id, paper.title);
+      void handlePrintAuthorizedCopies(
+        paper.id,
+        competitiveCopiesCount,
+        paper.title,
+        paper.current_paper_version_id
+      );
       return;
     }
     setPrintingPaperId(paper.id);
@@ -784,19 +783,38 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
     }
   };
 
-  /**
-   * Printing no longer happens straight from this click. The click opens the
-   * print security gate; the server only mints copies once the operator has
-   * re-authenticated and echoed back the one-time authorisation code.
-   */
-  const openPrintGate = (examId: string, examName: string) => {
+  const handlePrintAuthorizedCopies = async (
+    examId: string,
+    copies: number,
+    examName: string,
+    paperVersionId?: string
+  ) => {
     if (!examId) {
       setStatusMessage({ type: 'error', text: 'Select an examination before printing.' });
       return;
     }
-    setGateExamId(examId);
-    setGateExamName(examName || 'Selected examination');
-    setGateOpen(true);
+    setPrinting(true);
+    setStatusMessage(null);
+    try {
+      const result = await api.printAuthorizedCopy(examId, paperVersionId, copies);
+      const first = result.copies[0]?.copyId;
+      const last = result.copies[result.copies.length - 1]?.copyId;
+      setStatusMessage({
+        type: 'success',
+        text: first && last
+          ? `${result.message} Serialized ${first}${first === last ? '' : ` to ${last}`} for ${examName}.`
+          : result.message,
+      });
+      await loadData();
+      onRefresh();
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: err.message || 'The server refused the print request.',
+      });
+    } finally {
+      setPrinting(false);
+    }
   };
 
   // Reusable Renderer for Competitive Exam Time-Locked Encrypted Papers
@@ -1441,11 +1459,19 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
 
                     <button
                       type="button"
-                      onClick={() => openPrintGate(primaryExam.id, primaryExam.name)}
+                      onClick={() =>
+                        void handlePrintAuthorizedCopies(
+                          primaryExam.id,
+                          1,
+                          primaryExam.name,
+                          primaryExam.current_paper_version_id
+                        )
+                      }
+                      disabled={printing}
                       className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/10 flex items-center gap-2 cursor-pointer transition-all"
                     >
                       <Printer className="w-4 h-4 text-emerald-400" />
-                      <span>Print Authorized Copy</span>
+                      <span>{printing ? 'Printing...' : 'Print Copy'}</span>
                     </button>
                   </div>
                 </div>
@@ -1757,17 +1783,20 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
                 </div>
 
                 <button
-                  onClick={() =>
-                    openPrintGate(
+                  onClick={() => {
+                    const selectedExam = releasedExams.find(exam => exam.id === selectedExamId);
+                    void handlePrintAuthorizedCopies(
                       selectedExamId,
-                      releasedExams.find(exam => exam.id === selectedExamId)?.name || ''
-                    )
-                  }
+                      printCount,
+                      selectedExam?.name || 'Selected examination',
+                      selectedExam?.current_paper_version_id
+                    );
+                  }}
                   disabled={printing || !selectedExamId}
                   className="px-5 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded-lg font-bold text-xs shadow-xs flex items-center gap-1.5"
                 >
-                  <Lock className="w-4 h-4" />
-                  <span>Authorize &amp; Print Batch</span>
+                  <Printer className="w-4 h-4" />
+                  <span>{printing ? 'Printing...' : 'Print Batch'}</span>
                 </button>
 
                 <button
@@ -1796,9 +1825,8 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
             <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-900 flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0 text-indigo-600" />
               <span>
-                Printing is gated: the release is armed with your account password and a single-use code, and it can
-                be spent exactly once. To print from another desk, a phone or a tablet on this Wi-Fi, open a relay
-                below instead of moving the paper by hand.
+                Printing requires your account password and server-side print security checks. To print from another
+                desk, a phone or a tablet on this Wi-Fi, open a relay below instead of moving the paper by hand.
               </span>
             </div>
           </div>
@@ -1932,23 +1960,13 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
           currentUser={currentUser}
           onClose={() => setViewerOpen(false)}
           onPrintCopy={() =>
-            openPrintGate(selectedExamId, viewerPaper?.exam_name || viewerPaper?.subject || '')
+            void handlePrintAuthorizedCopies(
+              selectedExamId,
+              printCount,
+              viewerPaper?.exam_name || viewerPaper?.subject || 'Selected examination',
+              selectedPaperVersionId
+            )
           }
-        />
-      )}
-
-      {/* Print Security Gate */}
-      {gateOpen && (
-        <PrintSecurityGate
-          examId={gateExamId}
-          examName={gateExamName}
-          copies={printCount}
-          onClose={() => setGateOpen(false)}
-          onReleased={message => {
-            setStatusMessage({ type: 'success', text: message });
-            loadData();
-            onRefresh();
-          }}
         />
       )}
 

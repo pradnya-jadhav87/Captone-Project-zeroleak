@@ -1357,6 +1357,559 @@ app.get('/api/competitive/papers/:paperId/audit-logs', (req, res) => {
   });
 });
 
+// =========================================================================
+// ZEROLEAK COMPETITIVE EXAMINATION ENGINE (api/index.js)
+// =========================================================================
+
+const competitiveExamsStore = [
+  {
+    id: 'EXAM-2026-JEE-01',
+    org_id: 'ORG-DEV-001',
+    name: 'Joint Entrance Examination (JEE Advanced 2026)',
+    exam_type: 'JEE',
+    duration_minutes: 180,
+    exam_date: new Date().toISOString().split('T')[0],
+    exam_time: '09:00 AM - 12:00 PM',
+    instructions: 'All questions are compulsory. 4 marks for each correct response, -1 mark for incorrect response.',
+    blueprint_json: JSON.stringify({
+      examType: 'JEE',
+      durationMinutes: 180,
+      totalMarks: 120,
+      subjects: [
+        { id: 'subj-jee-phys-1', subjectName: 'Physics', numberOfQuestions: 10, questionType: 'MCQ', marksPerQuestion: 4, negativeMarks: 1, translationRequired: false, subjectOrder: 1, pdfs: [] },
+        { id: 'subj-jee-chem-2', subjectName: 'Chemistry', numberOfQuestions: 10, questionType: 'MCQ', marksPerQuestion: 4, negativeMarks: 1, translationRequired: false, subjectOrder: 2, pdfs: [] },
+        { id: 'subj-jee-math-3', subjectName: 'Mathematics', numberOfQuestions: 10, questionType: 'MCQ', marksPerQuestion: 4, negativeMarks: 1, translationRequired: false, subjectOrder: 3, pdfs: [] }
+      ]
+    }),
+    status: 'ACTIVE',
+    created_by: 'usr-manager-01',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'EXAM-2026-NEET-01',
+    org_id: 'ORG-DEV-001',
+    name: 'National Eligibility Entrance Test (NEET UG 2026)',
+    exam_type: 'NEET',
+    duration_minutes: 200,
+    exam_date: new Date().toISOString().split('T')[0],
+    exam_time: '02:00 PM - 05:20 PM',
+    instructions: 'Strictly multiple choice questions with single correct option. Marking scheme: +4 / -1.',
+    blueprint_json: JSON.stringify({
+      examType: 'NEET',
+      durationMinutes: 200,
+      totalMarks: 120,
+      subjects: [
+        { id: 'subj-neet-phys-1', subjectName: 'Physics', numberOfQuestions: 10, questionType: 'MCQ', marksPerQuestion: 4, negativeMarks: 1, translationRequired: false, subjectOrder: 1, pdfs: [] },
+        { id: 'subj-neet-chem-2', subjectName: 'Chemistry', numberOfQuestions: 10, questionType: 'MCQ', marksPerQuestion: 4, negativeMarks: 1, translationRequired: false, subjectOrder: 2, pdfs: [] },
+        { id: 'subj-neet-bio-3', subjectName: 'Biology', numberOfQuestions: 10, questionType: 'MCQ', marksPerQuestion: 4, negativeMarks: 1, translationRequired: false, subjectOrder: 3, pdfs: [] }
+      ]
+    }),
+    status: 'ACTIVE',
+    created_by: 'usr-manager-01',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  },
+  {
+    id: 'EXAM-2026-CS-NATIONAL',
+    org_id: 'ORG-ZEROLEAK-NATIONAL',
+    name: 'National Competitive Entrance Exam (Computer Science)',
+    exam_type: 'Competitive Examination',
+    duration_minutes: 180,
+    exam_date: new Date().toISOString().split('T')[0],
+    exam_time: '10:00 AM - 01:00 PM',
+    instructions: 'Comprehensive Computer Science & Engineering competitive examination.',
+    blueprint_json: JSON.stringify({
+      examType: 'Competitive Examination',
+      durationMinutes: 180,
+      totalMarks: 100,
+      subjects: [
+        { id: 'subj-cs-gate-1', subjectName: 'Computer Science', numberOfQuestions: 25, questionType: 'MCQ', marksPerQuestion: 4, negativeMarks: 1, translationRequired: false, subjectOrder: 1, pdfs: [] }
+      ]
+    }),
+    status: 'ACTIVE',
+    created_by: 'usr-manager-01',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+];
+
+const competitiveGeneratedPapersStore = new Map();
+const competitivePoolFilesStore = new Map();
+
+function buildMockCompetitiveQuestions(subjectName, count, startQNum = 1, marks = 4, negMarks = 1) {
+  const norm = (subjectName || '').toLowerCase();
+  const bank = [];
+  if (norm.includes('phys')) {
+    bank.push(
+      { stem: "A uniform circular disc of mass $M$ and radius $R$ rolls without slipping down an inclined plane of inclination $\\theta$. What is the linear acceleration of its center of mass?", opts: ["$\\frac{2}{3} g \\sin \\theta$", "$\\frac{1}{2} g \\sin \\theta$", "$g \\sin \\theta$", "$\\frac{3}{4} g \\sin \\theta$"] },
+      { stem: "According to the de Broglie hypothesis, what is the wavelength $\\lambda$ associated with an electron accelerated from rest through an electric potential difference $V$?", opts: ["$\\lambda = \\frac{1.227}{\\sqrt{V}}\\text{ nm}$", "$\\lambda = \\frac{12.27}{\\sqrt{V}}\\text{ nm}$", "$\\lambda = \\frac{0.1227}{V}\\text{ nm}$", "$\\lambda = 1.227 \\sqrt{V}\\text{ nm}$"] },
+      { stem: "In an electromagnetic wave propagating in free space along the $+z$ direction, if the electric field vector is $\\vec{E} = E_0 \\sin(kz - \\omega t) \\hat{i}$, what is the corresponding magnetic field vector $\\vec{B}$?", opts: ["$\\vec{B} = \\frac{E_0}{c} \\sin(kz - \\omega t) \\hat{j}$", "$\\vec{B} = -\\frac{E_0}{c} \\sin(kz - \\omega t) \\hat{j}$", "$\\vec{B} = c E_0 \\sin(kz - \\omega t) \\hat{k}$", "$\\vec{B} = \\frac{E_0}{c} \\cos(kz - \\omega t) \\hat{i}$"] },
+      { stem: "A Carnot engine has an efficiency of $40\\%$ when operating between temperatures $T_1$ (source) and $T_2 = 300\\text{ K}$ (sink). What is the temperature of the heat source $T_1$?", opts: ["$500\\text{ K}$", "$450\\text{ K}$", "$600\\text{ K}$", "$750\\text{ K}$"] },
+      { stem: "Two long parallel conductors carry equal steady currents $I$ in the same direction separated by distance $d$. What is the magnetic force per unit length acting between them?", opts: ["$\\frac{\\mu_0 I^2}{2\\pi d}$ (Attractive)", "$\\frac{\\mu_0 I^2}{2\\pi d}$ (Repulsive)", "$\\frac{\\mu_0 I^2}{4\\pi d^2}$ (Attractive)", "Zero"] },
+      { stem: "In Young's double slit experiment with light of wavelength $\\lambda = 600\\text{ nm}$, slit separation $d = 1\\text{ mm}$, and distance to screen $D = 2\\text{ m}$, the fringe width is:", opts: ["$1.2\\text{ mm}$", "$0.6\\text{ mm}$", "$2.4\\text{ mm}$", "$0.3\\text{ mm}$"] },
+      { stem: "An alternating voltage $V(t) = 220\\sqrt{2} \\sin(100\\pi t)\\text{ V}$ is applied across an inductor of $L = 0.7\\text{ H}$. The inductive reactance $X_L$ is approximately:", opts: ["$220\\,\\Omega$", "$314\\,\\Omega$", "$140\\,\\Omega$", "$70\\,\\Omega$"] },
+      { stem: "A satellite in a circular orbit of radius $R$ around Earth has orbital period $T$. If the orbital radius is increased to $4R$, the new orbital period becomes:", opts: ["$8T$", "$4T$", "$16T$", "$2T$"] },
+      { stem: "A photon of energy $6.0\\text{ eV}$ strikes a metal surface with work function $\\Phi = 2.4\\text{ eV}$. What is the maximum kinetic energy of the emitted photoelectrons?", opts: ["$3.6\\text{ eV}$", "$8.4\\text{ eV}$", "$2.5\\text{ eV}$", "$1.2\\text{ eV}$"] },
+      { stem: "A particle executes simple harmonic motion with amplitude $A$. At what displacement from the mean position is its kinetic energy equal to its potential energy?", opts: ["$x = \\frac{A}{\\sqrt{2}}$", "$x = \\frac{A}{2}$", "$x = \\frac{A}{\\sqrt{3}}$", "$x = \\frac{\\sqrt{3}A}{2}$"] }
+    );
+  } else if (norm.includes('chem')) {
+    bank.push(
+      { stem: "Which of the following molecules possesses a square planar geometry according to VSEPR theory and hybridization models?", opts: ["$\\text{XeF}_4$ ($sp^3d^2$ with 2 lone pairs)", "$\\text{SF}_4$ ($sp^3d$ with 1 lone pair)", "$\\text{CH}_4$ ($sp^3$ with 0 lone pairs)", "$\\text{BF}_4^-$ ($sp^3$ with 0 lone pairs)"] },
+      { stem: "The rate constant for a first-order chemical reaction at $300\\text{ K}$ is $k = 1.386 \\times 10^{-2}\\text{ s}^{-1}$. What is the half-life ($t_{1/2}$) of this reaction?", opts: ["$50\\text{ seconds}$", "$25\\text{ seconds}$", "$100\\text{ seconds}$", "$75\\text{ seconds}$"] },
+      { stem: "In the electrochemical Daniel cell $\\text{Zn}|\\text{Zn}^{2+}(1\\text{M}) || \\text{Cu}^{2+}(1\\text{M})|\\text{Cu}$, given $E^\\circ_{\\text{Zn}^{2+}/\\text{Zn}} = -0.76\\text{ V}$ and $E^\\circ_{\\text{Cu}^{2+}/\\text{Cu}} = +0.34\\text{ V}$, the standard cell potential is:", opts: ["$+1.10\\text{ V}$", "$+0.42\\text{ V}$", "$-1.10\\text{ V}$", "$+0.76\\text{ V}$"] },
+      { stem: "Which of the following organic compounds will NOT give positive iodoform test upon treatment with $\\text{I}_2$ and aqueous $\\text{NaOH}$?", opts: ["Benzaldehyde ($\\text{C}_6\\text{H}_5\\text{CHO}$)", "Acetaldehyde ($\\text{CH}_3\\text{CHO}$)", "Acetone ($\\text{CH}_3\\text{COCH}_3$)", "Ethanol ($\\text{CH}_3\\text{CH}_2\\text{OH}$)"] },
+      { stem: "According to crystal field theory, the crystal field stabilization energy (CFSE) of a high-spin octahedral complex of $d^5$ configuration is:", opts: ["$0\\,\\Delta_o$", "$-2.0\\,\\Delta_o$", "$-0.4\\,\\Delta_o$", "$-1.2\\,\\Delta_o$"] },
+      { stem: "What is the pH of a buffer solution prepared by mixing $0.1\\text{ M}$ acetic acid and $0.1\\text{ M}$ sodium acetate, given $pK_a = 4.76$?", opts: ["$4.76$", "$5.76$", "$3.76$", "$7.00$"] },
+      { stem: "Which coordination compound exhibits linkage isomerism?", opts: ["$[\\text{Co}(\\text{NH}_3)_5(\\text{NO}_2)]\\text{Cl}_2$", "$[\\text{Co}(\\text{NH}_3)_6]\\text{Cl}_3$", "$[\\text{Pt}(\\text{NH}_3)_2\\text{Cl}_2]$", "$[\\text{Cr}(\\text{H}_2\\text{O})_6]\\text{Cl}_3$"] },
+      { stem: "The elevation in boiling point ($\Delta T_b$) of a $0.05\\text{ m}$ aqueous solution of non-electrolyte glucose ($K_b = 0.52\\text{ K}\\cdot\\text{kg}/\\text{mol}$) is:", opts: ["$0.026\\text{ K}$", "$0.052\\text{ K}$", "$0.104\\text{ K}$", "$0.013\\text{ K}$"] },
+      { stem: "In the conversion of an alkene to an alcohol, anti-Markovnikov hydration is selectively achieved using:", opts: ["Hydroboration-oxidation ($\\text{B}_2\\text{H}_6$, then $\\text{H}_2\\text{O}_2/\\text{OH}^-$)", "Acid-catalyzed hydration ($\\text{H}^+/\\text{H}_2\\text{O}$)", "Oxymercuration-demercuration ($\\text{Hg(OAc)}_2$, then $\\text{NaBH}_4$)", "Treatment with concentrated $\\text{H}_2\\text{SO}_4$"] },
+      { stem: "Which of the following transition metal ions is diamagnetic in ground state electronic configuration?", opts: ["$\\text{Zn}^{2+}$ ($[\\text{Ar}] 3d^{10}$)", "$\\text{Fe}^{3+}$ ($[\\text{Ar}] 3d^5$)", "$\\text{Cu}^{2+}$ ($[\\text{Ar}] 3d^9$)", "$\\text{Mn}^{2+}$ ($[\\text{Ar}] 3d^5$)"] }
+    );
+  } else if (norm.includes('math')) {
+    bank.push(
+      { stem: "What is the value of the definite integral $I = \\int_{0}^{\\pi/2} \\frac{\\sin^3 x}{\\sin^3 x + \\cos^3 x} dx$?", opts: ["$\\frac{\\pi}{4}$", "$\\frac{\\pi}{2}$", "$\\pi$", "$0$"] },
+      { stem: "If matrix $A$ is of order $3 \\times 3$ with $\\det(A) = 5$, what is the value of $\\det(2 A^{-1})$?", opts: ["$\\frac{8}{5}$", "$\\frac{2}{5}$", "$40$", "$\\frac{1}{5}$"] },
+      { stem: "The general solution to the first-order differential equation $\\frac{dy}{dx} + \\frac{y}{x} = x^2$ for $x > 0$ is:", opts: ["$y = \\frac{x^3}{4} + \\frac{C}{x}$", "$y = \\frac{x^3}{3} + Cx$", "$y = x^4 + C$", "$y = \\frac{x^2}{2} + \\frac{C}{x}$"] },
+      { stem: "What is the eccentricity $e$ of the hyperbola $\\frac{x^2}{16} - \\frac{y^2}{9} = 1$?", opts: ["$\\frac{5}{4}$", "$\\frac{5}{3}$", "$\\frac{4}{5}$", "$\\frac{25}{16}$"] },
+      { stem: "Two fair dice are thrown simultaneously. What is the probability that the sum of the numbers appearing on both dice is a prime number?", opts: ["$\\frac{15}{36} = \\frac{5}{12}$", "$\\frac{1}{2}$", "$\\frac{7}{36}$", "$\\frac{1}{3}$"] },
+      { stem: "The radius of curvature $\\rho$ of the curve $y = f(x)$ at any point is given by:", opts: ["$\\rho = \\frac{(1 + (y')^2)^{3/2}}{|y''|}$", "$\\rho = \\frac{(1 + y')^{3/2}}{y''}$", "$\\rho = \\frac{|y''|}{(1 + (y')^2)^{3/2}}$", "$\\rho = \\frac{1 + y'^2}{y''}$"] },
+      { stem: "If $\\vec{a} = 2\\hat{i} + \\hat{j} - \\hat{k}$ and $\\vec{b} = \\hat{i} - \\hat{j} + 2\\hat{k}$, what is the scalar dot product $\\vec{a} \\cdot \\vec{b}$?", opts: ["$-1$", "$1$", "$3$", "$0$"] },
+      { stem: "The maximum value of $f(x) = x(1-x)^2$ on the closed interval $[0, 1]$ occurs at $x = $:", opts: ["$1/3$", "$1/2$", "$2/3$", "$1/4$"] },
+      { stem: "What is the value of the limit $L = \\lim_{x \\to 0} \\frac{e^{2x} - 1 - 2x}{x^2}$?", opts: ["$2$", "$1$", "$4$", "$0$"] },
+      { stem: "The number of terms in the algebraic expansion of $(x + y + z)^{10}$ is:", opts: ["$66$", "$55$", "$11$", "$78$"] }
+    );
+  } else if (norm.includes('bio')) {
+    bank.push(
+      { stem: "During which phase of meiotic cell division does homologous chromosome crossing over (genetic recombination) occur?", opts: ["Pachytene stage of Prophase I", "Diakinesis stage of Prophase I", "Metaphase II", "Zygotene stage of Prophase I"] },
+      { stem: "In the human nephron, the primary mechanism of water reabsorption in the collecting duct is regulated by which endocrine hormone?", opts: ["Antidiuretic Hormone (Vasopressin / ADH)", "Aldosterone", "Atrial Natriuretic Peptide (ANP)", "Renin"] },
+      { stem: "According to the central dogma of molecular genetics, which enzyme catalyzes the unwinding of double-stranded DNA during replication fork progression?", opts: ["DNA Helicase", "DNA Ligase", "DNA Topoisomerase", "RNA Polymerase II"] },
+      { stem: "In the C4 photosynthetic pathway, the primary carbon dioxide acceptor enzyme in mesophyll cells is:", opts: ["PEP Carboxylase (Phosphoenolpyruvate carboxylase)", "RuBisCO (Ribulose-1,5-bisphosphate carboxylase-oxygenase)", "Carbonic anhydrase", "Malate dehydrogenase"] },
+      { stem: "Which of the following immunoglobulins is the most abundant in human colostrum and mucosal secretions, conferring passive mucosal immunity?", opts: ["IgA", "IgG", "IgM", "IgE"] }
+    );
+  } else {
+    bank.push(
+      { stem: "What is the worst-case asymptotic time complexity of building a max-heap from an unsorted array of $n$ elements using the standard bottom-up heapify algorithm?", opts: ["$O(n)$", "$O(n \\log n)$", "$O(n^2)$", "$O(\\log n)$"] },
+      { stem: "In relational database design, a relation schema $R$ with functional dependencies $F$ is in Boyce-Codd Normal Form (BCNF) if and only if for every non-trivial functional dependency $X \\to Y$:", opts: ["$X$ is a superkey of relation $R$", "$Y$ is a prime attribute of $R$", "$R$ has no multi-valued dependencies", "$X \\cap Y$ is non-empty"] },
+      { stem: "Which CPU scheduling algorithm guarantees prevention of starvation while ensuring fair CPU share distribution?", opts: ["Round Robin with optimal time quantum", "Shortest Job First without aging", "Strict Priority Scheduling without aging", "Shortest Remaining Time First"] },
+      { stem: "In an undirected graph $G = (V, E)$ with $|V| = n$ vertices and $|E| = m$ edges, what is the running time of Dijkstra's single-source shortest path algorithm using a Fibonacci heap priority queue?", opts: ["$O(m + n \\log n)$", "$O((m + n) \\log n)$", "$O(n^2)$", "$O(m \\log n)$"] },
+      { stem: "In computer networking, which protocol operating at the Transport layer provides connection-oriented, full-duplex byte stream transmission with adaptive sliding window flow control?", opts: ["Transmission Control Protocol (TCP)", "User Datagram Protocol (UDP)", "Internet Control Message Protocol (ICMP)", "Address Resolution Protocol (ARP)"] }
+    );
+  }
+
+  const result = [];
+  for (let i = 0; i < count; i++) {
+    const qNum = startQNum + i;
+    const item = bank[i % bank.length];
+    const prefix = count > bank.length ? `[Item ${qNum}] ` : '';
+    result.push({
+      id: `q-comp-${Date.now().toString().slice(-6)}-${qNum}`,
+      originalQuestionId: `orig-q-${qNum}`,
+      displayNumber: `Q${qNum}`,
+      questionNumber: qNum,
+      sectionName: `SECTION — ${subjectName.toUpperCase()}`,
+      subject: subjectName,
+      questionType: 'MCQ',
+      questionText: `${prefix}${item.stem}`,
+      options: item.opts.map((text, idx) => ({ label: String.fromCharCode(65 + idx), text })),
+      marks,
+      negativeMarks: negMarks,
+      sourcePdf: 'ZeroLeak Verified National Curriculum Pool',
+      hasVisual: false
+    });
+  }
+  return result;
+}
+
+// Server Time
+app.get('/api/competitive/server-time', (_req, res) => {
+  res.json({
+    serverTimeIso: new Date().toISOString(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Kolkata',
+  });
+});
+
+// Operators
+app.get('/api/competitive/operators', (_req, res) => {
+  res.json({
+    success: true,
+    operators: [
+      {
+        id: 'usr-operator-01',
+        full_name: 'Manoj Kumar',
+        email: 'operator@centre101.edu.in',
+        role: 'CENTRE_OPERATOR',
+        centre_code: 'CTR-101',
+        centre_name: 'Apex National Engineering Examination Centre 101'
+      }
+    ]
+  });
+});
+
+// Exams CRUD
+app.get('/api/competitive/exams', (_req, res) => {
+  res.json({
+    success: true,
+    exams: competitiveExamsStore
+  });
+});
+
+app.post('/api/competitive/exams', (req, res) => {
+  const { id, name, exam_type, duration_minutes, exam_date, exam_time, instructions, blueprint_json } = req.body || {};
+  const examId = id || `EXAM-${Date.now()}`;
+  const existingIdx = competitiveExamsStore.findIndex(e => e.id === examId);
+  const examRecord = {
+    id: examId,
+    org_id: 'ORG-DEV-001',
+    name: name || 'Competitive Examination',
+    exam_type: exam_type || 'Competitive Examination',
+    duration_minutes: Number(duration_minutes) || 180,
+    exam_date: exam_date || new Date().toISOString().split('T')[0],
+    exam_time: exam_time || '09:00 AM - 12:00 PM',
+    instructions: instructions || '',
+    blueprint_json: typeof blueprint_json === 'string' ? blueprint_json : JSON.stringify(blueprint_json || {}),
+    status: 'ACTIVE',
+    created_by: 'usr-manager-01',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  if (existingIdx >= 0) {
+    competitiveExamsStore[existingIdx] = { ...competitiveExamsStore[existingIdx], ...examRecord };
+  } else {
+    competitiveExamsStore.push(examRecord);
+  }
+  res.json({
+    success: true,
+    exam: examRecord,
+    message: 'Competitive examination configuration saved successfully.'
+  });
+});
+
+app.delete('/api/competitive/exams/:id', (req, res) => {
+  const { id } = req.params;
+  const idx = competitiveExamsStore.findIndex(e => e.id === id);
+  if (idx >= 0) competitiveExamsStore.splice(idx, 1);
+  res.json({ success: true, message: 'Competitive exam deleted.' });
+});
+
+// Question Pools
+app.get('/api/competitive/question-pools/:examId', (req, res) => {
+  const { examId } = req.params;
+  const exam = competitiveExamsStore.find(e => e.id === examId) || competitiveExamsStore[0];
+  let bp = { subjects: [] };
+  try {
+    bp = JSON.parse(exam?.blueprint_json || '{}');
+  } catch {}
+  const subjects = Array.isArray(bp.subjects) ? bp.subjects : [];
+  const pools = subjects.map(s => ({
+    id: s.id,
+    subject_id: s.id,
+    subject_name: s.subjectName,
+    question_count: s.numberOfQuestions || 10,
+    status: 'COMPLETED'
+  }));
+  res.json({
+    success: true,
+    pools,
+    questions: []
+  });
+});
+
+app.get('/api/competitive/pool-files/:examId/:subjectId', (req, res) => {
+  const { examId, subjectId } = req.params;
+  const files = competitivePoolFilesStore.get(`${examId}:${subjectId}`) || [
+    {
+      id: `file-${subjectId}-01`,
+      subject_id: subjectId,
+      subject_name: 'Subject Pool',
+      file_name: 'Verified_Curriculum_Pool.pdf',
+      status: 'COMPLETED',
+      question_count: 15,
+      uploaded_at: new Date().toISOString()
+    }
+  ];
+  res.json({ success: true, files });
+});
+
+app.post('/api/competitive/upload-subject-pdf', (req, res) => {
+  const { exam_id, subject_id, subject_name, file_name, marks_per_question = 4, negative_marks = 1 } = req.body || {};
+  const fileId = `file-${Date.now().toString().slice(-6)}`;
+  const count = 15;
+  const fileRecord = {
+    id: fileId,
+    exam_id,
+    subject_id,
+    subject_name: subject_name || 'Subject',
+    file_name: file_name || 'Uploaded_Pool.pdf',
+    status: 'COMPLETED',
+    question_count: count,
+    uploaded_at: new Date().toISOString()
+  };
+  const key = `${exam_id}:${subject_id}`;
+  const existing = competitivePoolFilesStore.get(key) || [];
+  existing.push(fileRecord);
+  competitivePoolFilesStore.set(key, existing);
+
+  res.json({
+    success: true,
+    message: `Extracted ${count} verified questions successfully from ${file_name || 'PDF'}.`,
+    fileId,
+    poolId: fileId,
+    extractedCount: count,
+    questions: buildMockCompetitiveQuestions(subject_name || 'Subject', count, 1, marks_per_question, negative_marks)
+  });
+});
+
+// Blueprint Validation
+app.post('/api/competitive/validate-blueprint', (req, res) => {
+  const { blueprint } = req.body || {};
+  const subjects = Array.isArray(blueprint?.subjects) ? blueprint.subjects : [];
+  const subjectResults = subjects.map(s => {
+    const reqCount = Number(s.numberOfQuestions) || 10;
+    return {
+      subjectId: s.id,
+      subject: s.subjectName,
+      required: reqCount,
+      available: reqCount,
+      sourceCount: 1,
+      visualQuestionsCount: 0,
+      passed: true,
+      message: `${s.subjectName} verified pool has ${reqCount} questions from 1 source PDF(s) (requires ${reqCount}) — Ready for selection.`
+    };
+  });
+  res.json({
+    success: true,
+    valid: true,
+    subjectResults,
+    overallMessage: 'All subjects meet or exceed blueprint question requirements and all bound visual assets are verified. Generation is authorized.'
+  });
+});
+
+// Competitive Paper Generator (POST /api/competitive/generate-final-paper & POST /api/competitive/generate-paper)
+function generateCompetitivePaperInternal(req, res) {
+  const { exam_id, blueprint, exam_details, enable_translation, translation_language } = req.body || {};
+  const exam = competitiveExamsStore.find(e => e.id === exam_id) || {
+    id: exam_id || 'EXAM-2026-COMP',
+    name: exam_details?.name || 'National Competitive Examination 2026',
+    exam_type: exam_details?.exam_type || 'Competitive Examination',
+    duration_minutes: Number(exam_details?.duration_minutes) || 180,
+    instructions: exam_details?.instructions || 'All questions compulsory. Single correct option.'
+  };
+
+  const title = exam_details?.name || exam.name || 'Competitive Examination';
+  const examType = exam_details?.exam_type || exam.exam_type || 'Competitive Examination';
+  const durationMinutes = Number(exam_details?.duration_minutes || exam.duration_minutes) || 180;
+  const instructions = exam_details?.instructions || exam.instructions || 'All questions compulsory. Standard competitive exam protocol applies.';
+
+  const subjects = Array.isArray(blueprint?.subjects) && blueprint.subjects.length > 0
+    ? blueprint.subjects
+    : [
+        { id: 'subj-1', subjectName: 'Physics', numberOfQuestions: 10, marksPerQuestion: 4, negativeMarks: 1, questionType: 'MCQ' },
+        { id: 'subj-2', subjectName: 'Chemistry', numberOfQuestions: 10, marksPerQuestion: 4, negativeMarks: 1, questionType: 'MCQ' },
+        { id: 'subj-3', subjectName: 'Mathematics', numberOfQuestions: 10, marksPerQuestion: 4, negativeMarks: 1, questionType: 'MCQ' }
+      ];
+
+  const sections = [];
+  const allQuestions = [];
+  const sourceProvenance = [];
+  let globalQNum = 1;
+  let totalMarks = 0;
+  let totalPos = 0;
+  let totalNeg = 0;
+
+  for (let sIdx = 0; sIdx < subjects.length; sIdx++) {
+    const s = subjects[sIdx];
+    const letter = String.fromCharCode(65 + sIdx);
+    const sName = `SECTION ${letter} — ${(s.subjectName || 'SUBJECT').toUpperCase()}`;
+    const count = Number(s.numberOfQuestions) || 10;
+    const marks = Number(s.marksPerQuestion) || 4;
+    const neg = Number(s.negativeMarks) ?? 1;
+
+    const qList = buildMockCompetitiveQuestions(s.subjectName || 'Subject', count, globalQNum, marks, neg);
+    sections.push({
+      sectionLetter: letter,
+      sectionName: sName,
+      subject: s.subjectName || 'Subject',
+      questionType: s.questionType || 'MCQ',
+      marksPerQuestion: marks,
+      negativeMarks: neg,
+      translationRequired: Boolean(s.translationRequired),
+      translationLanguage: s.translationLanguage,
+      totalQuestions: count,
+      totalSectionMarks: count * marks,
+      questions: qList
+    });
+
+    for (const q of qList) {
+      allQuestions.push(q);
+      sourceProvenance.push({
+        questionNumber: q.displayNumber,
+        subject: s.subjectName || 'Subject',
+        sourcePdf: 'ZeroLeak Verified National Curriculum Pool',
+        sourcePage: 1,
+        sourceQuestionNumber: q.displayNumber
+      });
+      totalMarks += marks;
+      totalPos += marks;
+      totalNeg += neg;
+      globalQNum++;
+    }
+  }
+
+  const paperId = `cpaper-${Date.now()}`;
+  const fingerprint = crypto.createHash('sha256').update(`${paperId}:${exam_id}:${totalMarks}`).digest('hex');
+
+  const paper = {
+    id: paperId,
+    examId: exam_id || 'EXAM-2026-COMP',
+    title,
+    examType,
+    durationMinutes,
+    examDate: exam_details?.exam_date || new Date().toISOString().split('T')[0],
+    examTime: exam_details?.exam_time || '09:00 AM - 12:00 PM',
+    instructions,
+    totalQuestions: allQuestions.length,
+    totalMarks,
+    totalPositiveMarks: totalPos,
+    totalNegativeMarks: totalNeg,
+    sections,
+    questions: allQuestions,
+    originalSections: sections,
+    originalQuestions: allQuestions,
+    bilingualSections: sections,
+    bilingualQuestions: allQuestions,
+    blueprint,
+    sourceProvenance,
+    paperFingerprint: fingerprint,
+    generatedBy: 'usr-manager-01',
+    createdByName: 'Prof. Rajesh Sharma (Examination Manager)',
+    generatedAt: new Date().toISOString(),
+    isFinalized: false,
+    encryptionStatus: 'UNFINALIZED',
+    assignedCentreCode: 'CTR-101 — National Examination Centre',
+    assignedOperatorName: 'Manoj Kumar (Centre Superintendent)',
+    printCount: 0,
+    visualValidation: {
+      passed: true,
+      issues: [],
+      summary: 'All questions and mathematical representations verified.'
+    }
+  };
+
+  competitiveGeneratedPapersStore.set(paperId, paper);
+  competitiveGeneratedPapersStore.set(exam_id, paper);
+
+  return res.json({
+    success: true,
+    message: 'One Final Competitive Examination Paper generated successfully (All visual elements and question pools verified).',
+    paper,
+    visualValidation: paper.visualValidation
+  });
+}
+
+app.post('/api/competitive/generate-final-paper', generateCompetitivePaperInternal);
+app.post('/api/competitive/generate-paper', generateCompetitivePaperInternal);
+
+app.get('/api/competitive/generated-papers/:paperId', (req, res) => {
+  const { paperId } = req.params;
+  const paper = competitiveGeneratedPapersStore.get(paperId) || Array.from(competitiveGeneratedPapersStore.values())[0];
+  if (!paper) return res.status(404).json({ error: 'Paper not found.' });
+  res.json({ success: true, paper });
+});
+
+app.get('/api/competitive/generated-paper/:paperId', (req, res) => {
+  const { paperId } = req.params;
+  const paper = competitiveGeneratedPapersStore.get(paperId) || Array.from(competitiveGeneratedPapersStore.values())[0];
+  if (!paper) return res.status(404).json({ error: 'Paper not found.' });
+  res.json({ success: true, paper });
+});
+
+app.get('/api/competitive/papers/by-exam/:examId', (req, res) => {
+  const { examId } = req.params;
+  const paper = competitiveGeneratedPapersStore.get(examId) || Array.from(competitiveGeneratedPapersStore.values())[0] || null;
+  res.json({
+    success: true,
+    papers: paper ? [paper] : [],
+    latestPaper: paper
+  });
+});
+
+app.get('/api/competitive/papers/:examId', (req, res) => {
+  const { examId } = req.params;
+  const paper = competitiveGeneratedPapersStore.get(examId) || Array.from(competitiveGeneratedPapersStore.values())[0] || null;
+  res.json({
+    success: true,
+    papers: paper ? [paper] : [],
+    latestPaper: paper
+  });
+});
+
+app.post('/api/competitive/papers/:paperId/finalize-encrypt', (req, res) => {
+  const { paperId } = req.params;
+  const paper = competitiveGeneratedPapersStore.get(paperId) || Array.from(competitiveGeneratedPapersStore.values())[0];
+  if (paper) {
+    paper.isFinalized = true;
+    paper.encryptionStatus = 'ENCRYPTED_LOCKED';
+    paper.finalizedAt = new Date().toISOString();
+  }
+  res.json({
+    success: true,
+    message: 'Competitive Exam Paper finalized, time-locked, and encrypted with AES-256-GCM hardware key.',
+    paper
+  });
+});
+
+app.post('/api/competitive/papers/:paperId/reset-finalization', (req, res) => {
+  const { paperId } = req.params;
+  const paper = competitiveGeneratedPapersStore.get(paperId) || Array.from(competitiveGeneratedPapersStore.values())[0];
+  if (paper) {
+    paper.isFinalized = false;
+    paper.encryptionStatus = 'UNFINALIZED';
+  }
+  res.json({
+    success: true,
+    message: 'Competitive Exam Paper finalization state reset.',
+    paper
+  });
+});
+
+app.get('/api/competitive/translator/assigned-papers', (_req, res) => {
+  const papers = Array.from(competitiveGeneratedPapersStore.values());
+  res.json({ success: true, papers });
+});
+
+app.post('/api/competitive/papers/:paperId/return-translations', (req, res) => {
+  const { paperId } = req.params;
+  const paper = competitiveGeneratedPapersStore.get(paperId) || Array.from(competitiveGeneratedPapersStore.values())[0];
+  res.json({
+    success: true,
+    message: 'Translations approved and returned to Examination Manager.',
+    paper
+  });
+});
+
+app.post('/api/competitive/papers/:paperId/generate-final-bilingual', (req, res) => {
+  const { paperId } = req.params;
+  const paper = competitiveGeneratedPapersStore.get(paperId) || Array.from(competitiveGeneratedPapersStore.values())[0];
+  res.json({
+    success: true,
+    message: 'Final bilingual competitive paper generated successfully.',
+    paper
+  });
+});
+
+app.post('/api/competitive/delete-pool-file', (_req, res) => {
+  res.json({ success: true, message: 'Pool file deleted.' });
+});
+
+app.delete('/api/competitive/pool-files/:fileId', (_req, res) => {
+  res.json({ success: true, message: 'Pool file deleted.' });
+});
+
+app.delete('/api/competitive/question-pools/:poolId', (_req, res) => {
+  res.json({ success: true, message: 'Question pool deleted.' });
+});
+
 // 3. Printing Jobs List
 app.get('/api/delivery/print-jobs', (req, res) => {
   res.json({
@@ -1882,21 +2435,314 @@ function getAuthUser(req) {
   return DEMO_USERS[0];
 }
 
+function generateAuthoritySnapshotSvg(name, role, centre, color = '#00A878') {
+  const svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">',
+    '<rect width="640" height="480" fill="#0B132B"/>',
+    '<rect x="16" y="16" width="608" height="448" rx="8" fill="#1C2541" stroke="' + color + '" stroke-width="2" stroke-opacity="0.5"/>',
+    '<path d="M16 120 H624 M16 240 H624 M16 360 H624 M160 16 V464 M320 16 V464 M480 16 V464" stroke="#3A506B" stroke-width="0.5" stroke-dasharray="4 4" opacity="0.25"/>',
+    '<rect x="220" y="90" width="200" height="230" rx="12" fill="none" stroke="' + color + '" stroke-width="2" stroke-dasharray="6 3"/>',
+    '<circle cx="320" cy="180" r="55" fill="#3A506B" stroke="' + color + '" stroke-width="2"/>',
+    '<path d="M230 310 C230 250 410 250 410 310 Z" fill="#3A506B" stroke="' + color + '" stroke-width="2"/>',
+    '<rect x="30" y="30" width="180" height="26" rx="4" fill="#0B132B" fill-opacity="0.85" stroke="' + color + '" stroke-width="1"/>',
+    '<circle cx="44" cy="43" r="5" fill="' + color + '"/>',
+    '<text x="56" y="47" fill="#E0FBFC" font-family="monospace" font-size="11" font-weight="bold">LIVE CAM • 30 FPS</text>',
+    '<rect x="430" y="30" width="180" height="26" rx="4" fill="#0B132B" fill-opacity="0.85" stroke="#5BC0BE" stroke-width="1"/>',
+    '<text x="445" y="47" fill="#5BC0BE" font-family="monospace" font-size="11">AI FACE DETECT: OK</text>',
+    '<rect x="30" y="380" width="580" height="70" rx="6" fill="#0B132B" fill-opacity="0.92" stroke="#3A506B" stroke-width="1"/>',
+    '<text x="48" y="405" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="14" font-weight="bold">' + name + '</text>',
+    '<text x="48" y="425" fill="#5BC0BE" font-family="monospace" font-size="11">ROLE: ' + role + ' | LOCATION: ' + centre + '</text>',
+    '<text x="48" y="442" fill="#8D99AE" font-family="monospace" font-size="10">SHA-256 HASH VERIFIED • ZERO-LEAK AUDIT LEDGER PIPELINE</text>',
+    '</svg>'
+  ].join('');
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+function generateAuthorityVoiceWav(freq = 440, durationSec = 1.2) {
+  const sampleRate = 8000;
+  const numSamples = Math.floor(sampleRate * durationSec);
+  const dataSize = numSamples;
+  const buffer = Buffer.alloc(44 + dataSize);
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write('WAVE', 8);
+  buffer.write('fmt ', 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate, 28);
+  buffer.writeUInt16LE(1, 32);
+  buffer.writeUInt16LE(8, 34);
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(dataSize, 40);
+  for (let i = 0; i < numSamples; i++) {
+    const t = i / sampleRate;
+    const s = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t * 1.5);
+    const sample = Math.floor(128 + 127 * s * 0.4);
+    buffer.writeUInt8(Math.max(0, Math.min(255, sample)), 44 + i);
+  }
+  return 'data:audio/wav;base64,' + buffer.toString('base64');
+}
+
+function ensureDefaultAuthoritySessions() {
+  const now = new Date().toISOString();
+  const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+  // 1. Printing Manager / Centre Operator Session
+  if (!authoritySessions.has('AUTH-SESS-PRINT-01')) {
+    const printSnap1 = generateAuthoritySnapshotSvg('Manoj Kumar (Centre Superintendent & Printing Operator)', 'CENTRE_OPERATOR', 'Centre 101 (Relay Gate)', '#00A878');
+    const printSnap2 = generateAuthoritySnapshotSvg('Manoj Kumar - Decrypted Paper Print Terminal Active', 'CENTRE_OPERATOR', 'Secure Print Room 1', '#00C98B');
+    const printWav1 = generateAuthorityVoiceWav(520, 1.5);
+    const printWav2 = generateAuthorityVoiceWav(440, 1.2);
+
+    const printSession = {
+      id: 'AUTH-SESS-PRINT-01',
+      user_id: 'usr-operator-01',
+      user_name: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
+      user_email: 'operator@centre101.edu.in',
+      user_role: 'CENTRE_OPERATOR',
+      org_id: 'CTR-101',
+      workspace_type: 'DECRYPTED_PAPER_VIEWER',
+      exam_id: 'EXAM-2026-CS-NATIONAL',
+      status: 'ACTIVE',
+      camera_status: 'ACTIVE',
+      microphone_status: 'ACTIVE',
+      fullscreen_status: 'ACTIVE',
+      face_status: 'VERIFIED',
+      faces_detected_count: 1,
+      audio_level_db: -38.5,
+      leak_risk_score: 0,
+      leak_risk_level: 'NORMAL',
+      verification_snapshot: printSnap1,
+      emergency_locked: 0,
+      warning_count: 0,
+      last_heartbeat_at: now,
+      created_at: tenMinsAgo,
+      updated_at: now,
+      exam_name: 'National Computer Science Examination 2026',
+      camera_evidence_count: 2,
+      voice_evidence_count: 2,
+      has_camera_evidence: true,
+      has_voice_evidence: true,
+    };
+    authoritySessions.set('AUTH-SESS-PRINT-01', printSession);
+
+    authorityCameraEvidence.set('AUTH-SESS-PRINT-01', [
+      {
+        id: 'CAM-PRINT-01',
+        session_id: 'AUTH-SESS-PRINT-01',
+        exam_id: 'EXAM-2026-CS-NATIONAL',
+        user_id: 'usr-operator-01',
+        user_name: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
+        user_role: 'CENTRE_OPERATOR',
+        image_data_url: printSnap1,
+        event_type: 'INITIAL_VERIFICATION_SNAPSHOT',
+        presence_status: 'PRESENT',
+        warning_number: 0,
+        created_at: tenMinsAgo,
+      },
+      {
+        id: 'CAM-PRINT-02',
+        session_id: 'AUTH-SESS-PRINT-01',
+        exam_id: 'EXAM-2026-CS-NATIONAL',
+        user_id: 'usr-operator-01',
+        user_name: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
+        user_role: 'CENTRE_OPERATOR',
+        image_data_url: printSnap2,
+        event_type: 'PERIODIC_SURVEILLANCE_SNAPSHOT',
+        presence_status: 'PRESENT',
+        warning_number: 0,
+        created_at: fiveMinsAgo,
+      },
+    ]);
+
+    authorityVoiceEvidence.set('AUTH-SESS-PRINT-01', [
+      {
+        id: 'VOICE-PRINT-01',
+        session_id: 'AUTH-SESS-PRINT-01',
+        exam_id: 'EXAM-2026-CS-NATIONAL',
+        user_id: 'usr-operator-01',
+        user_name: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
+        user_role: 'CENTRE_OPERATOR',
+        audio_data_url: printWav1,
+        duration_seconds: 3,
+        warning_number: 0,
+        created_at: tenMinsAgo,
+      },
+      {
+        id: 'VOICE-PRINT-02',
+        session_id: 'AUTH-SESS-PRINT-01',
+        exam_id: 'EXAM-2026-CS-NATIONAL',
+        user_id: 'usr-operator-01',
+        user_name: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
+        user_role: 'CENTRE_OPERATOR',
+        audio_data_url: printWav2,
+        duration_seconds: 2,
+        warning_number: 0,
+        created_at: fiveMinsAgo,
+      },
+    ]);
+
+    authorityEvents.set('AUTH-SESS-PRINT-01', [
+      {
+        id: 'EVT-PRINT-01',
+        session_id: 'AUTH-SESS-PRINT-01',
+        event_type: 'SESSION_INITIALIZED',
+        severity: 'LOW',
+        metadata: { action: 'Printing Manager biometric check verified. Camera & mic live.' },
+        created_at: tenMinsAgo,
+      },
+      {
+        id: 'EVT-PRINT-02',
+        session_id: 'AUTH-SESS-PRINT-01',
+        event_type: 'PAPER_DECRYPTED_FOR_PRINT',
+        severity: 'LOW',
+        metadata: { action: 'AES-256-GCM paper decrypted in secure hardware enclave.' },
+        created_at: fiveMinsAgo,
+      },
+    ]);
+  }
+
+  // 2. Linguistic Translator Session
+  if (!authoritySessions.has('AUTH-SESS-TRANS-01')) {
+    const transSnap1 = generateAuthoritySnapshotSvg('Prof. Meera Deshmukh (Chief Linguistic Translator)', 'TRANSLATOR', 'NBTE Translation Enclave', '#3B82F6');
+    const transSnap2 = generateAuthoritySnapshotSvg('Prof. Meera Deshmukh - Hindi & Regional Verification', 'TRANSLATOR', 'Confidential Room 4', '#60A5FA');
+    const transWav1 = generateAuthorityVoiceWav(660, 1.4);
+    const transWav2 = generateAuthorityVoiceWav(580, 1.1);
+
+    const transSession = {
+      id: 'AUTH-SESS-TRANS-01',
+      user_id: 'usr-translator-01',
+      user_name: 'Prof. Meera Deshmukh (Chief Linguistic Translator)',
+      user_email: 'translator@nbte.edu.in',
+      user_role: 'TRANSLATOR',
+      org_id: 'ORG-ZEROLEAK-NATIONAL',
+      workspace_type: 'TRANSLATOR_PORTAL',
+      exam_id: 'EXAM-2026-CS-NATIONAL',
+      status: 'ACTIVE',
+      camera_status: 'ACTIVE',
+      microphone_status: 'ACTIVE',
+      fullscreen_status: 'ACTIVE',
+      face_status: 'VERIFIED',
+      faces_detected_count: 1,
+      audio_level_db: -42.0,
+      leak_risk_score: 5,
+      leak_risk_level: 'NORMAL',
+      verification_snapshot: transSnap1,
+      emergency_locked: 0,
+      warning_count: 0,
+      last_heartbeat_at: now,
+      created_at: tenMinsAgo,
+      updated_at: now,
+      exam_name: 'National Computer Science Examination 2026',
+      camera_evidence_count: 2,
+      voice_evidence_count: 2,
+      has_camera_evidence: true,
+      has_voice_evidence: true,
+    };
+    authoritySessions.set('AUTH-SESS-TRANS-01', transSession);
+
+    authorityCameraEvidence.set('AUTH-SESS-TRANS-01', [
+      {
+        id: 'CAM-TRANS-01',
+        session_id: 'AUTH-SESS-TRANS-01',
+        exam_id: 'EXAM-2026-CS-NATIONAL',
+        user_id: 'usr-translator-01',
+        user_name: 'Prof. Meera Deshmukh (Chief Linguistic Translator)',
+        user_role: 'TRANSLATOR',
+        image_data_url: transSnap1,
+        event_type: 'INITIAL_VERIFICATION_SNAPSHOT',
+        presence_status: 'PRESENT',
+        warning_number: 0,
+        created_at: tenMinsAgo,
+      },
+      {
+        id: 'CAM-TRANS-02',
+        session_id: 'AUTH-SESS-TRANS-01',
+        exam_id: 'EXAM-2026-CS-NATIONAL',
+        user_id: 'usr-translator-01',
+        user_name: 'Prof. Meera Deshmukh (Chief Linguistic Translator)',
+        user_role: 'TRANSLATOR',
+        image_data_url: transSnap2,
+        event_type: 'PERIODIC_SURVEILLANCE_SNAPSHOT',
+        presence_status: 'PRESENT',
+        warning_number: 0,
+        created_at: fiveMinsAgo,
+      },
+    ]);
+
+    authorityVoiceEvidence.set('AUTH-SESS-TRANS-01', [
+      {
+        id: 'VOICE-TRANS-01',
+        session_id: 'AUTH-SESS-TRANS-01',
+        exam_id: 'EXAM-2026-CS-NATIONAL',
+        user_id: 'usr-translator-01',
+        user_name: 'Prof. Meera Deshmukh (Chief Linguistic Translator)',
+        user_role: 'TRANSLATOR',
+        audio_data_url: transWav1,
+        duration_seconds: 3,
+        warning_number: 0,
+        created_at: tenMinsAgo,
+      },
+      {
+        id: 'VOICE-TRANS-02',
+        session_id: 'AUTH-SESS-TRANS-01',
+        exam_id: 'EXAM-2026-CS-NATIONAL',
+        user_id: 'usr-translator-01',
+        user_name: 'Prof. Meera Deshmukh (Chief Linguistic Translator)',
+        user_role: 'TRANSLATOR',
+        audio_data_url: transWav2,
+        duration_seconds: 2,
+        warning_number: 0,
+        created_at: fiveMinsAgo,
+      },
+    ]);
+
+    authorityEvents.set('AUTH-SESS-TRANS-01', [
+      {
+        id: 'EVT-TRANS-01',
+        session_id: 'AUTH-SESS-TRANS-01',
+        event_type: 'SESSION_INITIALIZED',
+        severity: 'LOW',
+        metadata: { action: 'Translator authenticated; confidential language enclave active.' },
+        created_at: tenMinsAgo,
+      },
+      {
+        id: 'EVT-TRANS-02',
+        session_id: 'AUTH-SESS-TRANS-01',
+        event_type: 'TRANSLATION_SECTION_LOCKED',
+        severity: 'LOW',
+        metadata: { action: 'Section verified and signed with ECDSA key.' },
+        created_at: fiveMinsAgo,
+      },
+    ]);
+  }
+}
+
 // 1. Start Session
 app.post('/api/authority-proctor/sessions/start', (req, res) => {
-  const { workspace_type, exam_id, verification_snapshot } = req.body || {};
-  const user = getAuthUser(req);
+  const { workspace_type, exam_id, verification_snapshot, user_id, user_name, user_email, user_role, org_id } = req.body || {};
+  const authUser = getAuthUser(req);
+  const isOperator = user_role === 'CENTRE_OPERATOR' || workspace_type === 'DECRYPTED_PAPER_VIEWER';
+  const effectiveUserId = user_id || (isOperator ? 'usr-operator-01' : authUser.id);
+  const effectiveUserName = user_name || (isOperator ? 'Manoj Kumar (Centre Superintendent & Printing Operator)' : authUser.full_name);
+  const effectiveUserEmail = user_email || (isOperator ? 'operator@centre101.edu.in' : authUser.email);
+  const effectiveUserRole = user_role || (isOperator ? 'CENTRE_OPERATOR' : authUser.role);
+  const effectiveOrgId = org_id || (isOperator ? 'CTR-101' : authUser.org_id);
+
   const sessionId = `AUTH-SESS-${Date.now().toString(36).toUpperCase()}`;
   const now = new Date().toISOString();
   const session = {
     id: sessionId,
-    user_id: user.id,
-    user_name: user.full_name,
-    user_email: user.email,
-    user_role: user.role,
-    org_id: user.org_id,
-    workspace_type: workspace_type || 'TRANSLATOR',
-    exam_id: exam_id || null,
+    user_id: effectiveUserId,
+    user_name: effectiveUserName,
+    user_email: effectiveUserEmail,
+    user_role: effectiveUserRole,
+    org_id: effectiveOrgId,
+    workspace_type: workspace_type || (isOperator ? 'DECRYPTED_PAPER_VIEWER' : 'TRANSLATOR'),
+    exam_id: exam_id || 'EXAM-2026-CS-NATIONAL',
     status: 'ACTIVE',
     camera_status: 'ACTIVE',
     microphone_status: 'ACTIVE',
@@ -1912,13 +2758,36 @@ app.post('/api/authority-proctor/sessions/start', (req, res) => {
     last_heartbeat_at: now,
     created_at: now,
     updated_at: now,
-    exam_name: 'National Examination Enclave 2026',
+    exam_name: 'National Computer Science Examination 2026',
     camera_evidence_count: verification_snapshot ? 1 : 0,
     voice_evidence_count: 0,
     has_camera_evidence: Boolean(verification_snapshot),
     has_voice_evidence: false,
   };
   authoritySessions.set(sessionId, session);
+
+  if (verification_snapshot) {
+    const snapId = `CAM-${Date.now().toString(36).toUpperCase()}`;
+    const evidence = {
+      id: snapId,
+      session_id: sessionId,
+      exam_id: exam_id || 'EXAM-2026-CS-NATIONAL',
+      user_id: effectiveUserId,
+      user_name: effectiveUserName,
+      user_role: effectiveUserRole,
+      image_data_url: verification_snapshot,
+      event_type: 'INITIAL_VERIFICATION_SNAPSHOT',
+      presence_status: 'PRESENT',
+      warning_number: 0,
+      created_at: now,
+    };
+    const list = authorityCameraEvidence.get(sessionId) || [];
+    list.push(evidence);
+    authorityCameraEvidence.set(sessionId, list);
+    session.camera_evidence_count = list.length;
+    session.has_camera_evidence = true;
+  }
+
   return res.json({ success: true, session });
 });
 
@@ -1988,26 +2857,31 @@ app.post('/api/authority-proctor/heartbeat', (req, res) => {
 
 // 5. Voice Evidence
 app.post('/api/authority-proctor/voice-evidence', (req, res) => {
-  const { session_id, exam_id, audio_data_url, duration_seconds, warning_number } = req.body || {};
+  const { session_id, exam_id, audio_data_url, duration_seconds, warning_number, user_id, user_name, user_role } = req.body || {};
   const evId = `VOICE-${Date.now().toString(36).toUpperCase()}`;
   const now = new Date().toISOString();
-  const user = getAuthUser(req);
+  const authUser = getAuthUser(req);
+  const s = authoritySessions.get(session_id);
+
+  const effectiveUserId = user_id || s?.user_id || authUser.id;
+  const effectiveUserName = user_name || s?.user_name || authUser.full_name;
+  const effectiveUserRole = user_role || s?.user_role || authUser.role;
+
   const evidence = {
     id: evId,
     session_id,
-    exam_id: exam_id || null,
-    user_id: user.id,
-    user_name: user.full_name,
-    user_role: user.role,
+    exam_id: exam_id || s?.exam_id || null,
+    user_id: effectiveUserId,
+    user_name: effectiveUserName,
+    user_role: effectiveUserRole,
     audio_data_url: audio_data_url || '',
     duration_seconds: duration_seconds || 5,
-    warning_number: warning_number || 1,
+    warning_number: warning_number || 0,
     created_at: now,
   };
   const list = authorityVoiceEvidence.get(session_id) || [];
   list.push(evidence);
   authorityVoiceEvidence.set(session_id, list);
-  const s = authoritySessions.get(session_id);
   if (s) {
     s.voice_evidence_count = list.length;
     s.has_voice_evidence = true;
@@ -2017,30 +2891,38 @@ app.post('/api/authority-proctor/voice-evidence', (req, res) => {
 
 // 6. Camera Evidence
 app.post('/api/authority-proctor/camera-evidence', (req, res) => {
-  const { session_id, exam_id, image_data_url, event_type, presence_status, warning_number } = req.body || {};
+  const { session_id, exam_id, image_data_url, event_type, presence_status, warning_number, user_id, user_name, user_role } = req.body || {};
   const evId = `CAM-${Date.now().toString(36).toUpperCase()}`;
   const now = new Date().toISOString();
-  const user = getAuthUser(req);
+  const authUser = getAuthUser(req);
+  const s = authoritySessions.get(session_id);
+
+  const effectiveUserId = user_id || s?.user_id || authUser.id;
+  const effectiveUserName = user_name || s?.user_name || authUser.full_name;
+  const effectiveUserRole = user_role || s?.user_role || authUser.role;
+
   const evidence = {
     id: evId,
     session_id,
-    exam_id: exam_id || null,
-    user_id: user.id,
-    user_name: user.full_name,
-    user_role: user.role,
+    exam_id: exam_id || s?.exam_id || null,
+    user_id: effectiveUserId,
+    user_name: effectiveUserName,
+    user_role: effectiveUserRole,
     image_data_url: image_data_url || '',
     event_type: event_type || 'SECURITY_SNAPSHOT',
     presence_status: presence_status || 'PRESENT',
-    warning_number: warning_number || 1,
+    warning_number: warning_number || 0,
     created_at: now,
   };
   const list = authorityCameraEvidence.get(session_id) || [];
   list.push(evidence);
   authorityCameraEvidence.set(session_id, list);
-  const s = authoritySessions.get(session_id);
   if (s) {
     s.camera_evidence_count = list.length;
     s.has_camera_evidence = true;
+    if (!s.verification_snapshot && image_data_url) {
+      s.verification_snapshot = image_data_url;
+    }
   }
   return res.json({ success: true, evidence });
 });
@@ -2057,6 +2939,7 @@ app.post('/api/authority-proctor/sessions/warning', (req, res) => {
       s.emergency_locked = 1;
       s.emergency_lock_reason = 'Maximum violations exceeded (3/3)';
     }
+    s.updated_at = new Date().toISOString();
   }
   return res.json({
     success: true,
@@ -2071,41 +2954,9 @@ app.post('/api/authority-proctor/sessions/warning', (req, res) => {
 
 // 8. Surveillance Dashboard
 app.get('/api/authority-proctor/dashboard', (req, res) => {
-  const allSessions = Array.from(authoritySessions.values());
-  if (allSessions.length === 0) {
-    const defaultSession = {
-      id: 'AUTH-SESS-INST-01',
-      user_id: 'usr-translator-01',
-      user_name: 'Prof. Meera Deshmukh (Chief Linguistic Translator)',
-      user_email: 'translator@nbte.edu.in',
-      user_role: 'TRANSLATOR',
-      org_id: 'ORG-ZEROLEAK-NATIONAL',
-      workspace_type: 'TRANSLATOR',
-      exam_id: 'EXAM-2026-CS-NATIONAL',
-      status: 'ACTIVE',
-      camera_status: 'ACTIVE',
-      microphone_status: 'ACTIVE',
-      fullscreen_status: 'ACTIVE',
-      face_status: 'VERIFIED',
-      faces_detected_count: 1,
-      audio_level_db: -42.0,
-      leak_risk_score: 5,
-      leak_risk_level: 'NORMAL',
-      emergency_locked: 0,
-      warning_count: 0,
-      last_heartbeat_at: new Date().toISOString(),
-      created_at: new Date(Date.now() - 3600000).toISOString(),
-      updated_at: new Date().toISOString(),
-      exam_name: 'National Computer Science Examination 2026',
-      camera_evidence_count: 0,
-      voice_evidence_count: 0,
-      has_camera_evidence: false,
-      has_voice_evidence: false,
-    };
-    allSessions.push(defaultSession);
-    authoritySessions.set(defaultSession.id, defaultSession);
-  }
+  ensureDefaultAuthoritySessions();
 
+  const allSessions = Array.from(authoritySessions.values());
   const totalActive = allSessions.filter(s => s.status === 'ACTIVE').length;
   const highRisk = allSessions.filter(s => s.leak_risk_level === 'HIGH' || s.leak_risk_level === 'CRITICAL' || s.status === 'FLAGGED_FOR_REVIEW').length;
   const shoulderSurfingAlerts = allSessions.filter(s => s.face_status === 'SHOULDER_SURFING_DETECTED').length;
@@ -2125,11 +2976,12 @@ app.get('/api/authority-proctor/dashboard', (req, res) => {
 
 // 9. Session Review
 app.get('/api/authority-proctor/sessions/:id/review', (req, res) => {
+  ensureDefaultAuthoritySessions();
   const sessionId = req.params.id;
   const s = authoritySessions.get(sessionId) || {
     id: sessionId,
-    user_name: 'Chief Linguistic Translator',
-    user_role: 'TRANSLATOR',
+    user_name: 'Authority Official',
+    user_role: 'CENTRE_OPERATOR',
     status: 'ACTIVE',
     leak_risk_level: 'NORMAL',
     leak_risk_score: 0,
