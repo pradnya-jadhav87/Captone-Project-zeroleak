@@ -674,7 +674,7 @@ const getCanonicalOsExamContent = () => ({
       content_text: 'In the Many to One model, if a thread makes a blocking system call ______.',
       marks: 1,
       options: [
-        { key: 'A', text: '(a) the entire process will be blocked (Correct)' },
+        { key: 'A', text: '(a) the entire process will be blocked' },
         { key: 'B', text: '(b) a part of the process will stay blocked, with the rest running' },
         { key: 'C', text: '(c) the entire process will run' },
         { key: 'D', text: '(d) None of these' }
@@ -688,7 +688,7 @@ const getCanonicalOsExamContent = () => ({
       marks: 1,
       options: [
         { key: 'A', text: '(a) To enhance CPU scheduling algorithms' },
-        { key: 'B', text: '(b) To share system resources and data among multiple processes (Correct)' },
+        { key: 'B', text: '(b) To share system resources and data among multiple processes' },
         { key: 'C', text: '(c) To reduce the number of system calls' },
         { key: 'D', text: '(d) To improve disk access speed' }
       ]
@@ -701,7 +701,7 @@ const getCanonicalOsExamContent = () => ({
       marks: 1,
       options: [
         { key: 'A', text: '(a) fork' },
-        { key: 'B', text: '(b) wait (Correct)' },
+        { key: 'B', text: '(b) wait' },
         { key: 'C', text: '(c) exit' },
         { key: 'D', text: '(d) exec' }
       ]
@@ -714,7 +714,7 @@ const getCanonicalOsExamContent = () => ({
       marks: 1,
       options: [
         { key: 'A', text: '(a) readers' },
-        { key: 'B', text: '(b) writers (Correct)' },
+        { key: 'B', text: '(b) writers' },
         { key: 'C', text: '(c) both a) and b)' },
         { key: 'D', text: '(d) None of these' }
       ]
@@ -727,7 +727,7 @@ const getCanonicalOsExamContent = () => ({
       marks: 1,
       options: [
         { key: 'A', text: '(a) Non preemptive scheduling' },
-        { key: 'B', text: '(b) Preemptive scheduling (Correct)' },
+        { key: 'B', text: '(b) Preemptive scheduling' },
         { key: 'C', text: '(c) both a) and b)' },
         { key: 'D', text: '(d) None of these' }
       ]
@@ -741,7 +741,7 @@ const getCanonicalOsExamContent = () => ({
       options: [
         { key: 'A', text: '(a) Process Register' },
         { key: 'B', text: '(b) Program Counter' },
-        { key: 'C', text: '(c) Process Table (Correct)' },
+        { key: 'C', text: '(c) Process Table' },
         { key: 'D', text: '(d) Process Unit' }
       ]
     },
@@ -754,7 +754,7 @@ const getCanonicalOsExamContent = () => ({
       options: [
         { key: 'A', text: '(a) A queue that stores processes waiting for CPU time' },
         { key: 'B', text: '(b) A queue that stores user input for processing' },
-        { key: 'C', text: '(c) A queue that stores jobs awaiting execution (Correct)' },
+        { key: 'C', text: '(c) A queue that stores jobs awaiting execution' },
         { key: 'D', text: '(d) A queue that stores output data from completed processes' }
       ]
     },
@@ -765,7 +765,7 @@ const getCanonicalOsExamContent = () => ({
       content_text: 'The circular wait condition can be prevented by ______.',
       marks: 1,
       options: [
-        { key: 'A', text: '(a) defining a linear ordering of resource types (Correct)' },
+        { key: 'A', text: '(a) defining a linear ordering of resource types' },
         { key: 'B', text: '(b) using thread' },
         { key: 'C', text: '(c) using pipes' },
         { key: 'D', text: '(d) All of the mentioned' }
@@ -779,7 +779,7 @@ const getCanonicalOsExamContent = () => ({
       marks: 1,
       options: [
         { key: 'A', text: '(a) deadlock' },
-        { key: 'B', text: '(b) starvation (Correct)' },
+        { key: 'B', text: '(b) starvation' },
         { key: 'C', text: '(c) inversion' },
         { key: 'D', text: '(d) aging' }
       ]
@@ -792,7 +792,7 @@ const getCanonicalOsExamContent = () => ({
       marks: 1,
       options: [
         { key: 'A', text: '(a) frame bit' },
-        { key: 'B', text: '(b) page number (Correct)' },
+        { key: 'B', text: '(b) page number' },
         { key: 'C', text: '(c) page offset' },
         { key: 'D', text: '(d) frame offset' }
       ]
@@ -806,7 +806,7 @@ const getCanonicalOsExamContent = () => ({
       options: [
         { key: 'A', text: '(a) waiting' },
         { key: 'B', text: '(b) execution' },
-        { key: 'C', text: '(c) context - switch (Correct)' },
+        { key: 'C', text: '(c) context - switch' },
         { key: 'D', text: '(d) All of the mentioned' }
       ]
     },
@@ -817,7 +817,7 @@ const getCanonicalOsExamContent = () => ({
       content_text: '______ is generally faster than ______ and ______.',
       marks: 1,
       options: [
-        { key: 'A', text: '(a) first fit, best fit, worst fit (Correct)' },
+        { key: 'A', text: '(a) first fit, best fit, worst fit' },
         { key: 'B', text: '(b) best fit, first fit, worst fit' },
         { key: 'C', text: '(c) worst fit, best fit, first fit' },
         { key: 'D', text: '(d) None of the mentioned' }
@@ -833,7 +833,7 @@ const getCanonicalOsExamContent = () => ({
         { key: 'A', text: '(a) name' },
         { key: 'B', text: '(b) type' },
         { key: 'C', text: '(c) identifier' },
-        { key: 'D', text: '(d) All of the mentioned (Correct)' }
+        { key: 'D', text: '(d) All of the mentioned' }
       ]
     },
     {
@@ -845,7 +845,7 @@ const getCanonicalOsExamContent = () => ({
       options: [
         { key: 'A', text: '(a) Division' },
         { key: 'B', text: '(b) External Fragmentation' },
-        { key: 'C', text: '(c) Thrashing (Correct)' },
+        { key: 'C', text: '(c) Thrashing' },
         { key: 'D', text: '(d) Compaction' }
       ]
     },

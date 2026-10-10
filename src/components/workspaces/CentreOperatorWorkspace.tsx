@@ -375,7 +375,10 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
               questionNumber: i + 1,
               questionText: q.content_text,
               marks: q.marks,
-              options: (q.options || []).map((opt: any) => ({ label: opt.key, text: opt.text })),
+              options: (q.options || []).map((opt: any) => ({
+                label: opt.key,
+                text: (opt.text || '').replace(/\s*\((?:Correct|Ans(?:wer)?)\)/gi, '').trim(),
+              })),
             })),
           },
           {

@@ -237,11 +237,15 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
           <div className="mb-8 p-4 bg-slate-50 rounded-lg border border-slate-200 text-xs font-sans text-slate-700 space-y-1 relative z-20">
             <strong className="block text-slate-900 uppercase tracking-wider">Candidate Instructions:</strong>
             {Array.isArray(paper?.instructions) && paper.instructions.length > 0 ? (
-              paper.instructions.map((line: string, index: number) => (
-                <p key={index}>
-                  {index + 1}. {line}
-                </p>
-              ))
+              paper.instructions.map((line: string, index: number) => {
+                const cleanLine = line.trim();
+                const hasNumberPrefix = /^\(?\d+[\.\)]\s*/.test(cleanLine);
+                return (
+                  <p key={index}>
+                    {hasNumberPrefix ? cleanLine : `${index + 1}. ${cleanLine}`}
+                  </p>
+                );
+              })
             ) : (
               <>
                 <p>1. All questions are compulsory. Ensure responses are marked accurately.</p>
@@ -281,7 +285,8 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
                   {options.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-sans pl-6">
                       {options.map((opt: any, oIdx: number) => {
-                        const optText = typeof opt === 'string' ? opt : opt.text || JSON.stringify(opt);
+                        const rawOptText = typeof opt === 'string' ? opt : opt.text || JSON.stringify(opt);
+                        const optText = rawOptText.replace(/\s*\((?:Correct|Ans(?:wer)?)\)/gi, '').trim();
                         return (
                           <div key={oIdx} className="p-2 rounded bg-slate-50 border border-slate-200 text-slate-800">
                             <span>{optText}</span>
