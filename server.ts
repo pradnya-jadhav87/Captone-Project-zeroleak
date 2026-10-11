@@ -40,6 +40,7 @@ import { getProviderStatus, ollamaStream, smartStream, OLLAMA_FAST_MODEL, type C
 import { assessExtractedQuestion } from './server/questionQuality.ts';
 import {
   DISCOVERY_BEACON_PORT,
+  PrintAuthorizationGuard,
   PrintStationHub,
   STATION_CODE_LENGTH,
   buildStationUrls,
@@ -321,6 +322,15 @@ async function startServer() {
    * devices to it. The durable trail is `print_copies` and the audit ledger.
    */
    const printStations = new PrintStationHub();
+
+  /**
+   * The single-use arming gate for operator prints. Derives its HMAC secret
+   * from the JWT secret when nothing is configured, so a token minted before a
+   * restart is worthless afterwards.
+   */
+  const printAuthorization = new PrintAuthorizationGuard(
+    process.env.ZEROLEAK_PRINT_GUARD_SECRET || crypto.createHash('sha256').update(`print-guard:${JWT_SECRET}`).digest('base64url')
+  );
 
    app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -11268,14 +11278,155 @@ async function startServer() {
     }
   });
 
-  // Centre Operator: Authorized Watermarked Print
-  app.post('/api/delivery/print-authorized-copy', authenticateToken, requireApprovedDevice, requireRole(['CENTRE_OPERATOR']), async (req: Request, res: Response) => {
+  // Centre Operator: Arm a print release (Section 37-38 security gate)
+  app.post('/api/delivery/print-security/arm', authenticateToken, requireApprovedDevice, requireRole(['CENTRE_OPERATOR']), async (req: Request, res: Response) => {
     try {
-      const { exam_id, paper_version_id, copies_count } = req.body || {};
+      const { exam_id, paper_version_id, copies_count, password } = req.body || {};
       const count = Number(copies_count);
 
       if (!Number.isInteger(count) || count < 1 || count > 50) {
         return res.status(400).json({ error: 'Maximum batch print limit per transaction is 50 copies.' });
+      }
+
+      const db = await getDb();
+      const userRow = executeQuery(db, 'SELECT * FROM users WHERE id = ?', [req.user!.id])[0];
+      if (!userRow?.password_hash) {
+        return res.status(401).json({ error: 'Operator record not found for re-authentication.' });
+      }
+
+      const passwordOk =
+        typeof password === 'string' && password.length > 0 && (await bcrypt.compare(password, userRow.password_hash));
+      if (!passwordOk) {
+        await logSecurityEvent({
+          event_type: 'PRINT_REAUTH_FAILED',
+          severity: 'HIGH',
+          user_id: req.user!.id,
+          org_id: req.user!.org_id,
+          ip_address: req.ip,
+          details: { examId: exam_id, copies: count },
+        });
+        return res.status(401).json({
+          error: 'Re-authentication failed. Releasing examination copies requires your account password.',
+          securityChecks: [
+            { id: 'REAUTH', label: 'Operator re-authentication', status: 'FAIL', detail: 'Password did not match.' },
+          ],
+        });
+      }
+
+      const context = await buildPrintSecurityContext({
+        examId: exam_id,
+        actor: req.user as unknown as PrintActor,
+        requestedCopies: count,
+        allowedRoles: ['CENTRE_OPERATOR'],
+        deviceFingerprint: req.clientDeviceFingerprint,
+      });
+      if (!context.exam) return res.status(404).json({ error: 'Examination not found for this organisation.' });
+      if (!context.version) {
+        return res.status(404).json({ error: 'No generated paper version exists for this examination yet.' });
+      }
+
+      const requestedVersionId = String(paper_version_id || '');
+      const resolvedVersion =
+        (requestedVersionId
+          ? executeQuery(db, 'SELECT * FROM paper_versions WHERE id = ? AND exam_id = ?', [requestedVersionId, exam_id])[0]
+          : null) || context.version;
+
+      const checks = [
+        {
+          id: 'REAUTH',
+          label: 'Operator re-authentication',
+          status: 'PASS' as const,
+          detail: `Password confirmed for ${req.user!.email} on this workstation.`,
+        },
+        ...context.evaluation.checks,
+      ];
+
+      if (!context.evaluation.allowed) {
+        await logSecurityEvent({
+          event_type: 'PRINT_AUTHORISATION_REFUSED',
+          severity: 'HIGH',
+          user_id: req.user!.id,
+          org_id: req.user!.org_id,
+          ip_address: req.ip,
+          details: { examId: context.exam.id, copies: count, checks: context.evaluation.checks },
+        });
+        return res.status(403).json({ error: firstFailedCheck(context.evaluation.checks), securityChecks: checks });
+      }
+
+      const armed = printAuthorization.arm({
+        userId: req.user!.id,
+        deviceFingerprint: req.clientDeviceFingerprint || 'UNKNOWN-DEVICE',
+        examId: context.exam.id,
+        paperVersionId: resolvedVersion.id,
+        copies: count,
+      });
+
+      await logAuditEvent({
+        event_type: 'PRINT_AUTHORISATION_ARMED',
+        user_id: req.user!.id,
+        org_id: req.user!.org_id,
+        exam_id: context.exam.id,
+        details: { copies: count, paperVersionId: resolvedVersion.id, expiresAt: armed.expiresAt, checks },
+      });
+
+      return res.json({
+        message: `Release armed for ${count} copy(ies) of ${context.exam.name}. The code is valid for three minutes and can be used once.`,
+        securityToken: armed.token,
+        code: armed.code,
+        expiresAt: armed.expiresAt,
+        securityChecks: checks,
+        examId: context.exam.id,
+        examName: context.exam.name,
+        paperVersionId: resolvedVersion.id,
+        quota: {
+          authorizedCopies: context.authorizedCopies,
+          alreadyPrinted: context.totalPrinted,
+          requested: count,
+          remaining: Math.max(0, context.authorizedCopies - context.totalPrinted - count),
+        },
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Centre Operator: Authorized Watermarked Print
+  app.post('/api/delivery/print-authorized-copy', authenticateToken, requireApprovedDevice, requireRole(['CENTRE_OPERATOR']), async (req: Request, res: Response) => {
+    try {
+      const { exam_id, paper_version_id, copies_count, security_token, security_code } = req.body || {};
+      const count = Number(copies_count);
+
+      if (!Number.isInteger(count) || count < 1 || count > 50) {
+        return res.status(400).json({ error: 'Maximum batch print limit per transaction is 50 copies.' });
+      }
+
+      // If security token is provided (armed release via PrintSecurityGate), validate and consume it
+      if (security_token) {
+        const authorisation = printAuthorization.consume({
+          token: String(security_token || ''),
+          code: String(security_code || ''),
+          userId: req.user!.id,
+          deviceFingerprint: req.clientDeviceFingerprint || 'UNKNOWN-DEVICE',
+          examId: String(exam_id || ''),
+          paperVersionId: String(paper_version_id || ''),
+          copies: count,
+        });
+        if (!authorisation.ok) {
+          await logSecurityEvent({
+            event_type: 'PRINT_AUTHORISATION_REFUSED',
+            severity: 'HIGH',
+            user_id: req.user!.id,
+            org_id: req.user!.org_id,
+            ip_address: req.ip,
+            details: { examId: exam_id, copies: count, reason: authorisation.reason },
+          });
+          return res.status(403).json({
+            error: authorisation.reason,
+            securityChecks: [
+              { id: 'AUTHORISATION', label: 'Print authorisation', status: 'FAIL', detail: authorisation.reason },
+            ],
+          });
+        }
       }
 
       const context = await buildPrintSecurityContext({

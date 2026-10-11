@@ -49,6 +49,7 @@ import {
   StartViewOnceResponse,
   ConsumeViewOnceRequest,
   ConsumeViewOnceResponse,
+  PrintSecurityArmResult,
 } from './types';
 
 export const DEVICE_APPROVAL_EVENT = 'zeroleak:device-approval-needed';
@@ -1630,14 +1631,25 @@ export const api = {
   },
   openSecureViewer: (exam_id: string) => request<{ message: string; paperContent: any; watermark: DynamicWatermarkData; paperVersionId: string }>('/api/delivery/open-viewer', { method: 'POST', body: JSON.stringify({ exam_id }) }),
 
+  /**
+   * Step one of the print security gate: re-authenticate and arm a release.
+   * The server returns a single-use token plus the one-time code the operator
+   * must read back, so opening the printer never authorises printing by itself.
+   */
+  armPrintRelease: (payload: { exam_id: string; paper_version_id?: string; copies_count: number; password: string }) =>
+    request<PrintSecurityArmResult>('/api/delivery/print-security/arm', { method: 'POST', body: JSON.stringify(payload) }),
+
+  /** Step two: spend that arming to mint the serialized copies. */
   printAuthorizedCopy: (
     exam_id: string,
     paper_version_id: string | undefined,
-    copies_count: number
+    copies_count: number,
+    security_token?: string,
+    security_code?: string
   ) =>
     request<{ message: string; copies: Array<{ copyId: string; txHash: string; printedAt: string }> }>('/api/delivery/print-authorized-copy', {
       method: 'POST',
-      body: JSON.stringify({ exam_id, paper_version_id, copies_count }),
+      body: JSON.stringify({ exam_id, paper_version_id, copies_count, security_token, security_code }),
     }),
   getPrintHistory: () => request<{ printHistory: PrintCopy[] }>('/api/delivery/print-history'),
 

@@ -11,7 +11,7 @@ import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import { getDb, executeQuery, executeRun, getPostgresPool, isPostgresAvailable, saveDb } from './db.ts';
 import { translateQuestionWithAI, extractQuestionsFromPaperWithAI } from './ai.ts';
 import { extractPdfTextWithOcr } from './ocrPdfHelper.ts';
-import { consumeViewOnceSession } from './viewOnceService.ts';
+import { consumeViewOnceSession, initViewOnceSchema } from './viewOnceService.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -188,6 +188,7 @@ export interface ExtractedCompetitiveQuestion {
  */
 export async function initializeCompetitiveSchema(db: any): Promise<void> {
   try {
+    initViewOnceSchema(db);
     // 1. SQLite schema
     executeRun(
       db,

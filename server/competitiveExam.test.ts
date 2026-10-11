@@ -16,6 +16,7 @@ import {
   handleDeleteCompetitiveExam,
   handleValidateBlueprint,
   handleGenerateCompetitivePaper,
+  initializeCompetitiveSchema,
 } from './competitiveExam.ts';
 import { getDb, executeQuery, executeRun } from './db.ts';
 
@@ -763,6 +764,7 @@ test('10. Pre-PDF validation catches missing visuals and generateCompetitiveExam
 
 test('11. handleDeleteCompetitiveExam cascades deletion across all competitive and examination tables', async () => {
   const db = await getDb();
+  await initializeCompetitiveSchema(db);
   const testExamId = 'test-delete-exam-' + Date.now();
   const orgId = 'ORG-TEST-DEL';
 
