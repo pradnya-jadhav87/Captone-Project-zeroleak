@@ -620,6 +620,33 @@ async function startServer() {
     };
   };
 
+  const requireVerifiedTranslatorSession = async (req: Request, res: Response, next: NextFunction) => {
+    if (req.user?.role !== 'TRANSLATOR') return next();
+    try {
+      const db = await getDb();
+      const activeSession = executeQuery(
+        db,
+        `SELECT id FROM authority_proctor_sessions
+         WHERE user_id = ? AND workspace_type = 'TRANSLATOR_PORTAL'
+           AND status = 'ACTIVE' AND camera_status = 'ACTIVE'
+           AND microphone_status = 'ACTIVE' AND face_status = 'VERIFIED'
+           AND emergency_locked = 0
+         ORDER BY created_at DESC LIMIT 1`,
+        [req.user.id]
+      );
+      if (!activeSession.length) {
+        return res.status(423).json({
+          error: 'TRANSLATOR_SECURITY_LOCKED',
+          message: 'A camera, microphone, and independently verified translator identity are required.',
+        });
+      }
+      return next();
+    } catch (err) {
+      console.error('Translator security authorization check failed:', err);
+      return res.status(500).json({ error: 'Unable to verify translator security session.' });
+    }
+  };
+
   // Helper to log Audit Events
   async function logAuditEvent(params: {
     event_type: string;
@@ -4358,7 +4385,7 @@ async function startServer() {
   // ==========================================
 
   // List Questions (Organization-isolated & Role-scoped)
-  app.get('/api/questions', authenticateToken, async (req: Request, res: Response) => {
+  app.get('/api/questions', authenticateToken, requireVerifiedTranslatorSession, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       let query = 'SELECT * FROM questions WHERE org_id = ?';
@@ -7733,7 +7760,7 @@ async function startServer() {
   // ==========================================
 
   // List all question translations (Organization-scoped)
-  app.get('/api/translations', authenticateToken, async (req: Request, res: Response) => {
+  app.get('/api/translations', authenticateToken, requireVerifiedTranslatorSession, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       const { language, status, question_id } = req.query;
@@ -7781,7 +7808,7 @@ async function startServer() {
   });
 
   // Get questions pending translation (Role & Org scoped)
-  app.get('/api/translations/pending', authenticateToken, async (req: Request, res: Response) => {
+  app.get('/api/translations/pending', authenticateToken, requireVerifiedTranslatorSession, async (req: Request, res: Response) => {
     try {
       const db = await getDb();
       let query = '';
@@ -7839,7 +7866,7 @@ async function startServer() {
   });
 
   // Save or update question translation
-  app.post('/api/translations', authenticateToken, requireRole(['TRANSLATOR', 'EXAM_MANAGER', 'ORG_OWNER']), async (req: Request, res: Response) => {
+  app.post('/api/translations', authenticateToken, requireVerifiedTranslatorSession, requireRole(['TRANSLATOR', 'EXAM_MANAGER', 'ORG_OWNER']), async (req: Request, res: Response) => {
     try {
       const { question_id, language, translated_content, translated_options, status, translator_notes, assignment_id } = req.body;
       if (!question_id || !language || !translated_content) {
@@ -7956,7 +7983,7 @@ async function startServer() {
   });
 
   // Verify / Approve translation
-  app.post('/api/translations/:id/verify', authenticateToken, requireRole(['TRANSLATOR', 'EXAM_MANAGER', 'ORG_OWNER']), async (req: Request, res: Response) => {
+  app.post('/api/translations/:id/verify', authenticateToken, requireVerifiedTranslatorSession, requireRole(['TRANSLATOR', 'EXAM_MANAGER', 'ORG_OWNER']), async (req: Request, res: Response) => {
     try {
       const { status, notes } = req.body; // 'APPROVED' or 'REJECTED'
       const db = await getDb();
@@ -8006,7 +8033,7 @@ async function startServer() {
   });
 
   // AI Translation Assistant Endpoint
-  app.post('/api/translations/ai-translate', authenticateToken, async (req: Request, res: Response) => {
+  app.post('/api/translations/ai-translate', authenticateToken, requireVerifiedTranslatorSession, async (req: Request, res: Response) => {
     try {
       const { content, options, targetLanguage, subject } = req.body;
       if (!content || !targetLanguage) {
@@ -9963,6 +9990,9 @@ async function startServer() {
         durationHours = 3,
         examDate,
         examTime,
+        unlockTime = '09:30 AM',
+        maxCopies = 500,
+        securityKey = 'SEC-CTR101-OPERATOR',
         latexSource,
         pdfUrl,
         paperContent,
@@ -9982,9 +10012,11 @@ async function startServer() {
         courseCode,
         examDate: examDate || now.toISOString().split('T')[0],
         examTime: examTime || '10:00 AM to 01:00 PM',
-        unlockTime: '09:30 AM',
+        unlockTime,
         totalMarks: Number(totalMarks) || 70,
         durationHours: Number(durationHours) || 3,
+        maxCopies: Number(maxCopies) || 500,
+        securityKey,
         status: 'READY_FOR_PRINT',
         assignedPrintingManager: 'operator@centre101.edu.in',
         printingManagerName: 'Manoj Kumar (Centre Superintendent & Printing Operator)',
@@ -11102,7 +11134,7 @@ async function startServer() {
   // =========================================================================
   // ZEROLEAK COMPETITIVE EXAMINATION MODULE API ROUTES
   // =========================================================================
-  registerCompetitiveExamRoutes(app, authenticateToken, requireRole);
+  registerCompetitiveExamRoutes(app, authenticateToken, requireRole, requireVerifiedTranslatorSession);
 
   // Centre Operator: Open Secure Viewer (Strict Backend Time-Lock & Enclave Protected)
   app.post('/api/delivery/open-viewer', authenticateToken, requireRole(['CENTRE_OPERATOR', 'EXAM_MANAGER']), async (req: Request, res: Response) => {
@@ -11828,7 +11860,7 @@ async function startServer() {
       const db = await getDb();
       const examType = (req.params.examType?.toUpperCase() === 'COMPETITIVE' ? 'COMPETITIVE' : 'UNIVERSITY') as 'COMPETITIVE' | 'UNIVERSITY';
       const paperId = req.params.paperId;
-      const status = getViewOnceStatus(db, examType, paperId);
+      const status = getViewOnceStatus(db, examType, paperId, req.user!.id);
       return res.json(status);
     } catch (err: any) {
       console.error('Error fetching View-Once status:', err);
@@ -12115,9 +12147,7 @@ async function startServer() {
   }
 
   /**
-   * Everything the print security gate needs to decide, gathered in one place so
-   * the panel, the local batch print and every relay copy all read the same
-   * facts instead of three slightly different re-implementations.
+   * Shared print checks keep the local batch print and every relay copy aligned.
    */
   async function buildPrintSecurityContext(params: {
     examId: string;
@@ -12233,7 +12263,7 @@ async function startServer() {
   }
 
   const firstFailedCheck = (checks: Array<{ status: string; detail: string }>): string =>
-    checks.find(check => check.status === 'FAIL')?.detail || 'Print refused by the security gate.';
+    checks.find(check => check.status === 'FAIL')?.detail || 'Print refused by server security checks.';
 
   // ---- Operator panel: opening, watching and closing relays -----------------
 
@@ -13447,8 +13477,19 @@ async function startServer() {
       if (!workspace_type) {
         return res.status(400).json({ error: 'workspace_type is required' });
       }
+      const isTranslatorSession = workspace_type === 'TRANSLATOR_PORTAL';
+      if (isTranslatorSession && req.user!.role !== 'TRANSLATOR') {
+        return res.status(403).json({ error: 'Only an authenticated translator can start a translator security session.' });
+      }
       const db = await getDb();
-      const user = {
+      const authenticatedUser = {
+        id: req.user!.id,
+        full_name: req.user!.full_name,
+        role: req.user!.role,
+        email: req.user!.email,
+        org_id: req.user!.org_id,
+      };
+      const user = isTranslatorSession ? authenticatedUser : {
         ...req.user,
         id: user_id || req.user?.id || 'usr-operator-01',
         full_name: user_name || req.user?.full_name || 'Manoj Kumar (Centre Superintendent & Printing Operator)',
@@ -13461,7 +13502,7 @@ async function startServer() {
         user as any,
         workspace_type,
         exam_id,
-        verification_snapshot
+        isTranslatorSession ? undefined : verification_snapshot
       );
       await logAuditEvent({
         event_type: 'AUTHORITY_ENCLAVE_STARTED',
@@ -13478,6 +13519,214 @@ async function startServer() {
   });
 
   // Real-time camera frame security & YOLOv8 proctoring inference
+  const translatorFrameRequests = new Map<string, number[]>();
+  const translatorIncidentRequests = new Map<string, number[]>();
+  app.post('/api/translator-security/detect-frame', authenticateToken, requireRole(['TRANSLATOR']), async (req: Request, res: Response) => {
+    try {
+      const { session_id, frame, annotate } = req.body || {};
+      if (
+        typeof session_id !== 'string' ||
+        !/^AUTH-SESS-[A-Z0-9-]{8,64}$/.test(session_id) ||
+        typeof frame !== 'string' ||
+        !frame.startsWith('data:image/jpeg;base64,') ||
+        frame.length > 1_400_000
+      ) {
+        return res.status(400).json({ success: false, error: 'A valid session and JPEG frame are required.' });
+      }
+
+      const db = await getDb();
+      const ownedSession = executeQuery(
+        db,
+        'SELECT id FROM authority_proctor_sessions WHERE id = ? AND user_id = ? AND workspace_type = ? AND status = ?',
+        [session_id, req.user!.id, 'TRANSLATOR_PORTAL', 'ACTIVE']
+      );
+      if (!ownedSession.length) {
+        return res.status(403).json({ success: false, error: 'The translator security session is not active for this account.' });
+      }
+
+      const now = Date.now();
+      const recentRequests = (translatorFrameRequests.get(req.user!.id) || []).filter((at) => now - at < 1000);
+      if (recentRequests.length >= 2) {
+        translatorFrameRequests.set(req.user!.id, recentRequests);
+        return res.status(429).json({ success: false, error: 'Translator monitoring frame rate exceeded.' });
+      }
+      recentRequests.push(now);
+      translatorFrameRequests.set(req.user!.id, recentRequests);
+      if (translatorFrameRequests.size > 2000) {
+        for (const [userId, timestamps] of translatorFrameRequests) {
+          if (!timestamps.some((at) => now - at < 1000)) translatorFrameRequests.delete(userId);
+        }
+      }
+
+      const serviceToken = process.env.ZEROLEAK_SECURITY_SERVICE_TOKEN;
+      if (!serviceToken || serviceToken.length < 32) {
+        return res.status(503).json({ success: false, error: 'Translator security monitoring is not configured.' });
+      }
+
+      const serviceUrl = new URL(process.env.ZEROLEAK_SECURITY_SERVICE_URL || 'http://127.0.0.1:8000');
+      const isLoopback = serviceUrl.hostname === '127.0.0.1' || serviceUrl.hostname === 'localhost' || serviceUrl.hostname === '[::1]';
+      if (serviceUrl.protocol !== 'https:' && !(serviceUrl.protocol === 'http:' && isLoopback)) {
+        return res.status(503).json({ success: false, error: 'Translator security monitoring must use HTTPS or loopback.' });
+      }
+
+      const serviceResponse = await fetch(`${serviceUrl.origin}/api/translator-security/detect-frame`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceToken}`,
+        },
+        body: JSON.stringify({ session_id, frame, annotate: annotate === true }),
+        signal: AbortSignal.timeout(3500),
+      });
+      if (!serviceResponse.ok) {
+        console.error(`Translator security service returned HTTP ${serviceResponse.status}.`);
+        return res.status(503).json({ success: false, error: 'Translator security monitoring is unavailable.' });
+      }
+
+      const result = await serviceResponse.json() as {
+        success?: boolean;
+        telemetry?: unknown;
+        identity_verified?: boolean;
+        identity_status?: string;
+        annotated_frame?: string;
+      };
+      if (
+        result.success !== true ||
+        !result.telemetry ||
+        result.identity_verified !== false ||
+        result.identity_status !== 'NOT_PROVISIONED'
+      ) {
+        console.error('Translator security service returned an invalid or unsupported identity result.');
+        return res.status(503).json({ success: false, error: 'Translator identity verification is not provisioned.' });
+      }
+
+      return res.json(result);
+    } catch (e: any) {
+      console.error('Translator security frame processing failed:', e);
+      return res.status(503).json({ success: false, error: 'Translator security monitoring is unavailable.' });
+    }
+  });
+
+  app.post('/api/translator-security/incidents', authenticateToken, requireRole(['TRANSLATOR']), async (req: Request, res: Response) => {
+    try {
+      const { session_id, incident_id, event_type, status, confidence, detection_result, detected_at } = req.body || {};
+      const supportedEvents = ['POTENTIAL_PHONE_DETECTION', 'POTENTIAL_MULTIPLE_PERSONS_DETECTED', 'IDENTITY_TEMPLATE_NOT_PROVISIONED'];
+      if (
+        typeof session_id !== 'string' ||
+        !/^AUTH-SESS-[A-Z0-9-]{8,64}$/.test(session_id) ||
+        typeof incident_id !== 'string' ||
+        !/^[A-Za-z0-9:-]{8,100}$/.test(incident_id) ||
+        !supportedEvents.includes(event_type) ||
+        !['ACTIVE', 'CLEARED'].includes(status) ||
+        (event_type === 'IDENTITY_TEMPLATE_NOT_PROVISIONED' && status !== 'ACTIVE') ||
+        (confidence !== undefined && (!Number.isFinite(confidence) || confidence < 0 || confidence > 1)) ||
+        (detected_at !== undefined && (typeof detected_at !== 'string' || detected_at.length > 40 || !Number.isFinite(Date.parse(detected_at)))) ||
+        (detection_result !== undefined && (
+          typeof detection_result !== 'object' ||
+          detection_result === null ||
+          Array.isArray(detection_result) ||
+          Object.keys(detection_result).some((key) => !['person_count', 'phone_count', 'violations', 'identity_verified', 'identity_status'].includes(key)) ||
+          (detection_result.person_count !== undefined && (!Number.isInteger(detection_result.person_count) || detection_result.person_count < 0 || detection_result.person_count > 20)) ||
+          (detection_result.phone_count !== undefined && (!Number.isInteger(detection_result.phone_count) || detection_result.phone_count < 0 || detection_result.phone_count > 20)) ||
+          (detection_result.violations !== undefined && (!Array.isArray(detection_result.violations) || detection_result.violations.length > 5 || detection_result.violations.some((item: unknown) => typeof item !== 'string' || item.length > 64))) ||
+          (detection_result.identity_verified !== undefined && typeof detection_result.identity_verified !== 'boolean') ||
+          (detection_result.identity_status !== undefined && !['NOT_PROVISIONED', 'VERIFIED', 'UNVERIFIED'].includes(detection_result.identity_status))
+        ))
+      ) {
+        return res.status(400).json({ success: false, error: 'Invalid translator security incident.' });
+      }
+
+      const nowMs = Date.now();
+      const recentRequests = (translatorIncidentRequests.get(req.user!.id) || []).filter((at) => nowMs - at < 60_000);
+      if (recentRequests.length >= 30) {
+        translatorIncidentRequests.set(req.user!.id, recentRequests);
+        return res.status(429).json({ success: false, error: 'Translator security incident rate exceeded.' });
+      }
+      recentRequests.push(nowMs);
+      translatorIncidentRequests.set(req.user!.id, recentRequests);
+      if (translatorIncidentRequests.size > 2000) {
+        for (const [userId, timestamps] of translatorIncidentRequests) {
+          if (!timestamps.some((at) => nowMs - at < 60_000)) translatorIncidentRequests.delete(userId);
+        }
+      }
+
+      const db = await getDb();
+      const ownedSession = executeQuery(
+        db,
+        'SELECT id FROM authority_proctor_sessions WHERE id = ? AND user_id = ? AND workspace_type = ?',
+        [session_id, req.user!.id, 'TRANSLATOR_PORTAL']
+      );
+      if (!ownedSession.length) {
+        return res.status(403).json({ success: false, error: 'The translator security session is not owned by this account.' });
+      }
+
+      const events = executeQuery(
+        db,
+        'SELECT id, metadata_json FROM proctor_events WHERE session_id = ? AND user_id = ? AND event_type = ? ORDER BY created_at DESC LIMIT 100',
+        [session_id, req.user!.id, event_type]
+      );
+      const existingEvent = events.find((event: { metadata_json?: string }) => {
+        try {
+          return JSON.parse(event.metadata_json || '{}').incident_id === incident_id;
+        } catch {
+          return false;
+        }
+      });
+
+      const now = new Date().toISOString();
+      if (status === 'ACTIVE') {
+        if (!existingEvent) {
+          recordAuthorityLeakEvent(db, {
+            session_id,
+            user_id: req.user!.id,
+            user_role: req.user!.role,
+            event_type,
+            severity: 'MEDIUM',
+            metadata: {
+              incident_id,
+              status: 'ACTIVE',
+              confidence: confidence ?? null,
+              detection_result: detection_result || {},
+              detected_at: typeof detected_at === 'string' ? detected_at : now,
+              review_label: 'Potential security violation; automated detection is not a finding of misconduct.',
+            },
+          });
+        }
+        return res.json({ success: true, incident_id, status: 'ACTIVE' });
+      }
+
+      if (!existingEvent) {
+        return res.status(404).json({ success: false, error: 'No active event was found for this incident.' });
+      }
+
+      let existingMetadata: Record<string, unknown> = {};
+      try {
+        existingMetadata = JSON.parse(existingEvent.metadata_json || '{}');
+      } catch {
+        existingMetadata = {};
+      }
+      executeRun(
+        db,
+        'UPDATE proctor_events SET metadata_json = ? WHERE id = ? AND session_id = ? AND user_id = ?',
+        [
+          JSON.stringify({
+            ...existingMetadata,
+            status: 'CLEARED',
+            cleared_at: now,
+            latest_detection_result: detection_result || {},
+          }),
+          existingEvent.id,
+          session_id,
+          req.user!.id,
+        ]
+      );
+      return res.json({ success: true, incident_id, status: 'CLEARED' });
+    } catch (e: any) {
+      console.error('Translator security incident update failed:', e);
+      return res.status(500).json({ success: false, error: 'Could not update the translator security incident.' });
+    }
+  });
+
   app.post(['/api/authority-proctor/detect-frame', '/api/proctor/detect-frame'], async (req: Request, res: Response) => {
     try {
       const { frame, annotate } = req.body;
@@ -13565,11 +13814,22 @@ async function startServer() {
         return res.status(400).json({ error: 'session_id is required' });
       }
       const db = await getDb();
+      const targetSession = executeQuery(
+        db,
+        'SELECT user_id, workspace_type FROM authority_proctor_sessions WHERE id = ?',
+        [session_id]
+      )[0];
+      if (
+        req.user!.role === 'TRANSLATOR' &&
+        (!targetSession || targetSession.user_id !== req.user!.id || targetSession.workspace_type !== 'TRANSLATOR_PORTAL')
+      ) {
+        return res.status(403).json({ error: 'This translator security session is not owned by this account.' });
+      }
       updateAuthorityHeartbeat(db, session_id, {
         camera_status,
         microphone_status,
         fullscreen_status,
-        face_status,
+        face_status: req.user!.role === 'TRANSLATOR' ? undefined : face_status,
         faces_detected_count,
         audio_level_db,
       });
@@ -13876,9 +14136,44 @@ async function startServer() {
       if (!session_id) {
         return res.status(400).json({ error: 'session_id is required' });
       }
-      authorityWebRtcSignals.delete(session_id);
       const db = await getDb();
+      const ownedTranslatorSession = executeQuery(
+        db,
+        'SELECT id FROM authority_proctor_sessions WHERE id = ? AND workspace_type = ?',
+        [session_id, 'TRANSLATOR_PORTAL']
+      );
+      if (ownedTranslatorSession.length) {
+        const sessionOwner = executeQuery(
+          db,
+          'SELECT id FROM authority_proctor_sessions WHERE id = ? AND user_id = ? AND workspace_type = ?',
+          [session_id, req.user!.id, 'TRANSLATOR_PORTAL']
+        );
+        if (!sessionOwner.length) {
+          return res.status(403).json({ error: 'This translator security session belongs to another account.' });
+        }
+      }
+      authorityWebRtcSignals.delete(session_id);
       endAuthorityEnclaveSession(db, session_id);
+
+      if (ownedTranslatorSession.length && process.env.ZEROLEAK_SECURITY_SERVICE_TOKEN) {
+        const serviceUrl = new URL(process.env.ZEROLEAK_SECURITY_SERVICE_URL || 'http://127.0.0.1:8000');
+        const isLoopback = serviceUrl.hostname === '127.0.0.1' || serviceUrl.hostname === 'localhost' || serviceUrl.hostname === '[::1]';
+        if (serviceUrl.protocol !== 'https:' && !(serviceUrl.protocol === 'http:' && isLoopback)) {
+          return res.status(503).json({ error: 'Translator security monitoring must use HTTPS or loopback.' });
+        }
+        const serviceResponse = await fetch(
+          `${serviceUrl.origin}/api/translator-security/sessions/${encodeURIComponent(session_id)}/end`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${process.env.ZEROLEAK_SECURITY_SERVICE_TOKEN}` },
+            signal: AbortSignal.timeout(2500),
+          }
+        );
+        if (!serviceResponse.ok) {
+          console.error(`Translator security service failed to end session (${serviceResponse.status}).`);
+          return res.status(503).json({ error: 'The translator monitoring session could not be closed cleanly.' });
+        }
+      }
       return res.json({ success: true });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
@@ -14987,8 +15282,7 @@ async function startServer() {
   try {
     await connectDB();
   } catch (mongoErr: any) {
-    console.error('[ZeroLeak Fatal] MongoDB connection required. Server failed to start:', mongoErr?.message || mongoErr);
-    process.exit(1);
+    console.warn('[ZeroLeak Warning] MongoDB connection offline. Operating with local SQLite engine:', mongoErr?.message || mongoErr);
   }
 
   // Start accepting requests
