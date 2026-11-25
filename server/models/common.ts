@@ -1,4 +1,4 @@
-import { SchemaOptions } from 'mongoose';
+import type { SchemaOptions } from 'mongoose';
 
 export const baseSchemaOptions: SchemaOptions = {
   timestamps: false,

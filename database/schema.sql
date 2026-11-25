@@ -599,7 +599,34 @@ CREATE TABLE IF NOT EXISTS proctor_events (
     created_at TEXT NOT NULL
 );
 
--- 38. Proctor Settings (Configurable Risk Weights)
+CREATE TABLE IF NOT EXISTS translator_security_state (
+    user_id TEXT PRIMARY KEY,
+    current_session_id TEXT,
+    is_locked INTEGER NOT NULL DEFAULT 0,
+    lock_reason TEXT,
+    locked_session_id TEXT,
+    locked_at TEXT,
+    recovered_at TEXT,
+    recovered_by TEXT,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS translator_security_incidents (
+    session_id TEXT NOT NULL,
+    incident_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    confidence REAL,
+    warning_count INTEGER NOT NULL DEFAULT 0,
+    detection_result_json TEXT,
+    detected_at TEXT NOT NULL,
+    cleared_at TEXT,
+    event_id TEXT NOT NULL,
+    PRIMARY KEY (session_id, incident_id)
+);
+
+-- 38. Proctor Settings (Configurable risk weights)
 CREATE TABLE IF NOT EXISTS proctor_settings (
     id TEXT PRIMARY KEY,
     org_id TEXT,
@@ -1000,6 +1027,4 @@ CREATE INDEX IF NOT EXISTS idx_comp_questions_exam ON competitive_questions(exam
 CREATE INDEX IF NOT EXISTS idx_comp_questions_source_file ON competitive_questions(source_file_id);
 CREATE INDEX IF NOT EXISTS idx_comp_questions_exam_subject_id ON competitive_questions(exam_id, subject_id);
 CREATE INDEX IF NOT EXISTS idx_comp_gen_papers_exam ON competitive_generated_papers(exam_id);
-
-
 

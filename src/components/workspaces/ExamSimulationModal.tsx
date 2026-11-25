@@ -16,6 +16,11 @@ import {
   Info,
 } from 'lucide-react';
 import { Examination, User, ExamSimulationPaper } from '../../types';
+import {
+  getSecurityWatermarkLocation,
+  getImmediateSecurityWatermarkLocation,
+  ClientSecurityLocation,
+} from '../../utils/securityProtection';
 import { api } from '../../api';
 
 interface ExamSimulationModalProps {
@@ -47,6 +52,15 @@ export const ExamSimulationModal: React.FC<ExamSimulationModalProps> = ({
   const [loadingPaper, setLoadingPaper] = useState(false);
   const [simulationCompleted, setSimulationCompleted] = useState(false);
   const [apiErrorMessage, setApiErrorMessage] = useState<string | null>(null);
+  const [simulationLoc, setSimulationLoc] = useState<ClientSecurityLocation>(() =>
+    getImmediateSecurityWatermarkLocation()
+  );
+
+  useEffect(() => {
+    getSecurityWatermarkLocation().then((loc) => {
+      setSimulationLoc(loc);
+    });
+  }, []);
 
   // Security Interceptions & Overlays
   const [isTabBlurred, setIsTabBlurred] = useState(false);
@@ -398,7 +412,7 @@ export const ExamSimulationModal: React.FC<ExamSimulationModalProps> = ({
   };
 
   // Watermark text for dynamic diagonal watermark
-  const watermarkText = `CONFIDENTIAL – PROCTORED SIMULATION • ${currentUser.full_name} (${currentUser.email}) • ${sessionStartTime} • EXAM ID: ${exam.id}`;
+  const watermarkText = `CONFIDENTIAL – PROCTORED SIMULATION • ${currentUser.full_name} (${currentUser.email}) • ${sessionStartTime} • EXAM ID: ${exam.id} • ${simulationLoc.displayText}`;
 
   return (
     <div

@@ -49,6 +49,8 @@ import {
   StartViewOnceResponse,
   ConsumeViewOnceRequest,
   ConsumeViewOnceResponse,
+  ManagedUserRecord,
+  PasswordResetRequestRecord,
 } from './types';
 
 export const DEVICE_APPROVAL_EVENT = 'zeroleak:device-approval-needed';
@@ -790,7 +792,7 @@ export const api = {
   uploadUniversityDraftPapers: async (files: File[], examId?: string) => {
     const formData = new FormData();
     files.forEach(file => {
-      formData.append('draft_papers', file);
+      formData.append('files', file);
     });
     if (examId) {
       formData.append('exam_id', examId);
@@ -804,7 +806,18 @@ export const api = {
       },
       body: formData,
     });
-    const data = await res.json();
+    let data: any;
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      try {
+        data = await res.json();
+      } catch {
+        data = { error: 'Invalid JSON response from server during draft papers upload.' };
+      }
+    } else {
+      const text = await res.text();
+      throw new Error(`Server returned HTTP ${res.status}: ${text.slice(0, 300) || res.statusText}`);
+    }
     if (!res.ok || !data.success) {
       throw new Error(data.error || data.message || 'Failed to upload University draft papers');
     }
@@ -824,12 +837,31 @@ export const api = {
       }),
     }),
 
-  generateUniversityFinalPaper: (examId?: string, setLetter: string = 'P') =>
+  generateUniversityFinalPaper: (
+    examId?: string,
+    setLetter: string = 'P',
+    config?: {
+      subject?: string;
+      universityName?: string;
+      paperCode?: string;
+      totalMarks?: number;
+      durationHours?: number;
+      difficultySetting?: string;
+      location?: any;
+    }
+  ) =>
     request<import('./types').UniversityFinalPaperResponse>('/api/university/generate-final-paper', {
       method: 'POST',
       body: JSON.stringify({
         exam_id: examId,
         set_letter: setLetter,
+        subject: config?.subject,
+        university_name: config?.universityName,
+        paper_code: config?.paperCode,
+        total_marks: config?.totalMarks,
+        duration_minutes: config?.durationHours ? config.durationHours * 60 : undefined,
+        location: config?.location,
+        config,
       }),
     }),
 
@@ -844,6 +876,80 @@ export const api = {
     ),
 
 
+
+  // Integrated AI Exam Generator (from ai-exam-generator-main)
+  uploadAiExam: async (formData: FormData): Promise<{ success: boolean; job: string; status_url: string; error?: string }> => {
+    const token = localStorage.getItem('token');
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch('/api/university/ai-generator/upload', {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    return res.json();
+  },
+
+  getAiExamStatus: (job: string) =>
+    request<{
+      pct: number;
+      step: number;
+      label: string;
+      status: 'running' | 'done' | 'failed' | 'canceled';
+      ts: number;
+      time_estimate?: string;
+      paper_title?: string;
+      max_marks?: string;
+      duration?: string;
+      has_questions?: boolean;
+      has_answers?: boolean;
+      error?: string;
+    }>(`/api/university/ai-generator/status/${encodeURIComponent(job)}`),
+
+  getAiExamDownloadUrl: (job: string, which: 'questions' | 'answers' | 'questions_tex' | 'answers_tex') =>
+    `/api/university/ai-generator/download/${encodeURIComponent(job)}/${encodeURIComponent(which)}`,
+
+  cancelAiExam: (job: string) =>
+    request<{ success: boolean; message: string }>(`/api/university/ai-generator/cancel/${encodeURIComponent(job)}`, {
+      method: 'POST',
+    }),
+
+  getPrintingOperators: () =>
+    request<{
+      success: boolean;
+      operators: Array<{
+        id: string;
+        username: string;
+        name: string;
+        email: string;
+        role: string;
+        centre_id: string;
+        centre_name: string;
+      }>;
+    }>('/api/university/printing-operators'),
+
+  sendAiExamToPrinter: (
+    job: string,
+    title: string,
+    operatorData?: {
+      operatorId?: string;
+      operatorName?: string;
+      operatorEmail?: string;
+      centreId?: string;
+      centreName?: string;
+    }
+  ) =>
+    request<{
+      success: boolean;
+      queue_id: string;
+      message: string;
+      operator?: any;
+      item?: any;
+      transferredJob?: any;
+    }>('/api/university/ai-generator/send-to-printer', {
+      method: 'POST',
+      body: JSON.stringify({ job, title, ...operatorData }),
+    }),
 
   // Auth
   register: (payload: any) => request<{ message: string; token: string; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(payload) }),
@@ -1194,6 +1300,8 @@ export const api = {
     durationHours?: number;
     /** Set letter printed on the source paper, e.g. "P" or "4". */
     setLetter?: string;
+    /** If 4, generates all 4 sets (P, Q, R, S = 16 pages); if 1, generates 4 pages for specified set. */
+    totalSetsToRender?: number;
     /** Figures cropped from the source paper, shipped to the compiler as files. */
     resources?: Array<{ path: string; content: string; encoding?: 'utf8' | 'base64' }>;
     /** Published figure crops the paper references, read back by the server. */
@@ -1322,9 +1430,9 @@ export const api = {
     return request<{ translations: any[] }>(`/api/translations${qs}`);
   },
   getPendingTranslations: () => request<{ questions: Question[] }>('/api/translations/pending'),
-  saveTranslation: (payload: any) => request<{ message: string; translationId: string }>('/api/translations', { method: 'POST', body: JSON.stringify(payload) }),
-  verifyTranslation: (id: string, payload: any) => request<{ message: string }>(`/api/translations/${id}/verify`, { method: 'POST', body: JSON.stringify(payload) }),
-  aiTranslate: (payload: { content: string; options?: string[] | null; targetLanguage: string; subject?: string }) => request<{ result: { translatedContent: string; translatedOptions: string[] | null; targetLanguage: string; linguisticNotes: string; aiConfidence: number } }>('/api/translations/ai-translate', { method: 'POST', body: JSON.stringify(payload) }),
+  saveTranslation: (payload: any, signal?: AbortSignal) => request<{ message: string; translationId: string }>('/api/translations', { method: 'POST', body: JSON.stringify(payload), signal }),
+  verifyTranslation: (id: string, payload: any, signal?: AbortSignal) => request<{ message: string }>(`/api/translations/${id}/verify`, { method: 'POST', body: JSON.stringify(payload), signal }),
+  aiTranslate: (payload: { content: string; options?: string[] | null; targetLanguage: string; subject?: string }, signal?: AbortSignal) => request<{ result: { translatedContent: string; translatedOptions: string[] | null; targetLanguage: string; linguisticNotes: string; aiConfidence: number } }>('/api/translations/ai-translate', { method: 'POST', body: JSON.stringify(payload), signal }),
 
   // Paper Generation & Encryption
   generatePaper: (examId: string, payload?: { exam_mode?: string; subject_pool?: string[]; num_sets?: number; selected_paper_ids?: string[] }) =>
@@ -1430,6 +1538,9 @@ export const api = {
     durationHours?: number;
     examDate?: string;
     examTime?: string;
+    unlockTime?: string;
+    maxCopies?: number;
+    securityKey?: string;
     latexSource?: string;
     pdfUrl?: string;
     paperContent?: any;
@@ -1578,7 +1689,7 @@ export const api = {
         return {
           ...be,
           name: match.title || be.name,
-          title: match.title || be.title,
+          title: match.title || be.name,
           exam_date: match.examDate || be.exam_date,
           exam_time: match.examTime || be.exam_time,
           unlock_time: match.unlockTime || be.unlock_time,
@@ -1690,6 +1801,433 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  // One-Time Paper Verification & 2-of-3 Threshold Key Authorization
+  verifyPaperOnce: (payload: {
+    examType: 'COMPETITIVE' | 'UNIVERSITY';
+    paperId: string;
+    paperVersion?: string;
+    sessionToken?: string;
+    verificationNotes?: string;
+  }) => request<{
+    success: boolean;
+    status: 'VERIFIED' | 'ALREADY_VERIFIED' | 'ALREADY_ENCRYPTED' | 'UNAUTHORIZED';
+    verifiedAt?: string;
+    paperVersion?: string;
+    error?: string;
+  }>('/api/papers/verify-once', { method: 'POST', body: JSON.stringify(payload) }),
+
+  requestThresholdAuthorization: (payload: {
+    paperId: string;
+    paperVersion?: string;
+    examType: 'COMPETITIVE' | 'UNIVERSITY';
+    custodianRole: 'ORG_OWNER' | 'AUDITOR' | 'EXAM_MANAGER';
+    requestType?: 'ENCRYPTION' | 'EMERGENCY_DECRYPTION';
+    expiresInHours?: number;
+  }) => request<{
+    success: boolean;
+    requestId?: string;
+    expiresAt?: string;
+    nonce?: string;
+    error?: string;
+  }>('/api/papers/threshold/request-authorization', { method: 'POST', body: JSON.stringify(payload) }),
+
+  approveThresholdAuthorization: (payload: {
+    requestId: string;
+    decision: 'APPROVED' | 'REJECTED';
+    rejectionReason?: string;
+  }) => request<{ success: boolean; status?: string; error?: string }>('/api/papers/threshold/approve-authorization', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+
+  getThresholdStatus: (examType: 'COMPETITIVE' | 'UNIVERSITY', paperId: string, version?: string) =>
+    request<{
+      paperId: string;
+      paperVersion: string;
+      examType: 'COMPETITIVE' | 'UNIVERSITY';
+      orgOwnerRequest: any | null;
+      auditorRequest: any | null;
+      examManagerRequest: any | null;
+      allApproved: boolean;
+      approvedCount?: number;
+      isThresholdMet?: boolean;
+      pendingRoles?: string[];
+      isVerified: boolean;
+      isEncrypted: boolean;
+      verificationStatus: 'VERIFIED' | 'UNVERIFIED';
+      encryptionStatus: 'ENCRYPTED' | 'UNENCRYPTED';
+      encryptedAt?: string | null;
+      encryptionAlgorithm?: string | null;
+      canEncrypt: boolean;
+      examManagerVerified?: boolean;
+      examManagerKeyAttempts?: { failedAttempts: number; remainingAttempts: number; isLocked: boolean };
+    }>(`/api/papers/threshold/status/${encodeURIComponent(examType)}/${encodeURIComponent(paperId)}${version ? `?version=${encodeURIComponent(version)}` : ''}`),
+
+  encryptPaperThreshold: (payload: {
+    examType: 'COMPETITIVE' | 'UNIVERSITY';
+    paperId: string;
+    paperVersion?: string;
+  }) => request<{
+    success: boolean;
+    status: 'ENCRYPTED' | 'ALREADY_ENCRYPTED' | 'NOT_VERIFIED' | 'UNAUTHORIZED' | 'FAILED';
+    paperId: string;
+    paperVersion: string;
+    encryptedAt?: string;
+    keyFingerprint?: string;
+    checksumSHA256?: string;
+    sharesCreated?: number;
+    algorithm?: string;
+    error?: string;
+  }>('/api/papers/threshold/encrypt', { method: 'POST', body: JSON.stringify(payload) }),
+
+  verifyExamManagerKey: (payload: {
+    examType: 'COMPETITIVE' | 'UNIVERSITY';
+    paperId: string;
+    paperVersion?: string;
+    key: string;
+  }) => request<{
+    success: boolean;
+    isLocked: boolean;
+    failedAttempts?: number;
+    remainingAttempts: number;
+    message?: string;
+    error?: string;
+  }>('/api/papers/threshold/verify-exam-manager-key', { method: 'POST', body: JSON.stringify(payload) }),
+
+  resetExamManagerKeyLock: (payload: {
+    paperId: string;
+    reason: string;
+  }) => request<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }>('/api/papers/threshold/reset-exam-manager-lock', { method: 'POST', body: JSON.stringify(payload) }),
+
+  createEmergencyCase: (payload: {
+    paperId: string;
+    paperVersion?: string;
+    examType: 'COMPETITIVE' | 'UNIVERSITY';
+    reason: string;
+    validityMinutes?: number;
+  }) => request<{
+    success: boolean;
+    caseNumber?: string;
+    expiresAt?: string;
+    error?: string;
+  }>('/api/papers/emergency/create-case', { method: 'POST', body: JSON.stringify(payload) }),
+
+  approveEmergencyCase: (payload: {
+    caseNumber: string;
+    notes?: string;
+  }) => request<{
+    success: boolean;
+    caseNumber: string;
+    approvedCount: number;
+    isThresholdMet: boolean;
+    status: string;
+    error?: string;
+  }>('/api/papers/emergency/approve', { method: 'POST', body: JSON.stringify(payload) }),
+
+  executeEmergencyDecryption: (payload: {
+    caseNumber: string;
+  }) => request<{
+    success: boolean;
+    caseNumber: string;
+    paperId: string;
+    paperVersion: string;
+    decryptedPaper?: any;
+    approvingCustodians?: Array<{ role: string; userId: string; approvedAt: string }>;
+    error?: string;
+  }>('/api/papers/emergency/decrypt', { method: 'POST', body: JSON.stringify(payload) }),
+
+  getEmergencyCases: (examType: 'COMPETITIVE' | 'UNIVERSITY', paperId: string) =>
+    request<{ cases: any[] }>(`/api/papers/emergency/cases/${encodeURIComponent(examType)}/${encodeURIComponent(paperId)}`),
+
+  // Decryption Attempt Counter & 3-Attempt Lockout
+  getDecryptionAttempts: (examType: 'COMPETITIVE' | 'UNIVERSITY', paperId: string, paperVersion?: string, sessionId?: string) =>
+    request<{
+      id: string;
+      failedAttempts: number;
+      remainingAttempts: number;
+      isLocked: boolean;
+      lockedAt: string | null;
+      lockReason: string | null;
+    }>(`/api/papers/decryption-attempts/${encodeURIComponent(examType)}/${encodeURIComponent(paperId)}?paperVersion=${encodeURIComponent(paperVersion || 'v1')}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ''}`),
+
+  verifyDecryptionKeyAttempt: (payload: {
+    examType: 'COMPETITIVE' | 'UNIVERSITY';
+    paperId: string;
+    paperVersion?: string;
+    key: string;
+    sessionId?: string;
+  }) => request<{
+    success: boolean;
+    remainingAttempts: number;
+    failedAttempts?: number;
+    isLocked: boolean;
+    lockedAt?: string | null;
+    message: string;
+  }>('/api/papers/verify-key-attempt', { method: 'POST', body: JSON.stringify(payload) }),
+
+  adminResetDecryptionLock: (payload: {
+    examType: 'COMPETITIVE' | 'UNIVERSITY';
+    paperId: string;
+    paperVersion?: string;
+    reason: string;
+  }) => request<{
+    success: boolean;
+    message?: string;
+    unlockedAt?: string;
+    error?: string;
+  }>('/api/papers/admin-reset-decryption-lock', { method: 'POST', body: JSON.stringify(payload) }),
+
+  // Print Anywhere & Validated Printer Registry
+  getRegisteredPrinters: (centreNumber?: string, examType?: string, activeOnly = true) => {
+    const params = new URLSearchParams();
+    if (centreNumber) params.append('centreNumber', centreNumber);
+    if (examType) params.append('examType', examType);
+    if (!activeOnly) params.append('activeOnly', 'false');
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request<{ printers: any[] }>(`/api/print-anywhere/printers${qs}`);
+  },
+
+  createPrintAnywhereRequest: (payload: {
+    examId: string;
+    examName: string;
+    examType: 'COMPETITIVE' | 'UNIVERSITY';
+    paperId: string;
+    paperVersion?: string;
+    centreNumber: string;
+    printerId: string;
+    requestedCopies: number;
+    scheduledUnlockTime: string;
+    scheduledDate: string;
+    idempotencyKey?: string;
+  }) => request<{ success: boolean; request?: any; error?: string }>('/api/print-anywhere/requests', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+
+  getPrintAnywhereRequests: (filters?: { centreNumber?: string; examType?: string; status?: string; paperId?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.centreNumber) params.append('centreNumber', filters.centreNumber);
+    if (filters?.examType) params.append('examType', filters.examType);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.paperId) params.append('paperId', filters.paperId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request<{ requests: any[] }>(`/api/print-anywhere/requests${qs}`);
+  },
+
+  releasePrintAnywhereJob: (requestId: string) =>
+    request<{
+      success: boolean;
+      request?: any;
+      watermarks?: Array<{ copyIdentifier: string; watermarkText: string }>;
+      error?: string;
+    }>('/api/print-anywhere/release', { method: 'POST', body: JSON.stringify({ requestId }) }),
+
+  investigateWatermark: (query: string) =>
+    request<{
+      found: boolean;
+      match?: any;
+      custodyTimeline?: any[];
+      error?: string;
+    }>(`/api/print-anywhere/investigate?q=${encodeURIComponent(query)}`),
+
+  // Proctored Printing Live Monitoring
+  getProctoredPrintSession: (sessionId: string) =>
+    request<{ session: any }>(`/api/proctor/print-session/${encodeURIComponent(sessionId)}`),
+
+  reportProctorIncident: (payload: {
+    sessionId: string;
+    incidentType: string;
+    confidence?: number;
+    snapshotUrl?: string;
+    printRequestId?: string;
+  }) => request<{
+    incidentLogged: boolean;
+    isDuplicate: boolean;
+    warningCount: number;
+    remainingWarnings: number;
+    actionRequired: 'NONE' | 'WARNING' | 'STRONG_WARNING_ACK_REQUIRED' | 'IMMEDIATE_LOCKOUT';
+    isLocked: boolean;
+    lockedAt: string | null;
+    message: string;
+  }>('/api/proctor/print-incident', { method: 'POST', body: JSON.stringify(payload) }),
+
+  ackProctorWarning: (sessionId: string) =>
+    request<{ success: boolean; message: string }>('/api/proctor/ack-warning', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId }),
+    }),
+
+  adminResetProctorLock: (payload: { sessionId: string; reason: string }) =>
+    request<{ success: boolean; message?: string; error?: string }>('/api/proctor/admin-reset-lock', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  // Paper Leak Detection, Quarantine & Emergency Regeneration
+  reportPaperLeak: (payload: {
+    examId: string;
+    examType?: 'UNIVERSITY' | 'COMPETITIVE';
+    paperId: string;
+    paperVersion?: string;
+    title: string;
+    description: string;
+    severity?: 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    isConfirmed?: boolean;
+    discoveryTimestamp?: string;
+    reportSource?: string;
+    knownLeakedQuestions?: Array<{ questionId?: string; questionNumber?: string; text?: string; marks?: number; sourceDraftId?: string }>;
+    watermarkReference?: string;
+    copyIdentifier?: string;
+    evidenceReferences?: string[];
+    regenerationReason: string;
+  }) => request<{ success: boolean; incident?: any; manifest?: any; error?: string }>('/api/paper-leak/report', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+
+  listPaperLeakIncidents: (filters?: { examId?: string; leakStatus?: string; severity?: string }) => {
+    const params = new URLSearchParams();
+    if (filters?.examId) params.append('examId', filters.examId);
+    if (filters?.leakStatus) params.append('leakStatus', filters.leakStatus);
+    if (filters?.severity) params.append('severity', filters.severity);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request<{ incidents: any[] }>(`/api/paper-leak/incidents${qs}`);
+  },
+
+  getPaperLeakIncident: (incidentId: string) =>
+    request<{ incident: any; quarantines: any[]; manifest: any; replacementPaper: any }>(`/api/paper-leak/incidents/${encodeURIComponent(incidentId)}`),
+
+  quarantineTarget: (payload: {
+    incidentId: string;
+    quarantineScope: 'INDIVIDUAL_QUESTION' | 'QUESTION_POOL' | 'SOURCE_DRAFT';
+    targetId: string;
+    targetName?: string;
+    subject?: string;
+    topic?: string;
+    sourceDraftId?: string;
+    sourceDraftVersion?: string;
+    originalQuestionNumber?: string;
+    marks?: number;
+    questionType?: string;
+    text?: string;
+    quarantineReason: string;
+    reviewStatus?: string;
+    approvedAllowlist?: string[];
+  }) => request<{ success: boolean; quarantineRecord?: any; error?: string }>('/api/paper-leak/quarantine', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  }),
+
+  approveExclusionManifest: (manifestId: string) =>
+    request<{ success: boolean; manifest?: any; error?: string }>('/api/paper-leak/manifest/approve', {
+      method: 'POST',
+      body: JSON.stringify({ manifestId }),
+    }),
+
+  scanEligibleQuestions: (payload: { incidentId: string; selectedDraftIds?: string[] }) =>
+    request<{
+      success: boolean;
+      eligibleQuestions: any[];
+      excludedQuestions: any[];
+      breakdown: any;
+      shortfalls?: string[];
+    }>('/api/paper-leak/regenerate/scan-eligible', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  generateEmergencyReplacementPaper: (payload: { incidentId: string; selectedDraftIds?: string[] }) =>
+    request<{ success: boolean; replacementPaper?: any; validationReport?: any; error?: string }>('/api/paper-leak/regenerate/generate-replacement', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  approveAndEncryptReplacementPaper: (payload: { replacementPaperId: string; approvalReason?: string }) =>
+    request<{ success: boolean; replacementPaper?: any; error?: string }>('/api/paper-leak/replacement/approve-encrypt', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  getReplacementPaperDetails: (replacementPaperId: string) =>
+    request<{ replacementPaper: any }>(`/api/paper-leak/replacement/${encodeURIComponent(replacementPaperId)}`),
+
+  // Hierarchical Access Management & Password Reset
+  getHierarchyInfo: () =>
+    request<{ user: { id: string; role: string; fullName: string; email: string }; delegatableRoles: string[] }>(
+      '/api/access/hierarchy-info'
+    ),
+
+  listManagedUsers: () =>
+    request<{ managedUsers: ManagedUserRecord[] }>('/api/access/managed-users'),
+
+  grantSubordinateAccess: (payload: {
+    email: string;
+    username: string;
+    fullName: string;
+    role: string;
+    initialPassword?: string;
+    centreId?: string;
+    scope?: string;
+  }) =>
+    request<{ success: boolean; user?: ManagedUserRecord; error?: string }>('/api/access/grant', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  revokeOrSuspendUserAccess: (payload: {
+    targetUserId: string;
+    action: 'REVOKE' | 'SUSPEND';
+    reason: string;
+  }) =>
+    request<{ success: boolean; message?: string; affectedSubordinatesCount?: number; error?: string }>('/api/access/revoke', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  reassignSubordinates: (payload: {
+    newManagerId: string;
+    previousManagerId?: string;
+    subordinateUserIds?: string[];
+  }) =>
+    request<{ success: boolean; reassignedCount?: number; error?: string }>('/api/access/reassign-subordinates', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  requestPasswordReset: (payload: { reason: string }) =>
+    request<{ success: boolean; request?: PasswordResetRequestRecord; error?: string }>('/api/access/password-reset/request', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  listPendingPasswordResetRequests: () =>
+    request<{ requests: PasswordResetRequestRecord[] }>('/api/access/password-reset/requests'),
+
+  reviewPasswordResetRequest: (payload: {
+    requestId: string;
+    decision: 'APPROVE' | 'REJECT';
+    reason?: string;
+  }) =>
+    request<{ success: boolean; request?: PasswordResetRequestRecord; resetToken?: string; error?: string }>(
+      '/api/access/password-reset/review',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    ),
+
+  executePasswordReset: (payload: { token: string; newPassword: string }) =>
+    request<{ success: boolean; message?: string; error?: string }>('/api/access/password-reset/execute', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+
 
   // Wi-Fi Secure Print Relay: print from any device on the centre's network
   getPrintRelays: () =>
@@ -1881,6 +2419,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
+    recoverTranslatorLock: (sessionId: string, reason: string) =>
+      request<{ success: boolean; security_state: { user_id: string; warning_count: number; is_locked: boolean } }>(
+        `/api/authority-proctor/sessions/${encodeURIComponent(sessionId)}/recover-translator-lock`,
+        { method: 'POST', body: JSON.stringify({ reason }) }
+      ),
     submitVoiceEvidence: (payload: {
       session_id: string;
       exam_id?: string;
@@ -1960,6 +2503,7 @@ export const api = {
     endSession: (sessionId: string) =>
       request<{ success: boolean }>('/api/authority-proctor/sessions/end', {
         method: 'POST',
+        keepalive: true,
         body: JSON.stringify({ session_id: sessionId }),
       }),
     getSurveillanceDashboard: () =>
@@ -2008,6 +2552,79 @@ export const api = {
       request<{ success: boolean }>(`/api/authority-proctor/sessions/${sessionId}/signal/stop`, {
         method: 'POST',
       }),
+  },
+  translatorSecurity: {
+    getState: () =>
+      request<{
+        success: boolean;
+        security_state: {
+          user_id: string;
+          current_session_id: string | null;
+          warning_count: number;
+          is_locked: boolean;
+          lock_reason: string | null;
+          locked_session_id: string | null;
+          locked_at: string | null;
+        };
+      }>('/api/translator-security/state'),
+    detectFrame: (payload: { session_id: string; frame: string; annotate?: boolean }) =>
+      request<{
+        success: boolean;
+        telemetry: {
+          timestamp: string;
+          status: 'SECURE' | 'ALERT';
+          threat_level: 'INFO' | 'WARNING' | 'CRITICAL';
+          person_count: number;
+          phone_detected: boolean;
+          violations: string[];
+          details: {
+            cell_phone_count: number;
+            max_cell_phone_confidence?: number;
+            phone_consecutive_frames?: number;
+            multi_person_consecutive_frames?: number;
+            absence_consecutive_frames?: number;
+            [key: string]: unknown;
+          };
+        };
+        identity_verified: boolean;
+        identity_status: 'NOT_PROVISIONED' | 'VERIFIED' | 'UNVERIFIED';
+        annotated_frame?: string;
+      }>('/api/translator-security/detect-frame', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    updateIncident: (payload: {
+      session_id: string;
+      incident_id: string;
+      event_type:
+        | 'POTENTIAL_PHONE_DETECTION'
+        | 'POTENTIAL_MULTIPLE_PERSONS_DETECTED'
+        | 'POTENTIAL_IDENTITY_VERIFICATION_FAILURE'
+        | 'IDENTITY_TEMPLATE_NOT_PROVISIONED'
+        | 'CAMERA_INTERRUPTED'
+        | 'MONITORING_INTERRUPTED';
+      status: 'ACTIVE' | 'CLEARED';
+      confidence?: number;
+      detection_result?: Record<string, unknown>;
+      detected_at?: string;
+    }) =>
+      request<{
+        success: boolean;
+        incident_id: string;
+        incident_status: 'ACTIVE' | 'CLEARED';
+        warning_count: number;
+        warnings_remaining: number;
+        is_new_warning: boolean;
+        is_locked: boolean;
+        lock_reason: string | null;
+        locked_session_id: string | null;
+      }>(
+        '/api/translator-security/incidents',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        }
+      ),
   },
   multiPaper: {
     getSourcePapers: (examId?: string) =>
@@ -2181,11 +2798,12 @@ export const api = {
       request<{ success: boolean; papers: any[] }>(
         '/api/competitive/translator/assigned-papers'
       ),
-    returnTranslationsToManager: (paperId: string) =>
+    returnTranslationsToManager: (paperId: string, signal?: AbortSignal) =>
       request<{ success: boolean; message: string; paper: any }>(
         `/api/competitive/papers/${encodeURIComponent(paperId)}/return-translations`,
         {
           method: 'POST',
+          signal,
         }
       ),
     generateFinalBilingualPaper: (paperId: string) =>

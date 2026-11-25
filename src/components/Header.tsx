@@ -248,12 +248,13 @@ export const Header: React.FC<HeaderProps> = ({
                     full_name: 'Prof. Rajesh Sharma (Controller of Examinations)',
                     role: 'EXAM_MANAGER',
                     org_id: 'ORG-ZEROLEAK-NATIONAL',
+                    status: 'ACTIVE',
                     authorization_status: 'AUTHORIZED',
                     account_type: 'STANDARD',
+                    created_at: new Date().toISOString(),
                   };
                   setStoredAuth('manager_auth_token', managerUser);
-                  window.location.hash = '#paper-generation';
-                  window.location.reload();
+                  window.dispatchEvent(new CustomEvent('zeroleak:switch-to-paper-generator'));
                 }}
                 className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 font-bold text-[11px] transition-colors cursor-pointer shadow-2xs"
                 title="Switch back to Paper Generator (Exam Manager)"

@@ -129,14 +129,14 @@ def merge_rects(rects, gap=MERGE_GAP):
 
 
 def is_page_band(rect, page_rect):
-    """True for the running head, the header box and other full-width strips."""
+    """True for the running head, the header box, seat no box, and other page furniture."""
     width_ratio = rect.width / max(page_rect.width, 1)
     if width_ratio >= BAND_WIDTH_RATIO and rect.height <= BAND_MAX_HEIGHT:
         return True
-    # Anything hugging the very top or bottom edge of the page is furniture.
-    if rect.y1 <= page_rect.y0 + 0.09 * page_rect.height and width_ratio >= 0.5:
+    # Anything in the top 14% or bottom 8% of the page is header/footer furniture (e.g. Seat No box, running head, page numbers)
+    if rect.y1 <= page_rect.y0 + 0.14 * page_rect.height:
         return True
-    if rect.y0 >= page_rect.y1 - 0.06 * page_rect.height and width_ratio >= 0.5:
+    if rect.y0 >= page_rect.y1 - 0.08 * page_rect.height:
         return True
     return False
 

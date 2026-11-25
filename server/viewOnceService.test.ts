@@ -44,6 +44,7 @@ test('View-Once Preview Security Engine Tests', async (t) => {
       userId: testUserId,
       userRole: 'EXAM_MANAGER',
       durationSeconds: 600,
+      browserInfo: { viewOnceTabId: 'test-tab-1' },
     });
 
     assert.equal(startResult.success, true);
@@ -69,6 +70,10 @@ test('View-Once Preview Security Engine Tests', async (t) => {
     assert.equal(secondStartResult.success, false);
     assert.equal(secondStartResult.statusCode, 409);
     assert.match(secondStartResult.error || '', /already active in another browser tab/);
+    assert.equal(
+      getViewOnceStatus(db, 'COMPETITIVE', testPaperId, 'usr-another-user').activeSessionToken,
+      undefined
+    );
   });
 
   await t.test('4. Resuming with exact same session token succeeds', () => {
@@ -83,6 +88,65 @@ test('View-Once Preview Security Engine Tests', async (t) => {
 
     assert.equal(resumeResult.success, true);
     assert.equal(resumeResult.sessionToken, activeToken);
+  });
+
+  await t.test('4a. Resumes after reload from the same tab without the session token', () => {
+    const resumeResult = startViewOnceSession(db, {
+      examType: 'COMPETITIVE',
+      examId: testExamId,
+      paperId: testPaperId,
+      userId: testUserId,
+      userRole: 'EXAM_MANAGER',
+      browserInfo: { viewOnceTabId: 'test-tab-1' },
+    });
+
+    assert.equal(resumeResult.success, true);
+    assert.equal(resumeResult.sessionToken, activeToken);
+  });
+
+  await t.test('4b. Blocks another tab belonging to the same user', () => {
+    const secondTabResult = startViewOnceSession(db, {
+      examType: 'COMPETITIVE',
+      examId: testExamId,
+      paperId: testPaperId,
+      userId: testUserId,
+      userRole: 'EXAM_MANAGER',
+      browserInfo: { viewOnceTabId: 'test-tab-2' },
+    });
+
+    assert.equal(secondTabResult.success, false);
+    assert.equal(secondTabResult.statusCode, 409);
+  });
+
+  await t.test('4c. Claims a legacy active session for its owner after reload', () => {
+    const legacyPaperId = `${testPaperId}-legacy`;
+    executeRun(
+      db,
+      `INSERT INTO competitive_generated_papers (
+        id, org_id, exam_id, title, exam_type, total_questions, total_marks, total_positive_marks,
+        total_negative_marks, sections_json, questions_json, blueprint_snapshot_json, paper_fingerprint,
+        generated_at, preview_status
+      ) VALUES (?, 'ORG-001', ?, 'Legacy Test Paper', 'MCQ', 1, 1, 1, 0, '[]', '[]', '{}', 'sha256-legacy', ?, 'NOT_VIEWED')`,
+      [legacyPaperId, testExamId, new Date().toISOString()]
+    );
+    const legacyStart = startViewOnceSession(db, {
+      examType: 'COMPETITIVE',
+      examId: testExamId,
+      paperId: legacyPaperId,
+      userId: testUserId,
+      userRole: 'EXAM_MANAGER',
+    });
+    const recoveredSession = startViewOnceSession(db, {
+      examType: 'COMPETITIVE',
+      examId: testExamId,
+      paperId: legacyPaperId,
+      userId: testUserId,
+      userRole: 'EXAM_MANAGER',
+      browserInfo: { viewOnceTabId: 'recovered-tab' },
+    });
+
+    assert.equal(recoveredSession.success, true);
+    assert.equal(recoveredSession.sessionToken, legacyStart.sessionToken);
   });
 
   await t.test('5. Records screen capture / defocus security events', () => {
@@ -152,4 +216,3 @@ test('View-Once Preview Security Engine Tests', async (t) => {
     assert.equal(expiredStatus.consumedReason, 'EXPIRED');
   });
 });
-

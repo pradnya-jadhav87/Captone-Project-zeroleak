@@ -7,6 +7,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { SimpleMultiPaperSynthesizer } from './SimpleMultiPaperSynthesizer';
+import { AiExamGeneratorWorkspace } from './workspaces/AiExamGeneratorWorkspace';
 import { OpenAIPrismBrowserModal } from './OpenAIPrismBrowserModal';
 
 interface PaperGenProps {
@@ -15,6 +16,7 @@ interface PaperGenProps {
 }
 
 export const PaperGenerationModule: React.FC<PaperGenProps> = ({ currentUser, onRefresh }) => {
+  const [activeWorkspace, setActiveWorkspace] = useState<'ai_exam_generator' | 'multi_paper_synthesizer'>('ai_exam_generator');
   const [showPrismBrowser, setShowPrismBrowser] = useState(false);
   const [showDocModal, setShowDocModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -34,7 +36,7 @@ export const PaperGenerationModule: React.FC<PaperGenProps> = ({ currentUser, on
           <span className="text-[#A0B0B9]">/</span>
           <span className="text-[#647681]">AI PAPER GENERATION</span>
           <span className="text-[#A0B0B9]">/</span>
-          <span className="text-[#00A878] font-bold">MULTI-PAPER SYNTHESIS</span>
+          <span className="text-[#00A878] font-bold">UNIVERSITY &amp; MOCK EXAM SYNTHESIS</span>
         </div>
 
         {/* Top Header Card */}
@@ -45,11 +47,11 @@ export const PaperGenerationModule: React.FC<PaperGenProps> = ({ currentUser, on
                 <Cpu className="w-5 h-5" />
               </div>
               <h1 className="text-2xl sm:text-[30px] font-extrabold tracking-tight text-[#102A38] font-sans leading-tight">
-                AI PAPER GENERATION & MULTI-PAPER SYNTHESIS
+                AI PAPER GENERATION &amp; UNIVERSITY SYNTHESIS
               </h1>
             </div>
             <p className="text-xs sm:text-[13px] text-[#647681] leading-relaxed">
-              Generate secure examination papers from multiple source papers using AI-powered question fusion, difficulty balancing, topic coverage, and pattern enforcement.
+              Generate secure university examination papers from multiple source papers using AI-powered blueprint cloning, multi-pass synthesis, LaTeX typesetting, and step-by-step model answer schemes.
             </p>
           </div>
 
@@ -83,13 +85,34 @@ export const PaperGenerationModule: React.FC<PaperGenProps> = ({ currentUser, on
         </div>
       </div>
 
-      {/* Top Module Action Bar */}
+      {/* Top Module Action Bar & Engine Selector */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DCE5EA] pb-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 bg-gradient-to-r from-[#00A878] to-[#102C3A] text-white shadow-xs">
-            <Sparkles className="w-4 h-4 text-amber-300" />
-            <span>✨ Multi-Paper AI Synthesizer Workspace</span>
-          </div>
+        <div className="flex flex-wrap items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setActiveWorkspace('ai_exam_generator')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeWorkspace === 'ai_exam_generator'
+                ? 'bg-gradient-to-r from-[#00A878] to-[#102C3A] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            <span>AI University &amp; Mock Exam Generator</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveWorkspace('multi_paper_synthesizer')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeWorkspace === 'multi_paper_synthesizer'
+                ? 'bg-gradient-to-r from-[#00A878] to-[#102C3A] text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5 text-[#00A878]" />
+            <span>Multi-Paper Synthesizer (3-to-1 Blending)</span>
+          </button>
         </div>
 
         <button
@@ -103,12 +126,20 @@ export const PaperGenerationModule: React.FC<PaperGenProps> = ({ currentUser, on
         </button>
       </div>
 
-      {/* Primary Multi-Paper Synthesizer Workspace */}
-      <SimpleMultiPaperSynthesizer
-        key={`synth-${refreshKey}`}
-        currentUser={currentUser}
-        onRefresh={onRefresh}
-      />
+      {/* Active Workspace */}
+      {activeWorkspace === 'ai_exam_generator' ? (
+        <AiExamGeneratorWorkspace
+          key={`ai-exam-${refreshKey}`}
+          currentUser={currentUser}
+          onRefresh={onRefresh}
+        />
+      ) : (
+        <SimpleMultiPaperSynthesizer
+          key={`synth-${refreshKey}`}
+          currentUser={currentUser}
+          onRefresh={onRefresh}
+        />
+      )}
 
       {/* Documentation Modal */}
       {showDocModal && (
@@ -147,7 +178,7 @@ export const PaperGenerationModule: React.FC<PaperGenProps> = ({ currentUser, on
               <div className="p-3 rounded-xl bg-[#F6F8FA] border border-[#DCE5EA]">
                 <h4 className="font-bold text-[#102A38] text-xs mb-1 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[#00A878]" />
-                  1. Multi-Paper Analysis & Pattern Authority
+                  1. Multi-Paper Analysis &amp; Pattern Authority
                 </h4>
                 <p>
                   ZeroLeak extracts question structures, marks schemes, section distributions, and syllabus coverage from multiple historical PDF exam papers. One paper is established as the primary structural authority whose blueprint the new paper adheres to strictly.
@@ -157,7 +188,7 @@ export const PaperGenerationModule: React.FC<PaperGenProps> = ({ currentUser, on
               <div className="p-3 rounded-xl bg-[#F6F8FA] border border-[#DCE5EA]">
                 <h4 className="font-bold text-[#102A38] text-xs mb-1 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[#635BFF]" />
-                  2. AI Question Fusion & Zero Duplicate Leakage
+                  2. AI Question Fusion &amp; Zero Duplicate Leakage
                 </h4>
                 <p>
                   Neural question synthesis generates completely new question variations that test the exact same cognitive rigor and syllabus objectives without repeating any question verbatim from historical pools.
@@ -167,7 +198,7 @@ export const PaperGenerationModule: React.FC<PaperGenProps> = ({ currentUser, on
               <div className="p-3 rounded-xl bg-[#F6F8FA] border border-[#DCE5EA]">
                 <h4 className="font-bold text-[#102A38] text-xs mb-1 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[#00B8D9]" />
-                  3. Hardware Enclave & FIPS 140-2 AES-256 Encryption
+                  3. Hardware Enclave &amp; FIPS 140-2 AES-256 Encryption
                 </h4>
                 <p>
                   All generated papers are typeset via server-side LaTeX into high-assurance PDFs, watermarked with verifiable micro-signatures, and encrypted using AES-256-GCM. Decryption keys are held in hardware custody.

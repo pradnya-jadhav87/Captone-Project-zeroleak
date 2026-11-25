@@ -24,12 +24,12 @@ const storage = multer.diskStorage({
   },
 });
 
-// Multer Upload Middleware configured for EXACTLY 3 PDF files
+// Multer Upload Middleware configured for 3 to 5 PDF files (allows up to 20 files at middleware level for safety)
 export const uploadDraftPapersMulter = multer({
   storage,
   limits: {
-    fileSize: 30 * 1024 * 1024, // 30 MB per file limit
-    files: 3, // Maximum 3 files
+    fileSize: 50 * 1024 * 1024, // 50 MB per file limit
+    files: 20, // Allow up to 20 files at Multer layer so handler can deduplicate & report exact count
   },
   fileFilter: (req, file, cb) => {
     const mimeType = (file.mimetype || '').toLowerCase();
@@ -60,6 +60,8 @@ export interface ParsedDraftQuestion {
   marks: number;
   sub_question_pattern?: string;
   diagram_url?: string;
+  confidence?: 'HIGH' | 'LOW';
+  review_flag?: boolean;
   created_at: string;
 }
 
@@ -79,20 +81,25 @@ export async function extractTextFromPdfFile(filePath: string): Promise<{ text: 
 
     console.log(`[University Ingestion] Insufficient text extracted by pdf-parse (${extractedText.length} chars). Triggering Tesseract OCR fallback for scanned PDF: ${path.basename(filePath)}`);
     
-    // Tesseract OCR Fallback
-    const ocrResult = await Tesseract.recognize(filePath, 'eng', {
-      logger: m => {
-        if (m.status === 'recognizing text') {
-          // Progress output optional
+    // Tesseract OCR Fallback (PDFs may not be natively supported by Tesseract without rendering to image)
+    try {
+      const ocrResult = await Tesseract.recognize(filePath, 'eng', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            // Progress output optional
+          }
         }
-      }
-    });
+      });
 
-    const ocrText = (ocrResult.data.text || '').trim();
-    const combinedText = ocrText.length > 0 ? ocrText : extractedText;
-    const method = extractedText.length > 0 ? 'HYBRID' : 'TESSERACT_OCR';
+      const ocrText = (ocrResult.data.text || '').trim();
+      const combinedText = ocrText.length > 0 ? ocrText : extractedText;
+      const method = extractedText.length > 0 ? 'HYBRID' : 'TESSERACT_OCR';
 
-    return { text: combinedText, method };
+      return { text: combinedText, method };
+    } catch (ocrErr) {
+      console.warn(`[University Ingestion] Tesseract OCR note for ${path.basename(filePath)}:`, (ocrErr as any)?.message || ocrErr);
+      return { text: extractedText, method: 'PDF_PARSE' };
+    }
   } catch (err) {
     console.error(`[University Ingestion] pdf-parse error for ${filePath}, attempting Tesseract OCR:`, err);
     try {
@@ -103,6 +110,93 @@ export async function extractTextFromPdfFile(filePath: string): Promise<{ text: 
       return { text: '', method: 'PDF_PARSE' };
     }
   }
+}
+
+/**
+ * Detects whether a line represents pagination, running headers, or document footers
+ * that should be excluded from question bodies and should NOT cause questions to terminate across page breaks.
+ */
+function isFooterOrPageBreak(line: string): boolean {
+  const trimmed = line.trim();
+  if (/^Page\s*\d+\s*(?:of\s*\d+)?$/i.test(trimmed)) return true;
+  if (/^\[\s*\d+\s*\]$/.test(trimmed)) return true;
+  if (/^-\s*\d+\s*-$/.test(trimmed)) return true;
+  if (/^Total\s*(?:No\.?\s*of\s*)?Pages?\s*[-–:]*\s*\d+$/i.test(trimmed)) return true;
+  if (/^\[?\s*(?:P\.?T\.?O\.?|PTO|Contd\.{2,}|Turn\s*Over)\s*\]?$/i.test(trimmed)) return true;
+  if (/^SLR\s*[-–]\s*[A-Z\d\-]+(?:\s+-\s*\d+\s*-)?$/i.test(trimmed)) return true;
+  if (/(?:ZEROLEAK|CONFIDENTIAL EXAMINATION|TRK-(?:UNIV|COMP)|LICENSED TO:|Location:|GPS:|IP:|TRACK:)/i.test(trimmed)) return true;
+  return false;
+}
+
+/**
+ * Detects whether a line represents examination front-matter metadata (University name,
+ * seat number prompts, subject code, duration, total marks, or general instructions)
+ * which should be completely stripped from question stems.
+ */
+function isExamMetadataLine(line: string): boolean {
+  const trimmed = line.trim();
+  // University / Board / Institute name
+  if (/^[A-Z\s.,&'()-]*(?:UNIVERSITY|VIDYAPEETH|COLLEGE|INSTITUTE|BOARD\s+OF\s+(?:TECHNICAL\s+)?EXAMINATION)[A-Z\s.,&'()-]*$/i.test(trimmed)) {
+    return true;
+  }
+  // Examination / Degree / Semester / CBCS
+  if (/^(?:(?:T\.?Y\.?|S\.?Y\.?|F\.?Y\.?|B\.?E\.?|B\.?Tech\.?|M\.?Tech\.?|M\.?B\.?A\.?|M\.?C\.?A\.?|B\.?Sc\.?|M\.?Sc\.?|Diploma)\b|Faculty\s+of|Choice\s+Based\s+Credit\s+System|CBCS\b|Annual\s+Exam|End\s+Semester\s+Exam|Semester\s*[-–:]*\s*(?:I|II|III|IV|V|VI|VII|VIII|\d+)\s*Examination)/i.test(trimmed)) {
+    return true;
+  }
+  // Seat Number prompt
+  if (/^[\|\s\[\(]*Seat\s*No\.?[\s\S]*$/i.test(trimmed)) return true;
+  if (/^Center\s*Code\s*[-–:]*/i.test(trimmed)) return true;
+  // Subject, Paper code, Course code
+  if (/^(?:Sub(?:ject)?(?:\s*Name)?|Course(?:\s*Code)?|Paper(?:\s*Code)?|Branch|Department)\s*[-–:]+/i.test(trimmed)) return true;
+  // Day & Date, Time, Duration, Max Marks
+  if (/^(?:Day\s*(&|and)?\s*Date|Date)\s*[-–:]+/i.test(trimmed)) return true;
+  if (/^(?:Time|Duration)\s*[-–:]+/i.test(trimmed)) return true;
+  if (/^(?:Total\s*Marks|Max\.?\s*Marks|Maximum\s*Marks)\s*[-–:]*\s*\d+/i.test(trimmed)) return true;
+  if (/^\d+\s*Hours?\s*$/i.test(trimmed)) return true;
+  // General candidate instructions headers & items
+  if (/^(?:Instructions?\s*(?:to\s*candidates?|for\s*candidates?)?|N\.?B\.?|Notes?)\s*[-–:]*$/i.test(trimmed)) return true;
+  if (/^(?:\d+[\.\)]|\([a-z\d]+\))\s*(?:All\s*questions\s*are\s*compulsory|Figures\s*to\s*the\s*right\s*indicate|Assume\s*suitable\s*data|Use\s*of\s*(?:non-programmable|scientific|calculator|log)|Draw\s*neat\s*diagrams?|Write\s*your\s*seat\s*number|Write\s*answers\s*to\s*both\s*sections|Do\s*not\s*write\s*anything|Q\.?\s*No\.?\s*1\s*is\s*compulsory|Mention\s*the\s*question-paper\s*set|Start\s*each\s*question\s*on\s*a\s*new\s*page)/i.test(trimmed)) {
+    return true;
+  }
+  if (/^(?:Figures\s*to\s*the\s*right\s*indicate\s*full\s*marks|Assume\s*suitable\s*data\s*wherever\s*necessary|Use\s*of\s*non-programmable\s*calculator\s*is\s*permitted|Draw\s*neat\s*diagrams?\s*wherever\s*necessary|All\s*questions\s*are\s*compulsory)\.?$/i.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Extracts distinct MCQ options from a single line.
+ * Supports single-line options and multiple options on a single line
+ * e.g. "A) Opt 1   B) Opt 2" or "(a) Opt 1   (b) Opt 2".
+ */
+function extractOptionsFromLine(line: string): Array<{ label: string; text: string }> | null {
+  const tokenRegex = /(?:^|\s{2,}|\t|\s+(?=\([A-Da-d1-4]\)|[A-Da-d1-4][\.\)]|\[[A-Da-d1-4]\]))(?:\(([A-Da-d1-4])\)|([A-Da-d1-4])[\.\)]|\[([A-Da-d1-4])\])\s*/g;
+  
+  const matches: Array<{ label: string; index: number; markerLength: number }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = tokenRegex.exec(line)) !== null) {
+    const rawLabel = (match[1] || match[2] || match[3] || '').toUpperCase();
+    matches.push({
+      label: rawLabel,
+      index: match.index,
+      markerLength: match[0].length,
+    });
+  }
+
+  if (matches.length === 0) return null;
+
+  const results: Array<{ label: string; text: string }> = [];
+  for (let m = 0; m < matches.length; m++) {
+    const start = matches[m].index + matches[m].markerLength;
+    const end = (m + 1 < matches.length) ? matches[m + 1].index : line.length;
+    const optText = line.substring(start, end).trim();
+    results.push({
+      label: matches[m].label,
+      text: optText,
+    });
+  }
+
+  return results;
 }
 
 /**
@@ -123,19 +217,31 @@ export function parseDraftPaperQuestions(
   let currentQuestionNo = '';
   let currentQuestionLines: string[] = [];
   let currentOptions: string[] = [];
-  let currentMarks = 1;
+  let currentMarks: number | null = null;
   let currentType: 'MCQ' | 'THEORY' = 'THEORY';
   let subPattern = '';
+  let isMcqGroup = false;
+  let inOption = false;
 
   const finalizeQuestion = () => {
     if (currentQuestionLines.length === 0) return;
-    const fullText = currentQuestionLines.join(' ').trim();
+
+    // Check if table rows exist (| ... |) - if so, preserve newlines, else join with space
+    const hasTable = currentQuestionLines.some(l => l.startsWith('|') && l.endsWith('|'));
+    const fullText = hasTable
+      ? currentQuestionLines.join('\n').trim()
+      : currentQuestionLines.join(' ').trim();
     if (fullText.length < 5) return;
 
-    // Detect if MCQ based on options or question context
-    const isMcq = currentOptions.length >= 2 || /MCQ|Select the correct|choose the correct|multiple choice/i.test(fullText) || currentSection.includes('Q.1');
+    // Detect if MCQ based on options or group context
+    const isMcq = currentOptions.length >= 2 || (isMcqGroup && currentOptions.length > 0);
     const finalType: 'MCQ' | 'THEORY' = isMcq ? 'MCQ' : currentType;
-    const finalMarks = isMcq ? 1 : (currentMarks || (fullText.length > 100 ? 6 : 4));
+    const finalMarks = isMcq ? 1 : (currentMarks && currentMarks > 1 ? currentMarks : (fullText.length > 100 ? 6 : 4));
+
+    // Confidence & Review Flag calculation
+    const isLowConfidence = isMcq ? currentOptions.length < 2 : fullText.length < 15;
+    const confidence: 'HIGH' | 'LOW' = isLowConfidence ? 'LOW' : 'HIGH';
+    const review_flag = isLowConfidence;
 
     questions.push({
       id: uuidv4(),
@@ -144,41 +250,90 @@ export function parseDraftPaperQuestions(
       paper_index: paperIndex,
       source_paper: paperName,
       section: currentSection,
-      question_number: currentQuestionNo || `${questions.length + 1}`,
+      question_number: currentQuestionNo || `Q.${questions.length + 1}`,
       question_text: fullText,
       question_type: finalType,
       options: currentOptions.length > 0 ? [...currentOptions] : undefined,
       marks: finalMarks,
       sub_question_pattern: subPattern || undefined,
+      confidence,
+      review_flag,
       created_at: new Date().toISOString(),
     });
 
     currentQuestionLines = [];
     currentOptions = [];
     currentQuestionNo = '';
-    subPattern = '';
+    currentMarks = null;
+    currentType = 'THEORY';
+    inOption = false;
   };
 
-  const sectionRegex = /^(SECTION\s*[-–:]*\s*(?:I|II|1|2|A|B))/i;
-  const questionHeaderRegex = /^(Q\.?\s*\d+|Question\s*\d+|[\d]{1,2}[\.\)]|\([a-z\d]+\))/i;
-  const mcqOptionRegex = /^(\([a-d1-4]\)|[A-D][\.\)]|[1-4][\.\)])\s*(.+)/i;
-  const marksRegex = /(?:\[|\()?(\d+)\s*(?:Marks?|M)(?:\]|\))?/i;
-  const choicePatternRegex = /(Attempt any (?:FOUR|ONE|TWO|THREE|\d+)|compulsory)/i;
+  const sectionRegex = /^(?:SECTION|PART)\s*[-–:]*\s*(?:I|II|1|2|A|B)\b/i;
+  const choicePatternRegex = /(Attempt any (?:FOUR|ONE|TWO|THREE|FIVE|\d+)|compulsory|Answer the following)/i;
+  const mcqGroupRegex = /^(?:Q\.?\s*\d+[\.\:\)]?\s*)?(?:Choose|Select|Tick)\s+(?:the\s+)?correct\s+(?:alternatives?|options?|answers?)|(?:Multiple\s*Choice\s*Questions?)|^(?:Objective\s*(?:Type\s*)?Questions?)/i;
+
+  const topQuestionHeaderRegex = /^(?:Q\.?\s*No\.?\s*|Question\s*|Q\.?\s*)(\d+)[\.\:\)]?\s*(.*)/i;
+  const numberedItemRegex = /^(?:Q\.?\s*\d+[\.\:\)]?\s*)?(\d{1,2})[\.\)]\s*(.*)/i;
+  const subQuestionItemRegex = /^(?:Q\.?\s*\d+[\.\:\)]?\s*)?\(([a-zA-Z\d]+|[ivxlcdm]+)\)\s*(.*)/i;
+  const romanItemRegex = /^(?:Q\.?\s*\d+[\.\:\)]?\s*)?([ivxlcdm]+)[\.\)]\s*(.*)/i;
+
+    const getMarks = (text: string): number | null => {
+    const eqMatch = text.match(/\((?:[^)]*?[=xX*×])?\s*(\d+)\s*(?:Marks?|M)?\)/i);
+    if (eqMatch) {
+      const num = parseInt(eqMatch[1], 10);
+      if (!isNaN(num) && num > 0) return num;
+    }
+    const m = text.match(/(?:\[(\d+)\s*(?:Marks?|M)?\]|\((\d+)\s*(?:Marks?|M)?\)|\b(\d+)\s*Marks?\b)/i);
+    if (m) {
+      const num = parseInt(m[1] || m[2] || m[3], 10);
+      if (!isNaN(num) && num > 0) return num;
+    }
+    const endMatch = text.match(/(?:^|[.\s:])\s*(\d{1,2})\s*$/);
+    if (endMatch) {
+      const num = parseInt(endMatch[1], 10);
+      if (!isNaN(num) && [2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20].includes(num)) {
+        return num;
+      }
+    }
+    return null;
+  };
+
+  const stripTrailingMarks = (text: string): string => {
+    return text.replace(/\s*(?:\[\d+\s*(?:Marks?|M)?\]|\(\d+\s*(?:Marks?|M)?\)|\b\d+\s*Marks?\b)\s*$/i, '').trim();
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Detect Section Header
+    // 1. Check for Footers, Page numbers, and P.T.O. (never break ongoing question, skip line)
+    if (isFooterOrPageBreak(line)) {
+      continue;
+    }
+
+    // 2. Check for Section Header
     if (sectionRegex.test(line)) {
       finalizeQuestion();
       const secMatch = line.match(sectionRegex);
       if (secMatch) {
-        currentSection = secMatch[1].toUpperCase();
+        currentSection = secMatch[0].toUpperCase();
       }
+      isMcqGroup = /SECTION\s*[-–:]*\s*(?:I|1|A)\b/i.test(line) && /MCQ|PART\s*1/i.test(line);
+      subPattern = '';
       continue;
     }
 
-    // Detect Choice Pattern (e.g. "Attempt any FOUR of the following")
+    // 3. Check for Examination Metadata / Front matter (skip if no question active or repeated on page break)
+    if (isExamMetadataLine(line)) {
+      if (!currentQuestionNo && currentQuestionLines.length === 0) {
+        continue;
+      }
+      if (/^[A-Z\s.,&'()-]*(?:UNIVERSITY|BOARD|EXAMINATION)|^[\|\s\[\(]*Seat\s*No\.?/i.test(line)) {
+        continue;
+      }
+    }
+
+    // 4. Check for Choice Pattern in line (e.g. "Attempt any FOUR of the following")
     if (choicePatternRegex.test(line)) {
       const match = line.match(choicePatternRegex);
       if (match) {
@@ -186,39 +341,148 @@ export function parseDraftPaperQuestions(
       }
     }
 
-    // Detect Marks in line
-    const markMatch = line.match(marksRegex);
-    if (markMatch && parseInt(markMatch[1], 10) > 0) {
-      currentMarks = parseInt(markMatch[1], 10);
+    // 5. Check for Marks in line
+    const detectedMark = getMarks(line);
+    if (detectedMark && detectedMark > 0) {
+      currentMarks = detectedMark;
     }
 
-    // Detect Option Line (e.g., "A) Option text" or "(a) Option text")
-    const optionMatch = line.match(mcqOptionRegex);
-    if (optionMatch && currentQuestionLines.length > 0) {
-      currentOptions.push(line);
+    // 6. Check for MCQ Group Instruction (e.g. "Q.1 Choose the correct alternatives from the options.")
+    if (mcqGroupRegex.test(line)) {
+      finalizeQuestion();
+      isMcqGroup = true;
+      subPattern = line.replace(/^(?:Q\.?\s*\d+[\.\:\)]?\s*)/i, '').trim();
       currentType = 'MCQ';
+      currentQuestionNo = '';
+      currentQuestionLines = [];
       continue;
     }
 
-    // Detect New Question Header (e.g., "Q.1", "Q.2", "1.", "2.", "(a)")
-    if (questionHeaderRegex.test(line)) {
+    // 7. Check for MCQ Options (e.g. "A) ...", "(A) ...", or inline "(A) ... (B) ...")
+    // 7. Check for MCQ Options (e.g. "A) ...", "(A) ...", "a) ...", "(a) ...", or inline "(A) ... (B) ...")
+    const isStrictCapitalOpt = /^[\(\[]?[A-D][\)\]\.]\s*/.test(line); // A-D
+    const isDescriptiveVerb = /^(?:Explain|Discuss|Describe|Define|Differentiate|What\s+is|Prove|Calculate|Derive|State|Compare|Illustrate|Write|Draw|Which|Why|How)\b/i.test(line.replace(/^[\(\[]?[a-zA-Z\d]+[\)\]\.]\s*/, ''));
+    const isOptionStart = (isMcqGroup || currentOptions.length > 0) && !isDescriptiveVerb && /^[\(\[]?(?:[A-Da-d]|[1-4])[\)\]\.]\s*/.test(line);
+    const isInlineOptions = /(?:[A-D][\.\)]|\([A-D]\))\s*.*\s+(?:[B-D][\.\)]|\([B-D]\))\s*/.test(line) ||
+      /(?:\([a-d]\)|[a-d][\.\)])\s*.*\s+(?:\([b-d]\)|[b-d][\.\)])\s*/.test(line);
+
+    if ((isStrictCapitalOpt || isOptionStart || isInlineOptions) && (currentQuestionNo || currentQuestionLines.length > 0)) {
+      const extractedOpts = extractOptionsFromLine(line);
+      if (extractedOpts && extractedOpts.length > 0) {
+        currentType = 'MCQ';
+        inOption = true;
+        for (const opt of extractedOpts) {
+          const normLabel = opt.label.toUpperCase();
+          currentOptions.push(`${normLabel}) ${opt.text}`);
+        }
+        continue;
+      }
+    }
+
+    // 8. If actively inside an MCQ option, check if this line is a multi-line continuation of the option
+    if (inOption && currentOptions.length > 0) {
+      const isNewQ = topQuestionHeaderRegex.test(line) || (isMcqGroup && (numberedItemRegex.test(line) || subQuestionItemRegex.test(line)));
+      if (!isNewQ && !sectionRegex.test(line) && !isFooterOrPageBreak(line)) {
+        currentOptions[currentOptions.length - 1] += ' ' + line.trim();
+        continue;
+      } else {
+        inOption = false;
+      }
+    }
+
+    // 9. Check for Top-Level Question Header (e.g. "Q.1", "Q. 2", "Question 1")
+    const topQMatch = line.match(topQuestionHeaderRegex);
+    if (topQMatch) {
       finalizeQuestion();
-      const qMatch = line.match(questionHeaderRegex);
-      currentQuestionNo = qMatch ? qMatch[1].replace(/\.$/, '') : `${questions.length + 1}`;
-      const restOfLine = line.replace(questionHeaderRegex, '').trim();
-      if (restOfLine) {
-        currentQuestionLines.push(restOfLine);
+      const qNum = topQMatch[1];
+      const qNumInt = parseInt(qNum, 10);
+      const rest = (topQMatch[2] || '').trim();
+
+      // Auto-route Q.4 and Q.5 to Section II if not already partitioned
+      if (qNumInt >= 4 && /Section\s*I\b/i.test(currentSection) && !/Section\s*II\b/i.test(currentSection)) {
+        currentSection = 'SECTION II';
+      }
+
+      // Check if rest is an MCQ group instruction
+      const isMcqHeader = mcqGroupRegex.test(rest) || (qNumInt === 1 && (/Choose|Select|Alternative|Option|Answer|Multiple|MCQ|Objective/i.test(rest) || (!rest && lines.slice(i + 1, i + 5).some(l => /^\(?1\)?\s+|Choose|Select|Option|\([a-d]\)/i.test(l)))));
+      if (isMcqHeader) {
+        isMcqGroup = true;
+        subPattern = rest || 'Choose the correct alternative.';
+        currentType = 'MCQ';
+        currentQuestionNo = '';
+        currentQuestionLines = [];
+        continue;
+      } else if (qNumInt > 1) {
+        isMcqGroup = false;
+      }
+
+      currentQuestionNo = `Q.${qNum}`;
+
+      // Check if rest contains marks
+      const restMark = getMarks(rest);
+      if (restMark) {
+        currentMarks = restMark;
+      }
+
+      if (rest) {
+        currentQuestionLines.push(stripTrailingMarks(rest));
       }
       continue;
     }
 
-    // Append to current question body
+    // 10. Check for Sub-question under MCQ Group (e.g. "1) ...", "(a) ...")
+    // 10. Check for Sub-question under MCQ Group (e.g. "1) ...", "(a) ...", "i) ...", "(i) ...", "Q.1(1) ...")
+    if (isMcqGroup) {
+      const numMatch = line.match(numberedItemRegex);
+      const subMatch = line.match(subQuestionItemRegex);
+      const romanMatch = line.match(romanItemRegex);
+      const itemMatch = numMatch || romanMatch || subMatch;
+      if (itemMatch) {
+        finalizeQuestion();
+        currentQuestionNo = `Q.${questions.length + 1}`;
+        currentType = 'MCQ';
+        currentMarks = 1;
+        const rest = itemMatch[itemMatch.length - 1].trim();
+        if (rest) {
+          currentQuestionLines.push(rest);
+        }
+        continue;
+      }
+    }
+
+    // 11. Check for Sub-question under "Attempt any" or choice group
+    if (subPattern && /Attempt\s+any/i.test(subPattern)) {
+      const subMatch = line.match(subQuestionItemRegex);
+      if (subMatch) {
+        finalizeQuestion();
+        currentQuestionNo = `Q.${questions.length + 1}(${subMatch[1]})`;
+        currentType = 'THEORY';
+        const rest = subMatch[2].trim();
+        const mMatch = getMarks(rest);
+        if (mMatch) {
+          currentMarks = mMatch;
+        }
+        if (rest) {
+          currentQuestionLines.push(stripTrailingMarks(rest));
+        }
+        continue;
+      }
+    }
+
+    // 12. If a question is open, append to current question lines
     if (currentQuestionNo || currentQuestionLines.length > 0) {
-      currentQuestionLines.push(line);
+      const lineMark = getMarks(line);
+      if (lineMark && !currentMarks) {
+        currentMarks = lineMark;
+      }
+      currentQuestionLines.push(stripTrailingMarks(line));
     } else {
-      // Fallback: start new question if line is substantial
-      currentQuestionNo = `Q.${questions.length + 1}`;
-      currentQuestionLines.push(line);
+      // Do not start a question on front-matter noise. Only start if line is a numbered question e.g. "1. Explain..."
+      const numStartMatch = line.match(/^(\d{1,2})[\.\)]\s+(.{8,})/);
+      if (numStartMatch) {
+        currentQuestionNo = `Q.${numStartMatch[1]}`;
+        currentQuestionLines.push(numStartMatch[2].trim());
+      }
     }
   }
 
@@ -242,6 +506,8 @@ export function parseDraftPaperQuestions(
         question_text: chunk.trim(),
         question_type: isMcq ? 'MCQ' : 'THEORY',
         marks: isMcq ? 1 : 6,
+        confidence: 'LOW',
+        review_flag: true,
         created_at: new Date().toISOString(),
       });
     });
@@ -259,13 +525,27 @@ import { analyzeConsolidatedExamPattern } from './ai.ts';
 export async function handleUploadUniversityDrafts(req: Request, res: Response) {
   const tempFiles: string[] = [];
   try {
-    const files = req.files as Express.Multer.File[];
+    const rawFiles = (req.files as Express.Multer.File[]) || [];
+    const files: Express.Multer.File[] = [];
+    const seen = new Set<string>();
+    for (const f of rawFiles) {
+      const key = `${f.originalname}_${f.size}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        files.push(f);
+      } else {
+        if (f.path && fs.existsSync(f.path)) {
+          try { fs.unlinkSync(f.path); } catch {}
+        }
+      }
+    }
+
     const exam_id = (req.body.exam_id || 'EXAM-UNIV-MASTER-2026').trim();
     const org_id = (req.user?.org_id || 'ORG-ZEROLEAK-NATIONAL').trim();
     const user_id = (req.user?.id || 'usr-system').trim();
 
-    // Requirement 1 & 3: Validate EXACTLY 3 files were uploaded
-    if (!files || !Array.isArray(files) || files.length !== 3) {
+    // Requirement: Support 3 to 5 source question-paper uploads. Hard stop if < 3 or > 5.
+    if (!files || !Array.isArray(files) || files.length < 3 || files.length > 5) {
       // Clean up any uploaded files
       if (files && Array.isArray(files)) {
         files.forEach(f => {
@@ -276,7 +556,7 @@ export async function handleUploadUniversityDrafts(req: Request, res: Response) 
       }
       return res.status(400).json({
         success: false,
-        error: 'INVALID_FILE_COUNT: Exactly 3 question-paper PDFs (Paper 1, Paper 2, Paper 3) must be uploaded.',
+        error: `INVALID_FILE_COUNT: Upload at least 3 and up to 5 source question papers (min 3, max 5). Received ${files?.length || 0}.`,
       });
     }
 
@@ -315,14 +595,18 @@ export async function handleUploadUniversityDrafts(req: Request, res: Response) 
     const allExtractedQuestions: ParsedDraftQuestion[] = [];
     const papersTextForPattern: Array<{ paperIndex: number; filename: string; text: string }> = [];
 
-    let paper1Count = 0;
-    let paper2Count = 0;
-    let paper3Count = 0;
+    const paperCounts: Record<string, number> = {
+      paper1Count: 0,
+      paper2Count: 0,
+      paper3Count: 0,
+      paper4Count: 0,
+      paper5Count: 0,
+    };
 
-    // Process each of the 3 draft papers sequentially
+    // Process each of the uploaded draft papers (3 to 5) sequentially
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const paperIndex = i + 1; // 1, 2, 3
+      const paperIndex = i + 1; // 1, 2, 3, 4, 5
       const draftPaperId = uuidv4();
 
       // Extract text using pdf-parse with Tesseract OCR fallback
@@ -357,9 +641,7 @@ export async function handleUploadUniversityDrafts(req: Request, res: Response) 
       const mcqCount = parsedQuestions.filter(q => q.question_type === 'MCQ').length;
       const theoryCount = parsedQuestions.filter(q => q.question_type === 'THEORY').length;
 
-      if (paperIndex === 1) paper1Count = parsedQuestions.length;
-      if (paperIndex === 2) paper2Count = parsedQuestions.length;
-      if (paperIndex === 3) paper3Count = parsedQuestions.length;
+      paperCounts[`paper${paperIndex}Count`] = parsedQuestions.length;
 
       // 1. Insert into draft_papers table
       executeRun(
@@ -530,13 +812,11 @@ export async function handleUploadUniversityDrafts(req: Request, res: Response) 
 
     return res.json({
       success: true,
-      message: `Successfully ingested 3 University draft papers. Extracted ${totalQuestions} questions across Paper 1, Paper 2, and Paper 3.`,
+      message: `Successfully ingested ${files.length} University draft papers. Extracted ${totalQuestions} questions across ${files.length} source papers.`,
       draftPapers: ingestedDraftPapers,
       detectedPattern,
       paperCounts: {
-        paper1Count,
-        paper2Count,
-        paper3Count,
+        ...paperCounts,
         totalQuestions,
         mcqCount,
         theoryCount,

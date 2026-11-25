@@ -1140,7 +1140,7 @@ export function synthesizePaperOffline(messages: ChatMessage[]): string {
       number: `Q.1(${idx + 1})`,
       text: m.text,
       marks: '1',
-      options: m.options && m.options.length === 4 ? m.options : ['(A) Option A', '(B) Option B', '(C) Option C', '(D) Option D'],
+      options: m.options && m.options.length > 0 ? m.options : [],
     });
   }
 

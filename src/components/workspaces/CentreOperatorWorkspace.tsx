@@ -28,6 +28,17 @@ import { PrintRelayPanel } from '../PrintRelayPanel';
 import { PrinterSelectModal } from '../PrinterSelectModal';
 import { CompetitivePrintExaminationPaper } from '../competitive/CompetitivePrintExaminationPaper';
 import { SecurePaperViewer } from '../security/SecurePaperViewer';
+import { SecureDecryptionKeyModal } from '../papers/SecureDecryptionKeyModal';
+import { ProctoredPrintingWorkspaceModal } from '../printing/ProctoredPrintingWorkspaceModal';
+import { HierarchicalAccessManagementPanel } from '../access/HierarchicalAccessManagementPanel';
+import { renderLatexToHtml } from '../../utils/latexRenderer';
+import {
+  getSecurityWatermarkLocation,
+  getImmediateSecurityWatermarkLocation,
+  createWatermarkSvgPattern,
+  buildWatermarkSvgOverlayHtml,
+  ClientSecurityLocation,
+} from '../../utils/securityProtection';
 
 interface CentreOperatorWorkspaceProps {
   currentUser: User | null;
@@ -111,16 +122,86 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
     isUnlocked: boolean;
   } | null>(null);
 
+  // Secure Decryption Key Modal state (Strict 3-attempt lockout)
+  const [secureKeyModalOpen, setSecureKeyModalOpen] = useState(false);
+  const [secureKeyModalTarget, setSecureKeyModalTarget] = useState<{
+    examType: 'COMPETITIVE' | 'UNIVERSITY';
+    paperId: string;
+    paperVersion?: string;
+    title: string;
+    onSuccess: () => Promise<void> | void;
+  } | null>(null);
+
+  // Proctored Printing 3-Warning Lockout state
+  const [proctorWarningCount, setProctorWarningCount] = useState<number>(0);
+  const [clientLocation, setClientLocation] = useState<ClientSecurityLocation>(() =>
+    getImmediateSecurityWatermarkLocation('CTR-101')
+  );
+
+  useEffect(() => {
+    getSecurityWatermarkLocation('CTR-101').then((loc) => {
+      setClientLocation(loc);
+    });
+  }, []);
+  const [isWorkstationLocked, setIsWorkstationLocked] = useState<boolean>(false);
+  const [workstationLockReason, setWorkstationLockReason] = useState<string>('');
+  const [showWarning2AckModal, setShowWarning2AckModal] = useState<boolean>(false);
+
+  // Incoming Print Anywhere Requests from Manager
+  const [incomingPrintRequests, setIncomingPrintRequests] = useState<any[]>([]);
+  const [releasingRequestId, setReleasingRequestId] = useState<string | null>(null);
+  const [proctoringModalRequest, setProctoringModalRequest] = useState<any | null>(null);
+
+  const loadIncomingPrintRequests = useCallback(async () => {
+    try {
+      const res = await api.getPrintAnywhereRequests({ centreNumber: currentUser?.centre_id || 'CTR-101' });
+      if (res && Array.isArray(res.requests)) {
+        setIncomingPrintRequests(res.requests);
+      }
+    } catch {
+      // silent
+    }
+  }, [currentUser?.centre_id]);
+
+  const handleReleasePrintRequest = async (reqItem: any) => {
+    setReleasingRequestId(reqItem.id);
+    setStatusMessage(null);
+    try {
+      const res = await api.releasePrintAnywhereJob(reqItem.id);
+      if (res.success) {
+        setStatusMessage({
+          type: 'success',
+          text: `Print job released! Stamped ${res.watermarks?.length || reqItem.approvedCopies} physical copies with traceable watermarks on ${reqItem.printerName}.`,
+        });
+        await loadIncomingPrintRequests();
+      } else {
+        setStatusMessage({
+          type: 'error',
+          text: res.error || 'Failed to release print job.',
+        });
+      }
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: err.message || 'Error releasing print job.',
+      });
+    } finally {
+      setReleasingRequestId(null);
+    }
+  };
+
   const loadPrintAnywhereJobs = useCallback(async () => {
     try {
       const res = await api.getPrintAnywhereJobs();
       if (res && Array.isArray(res.jobs)) {
         setPrintAnywhereJobs(res.jobs);
       }
+      await loadIncomingPrintRequests();
     } catch {
       // silent
     }
-  }, []);
+  }, [loadIncomingPrintRequests]);
+
 
   const getLatestPrintAnywhereJob = (examId: string, paperId?: string) => {
     return printAnywhereJobs.find(j => j.examId === examId || (paperId && j.paperId === paperId));
@@ -446,6 +527,7 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
       decryptedAt?: string;
       printedAt?: string;
       txHash?: string;
+      locationText?: string;
     },
     mode: 'BILINGUAL' | 'ORIGINAL_ENGLISH' = 'BILINGUAL'
   ): string => {
@@ -458,48 +540,108 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
         ? fullPaper.bilingualSections
         : fullPaper.sections || [];
 
+    const shouldRenderTwoColumnOptions = (
+      options: Array<{ text: string }>,
+      translatedOptions?: Array<{ text: string }>
+    ): boolean => {
+      if (!options || options.length === 0) return false;
+      const hasTranslation =
+        !isEnglishOnly &&
+        translatedOptions &&
+        translatedOptions.some(t => Boolean(t?.text));
+      const maxLen = hasTranslation ? 24 : 32;
+      return (
+        options.every(opt => (opt.text || '').length <= maxLen) &&
+        (!hasTranslation || (translatedOptions || []).every(opt => (opt?.text || '').length <= maxLen))
+      );
+    };
+
+    const opName = meta?.operatorName || 'Centre Superintendent';
+    const copyId = meta?.copyId || 'OFFICIAL-MASTER';
+    const centreCode = meta?.centreCode || 'CTR-101';
+    const locText = meta?.locationText || clientLocation?.displayText || getImmediateSecurityWatermarkLocation(centreCode).displayText;
+    const printTimeStr = meta?.printedAt
+      ? new Date(meta.printedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true })
+      : new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+
+    const watermarkLine1 = `ZEROLEAK SECURE • ${opName.toUpperCase()} • ${copyId} • ${centreCode}`;
+    const watermarkLine2 = `EXAM: ${(fullPaper.title || 'COMPETITIVE EXAMINATION').toUpperCase()} • ${printTimeStr}`;
+    const watermarkLine3 = locText;
+    const watermarkSvgOverlayHtml = buildWatermarkSvgOverlayHtml(watermarkLine1, watermarkLine2, watermarkLine3);
+
     const sectionsHtml = activeSections
       .map((sec: any, sIdx: number) => {
         const qs = sec.questions || [];
         if (qs.length === 0) return '';
-        const firstNum = qs[0].displayNumber || qs[0].questionNumber || 1;
-        const lastNum = qs[qs.length - 1].displayNumber || qs[qs.length - 1].questionNumber || qs.length;
+        const firstNum = String(qs[0].displayNumber || qs[0].questionNumber || 1).replace(/^Q\.?\s*/i, '');
+        const lastNum = String(qs[qs.length - 1].displayNumber || qs[qs.length - 1].questionNumber || qs.length).replace(/^Q\.?\s*/i, '');
         const secHeading = `${(sec.subject || 'SECTION').toUpperCase()} : SECTION-${
           sec.sectionLetter || String.fromCharCode(65 + sIdx)
         } (Q. No. ${firstNum} to ${lastNum})`;
 
         const questionsHtml = qs
           .map((q: any, qIdx: number) => {
-            const qNum = q.displayNumber || q.questionNumber || qIdx + 1;
+            const qNum = String(q.displayNumber || q.questionNumber || qIdx + 1).replace(/^Q\.?\s*/i, '');
             const marks = q.marks ? `[${q.marks}]` : '';
             const showTrans =
               !isEnglishOnly &&
               (Boolean(q.translationRequired) || Boolean(fullPaper.enableTranslation)) &&
-              Boolean(q.translatedText);
+              Boolean(q.translatedText) &&
+              q.translatedText.trim() !== (q.questionText || '').trim();
 
             const tableHtml =
               q.tableData && (q.tableData.headers || q.tableData.rows)
                 ? `<table class="q-table">
                     ${
                       Array.isArray(q.tableData.headers) && q.tableData.headers.length > 0
-                        ? `<thead><tr>${q.tableData.headers.map((h: string) => `<th>${h}</th>`).join('')}</tr></thead>`
+                        ? `<thead><tr>${q.tableData.headers.map((h: string) => `<th>${renderLatexToHtml(h)}</th>`).join('')}</tr></thead>`
                         : ''
                     }
                     ${
                       Array.isArray(q.tableData.rows) && q.tableData.rows.length > 0
                         ? `<tbody>${q.tableData.rows
-                            .map((r: string[]) => `<tr>${r.map((c: string) => `<td>${c}</td>`).join('')}</tr>`)
+                            .map((r: string[]) => `<tr>${r.map((c: string) => `<td>${renderLatexToHtml(c)}</td>`).join('')}</tr>`)
                             .join('')}</tbody>`
                         : ''
                     }
                   </table>`
                 : '';
 
-            const diagramHtml = q.diagramSvg
-              ? `<div class="q-diagram">${q.diagramSvg}</div>`
-              : q.imageUrl
-                ? `<div class="q-diagram"><img src="${q.imageUrl}" alt="Diagram" style="max-height:180px;" /></div>`
-                : '';
+            // Check if visual is a false equation crop of text (to avoid rendering pseudo-diagrams)
+            const isFalseEquationCrop = (url?: string) => {
+              if (!url) return false;
+              const visuals = q.visualElements || [];
+              return visuals.some(
+                (v: any) =>
+                  (v.dataUrl === url || v.publicUrl === url) &&
+                  (v.type === 'equation' || v.extractionMethod === 'equation_image_crop') &&
+                  !q.requiresVisual
+              );
+            };
+
+            let diagramHtml = '';
+            if (q.diagramSvg) {
+              diagramHtml = `<div class="q-diagram">${q.diagramSvg}</div>`;
+            } else if (q.imageUrl && !isFalseEquationCrop(q.imageUrl)) {
+              diagramHtml = `<div class="q-diagram"><img src="${q.imageUrl}" alt="Question ${qNum} Diagram" style="max-height:180px;max-width:100%;object-fit:contain;" /></div>`;
+            } else if (Array.isArray(q.visualElements)) {
+              const realVisuals = q.visualElements.filter(
+                (v: any) =>
+                  (v.dataUrl || v.publicUrl) &&
+                  v.type !== 'equation' &&
+                  v.extractionMethod !== 'equation_image_crop'
+              );
+              if (realVisuals.length > 0) {
+                diagramHtml = `<div class="q-diagram-grid" style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:6px 0;">${realVisuals
+                  .map(
+                    (v: any) =>
+                      `<figure style="margin:0;padding:2px;border:1px solid #ddd;display:inline-block;text-align:center;"><img src="${v.dataUrl || v.publicUrl}" alt="Visual" style="max-height:160px;max-width:100%;object-fit:contain;" />${
+                        v.caption ? `<figcaption style="font-size:10.5px;font-style:italic;margin-top:2px;">${renderLatexToHtml(v.caption)}</figcaption>` : ''
+                      }</figure>`
+                  )
+                  .join('')}</div>`;
+              }
+            }
 
             const subQuestionsHtml =
               Array.isArray(q.subQuestions) && q.subQuestions.length > 0
@@ -507,29 +649,40 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
                     .map(
                       (sq: any, sqIdx: number) =>
                         `<div class="sub-q"><strong>${sq.label || `(${String.fromCharCode(97 + sqIdx)})`}</strong> ${
-                          sq.text || ''
-                        }${!isEnglishOnly && sq.translatedText ? `<div class="q-trans">${sq.translatedText}</div>` : ''}</div>`
+                          renderLatexToHtml(sq.text || '')
+                        }${!isEnglishOnly && sq.translatedText ? `<div class="q-trans">${renderLatexToHtml(sq.translatedText)}</div>` : ''}</div>`
                     )
                     .join('')}</div>`
                 : '';
 
+            const isCompactTwoCol = shouldRenderTwoColumnOptions(q.options || [], q.translatedOptions);
             const optionsHtml =
               Array.isArray(q.options) && q.options.length > 0
-                ? `<div class="options">${q.options
+                ? `<div class="options ${isCompactTwoCol ? 'options-grid-2' : ''}">${q.options
                     .map((opt: any, oIdx: number) => {
+                      const optLabel = opt.label ? `(${opt.label})` : `(${oIdx + 1})`;
+                      const enOptHtml = renderLatexToHtml(opt.text || '');
                       const tOpt = q.translatedOptions?.[oIdx];
-                      return `<div class="opt"><strong>(${oIdx + 1})</strong> ${opt.text || ''}${
-                        showTrans && tOpt?.text ? `<div class="trans-opt">${tOpt.text}</div>` : ''
+                      const rawTransText = (tOpt?.text || '').trim();
+                      const isIdentical =
+                        !rawTransText ||
+                        rawTransText === (opt.text || '').trim() ||
+                        renderLatexToHtml(rawTransText) === enOptHtml;
+
+                      return `<div class="opt"><span class="opt-label">${optLabel}</span> <span class="opt-en">${enOptHtml}</span>${
+                        showTrans && !isIdentical
+                          ? `<div class="trans-opt">${renderLatexToHtml(rawTransText)}</div>`
+                          : ''
                       }</div>`;
                     })
                     .join('')}</div>`
                 : '';
 
             return `<div class="q-block">
-              <div class="q-en"><strong>${qNum}.</strong> ${q.questionText || ''} <span class="marks">${marks}</span></div>
+              <div class="q-en"><strong>${qNum}.</strong> ${renderLatexToHtml(q.questionText || '')} <span class="marks">${marks}</span></div>
               ${
                 showTrans
-                  ? `<div class="q-trans"><strong>${qNum}.</strong> ${q.translatedText}</div>`
+                  ? `<div class="q-trans"><strong>${qNum}.</strong> ${renderLatexToHtml(q.translatedText)}</div>`
                   : ''
               }
               ${tableHtml}
@@ -552,42 +705,90 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
 <head>
   <meta charset="utf-8" />
   <title>${fullPaper.title} - ${fullPaper.id}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" crossorigin="anonymous" />
   <style>
-    @page { size: A4; margin: 14mm; }
-    body { font-family: "Times New Roman", Times, Georgia, serif; color: #000; margin: 0; padding: 16px; line-height: 1.45; background: #fff; }
-    .meta-bar { font-family: monospace; font-size: 10.5px; border: 1px solid #000; padding: 6px 10px; margin-bottom: 12px; background: #f8f8f8; }
-    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 12px; }
-    .header h1 { margin: 4px 0; font-size: 21px; text-transform: uppercase; }
-    .instructions { font-size: 11.5px; border-bottom: 1px solid #000; padding-bottom: 8px; margin-bottom: 12px; }
-    .sec-title { border: 1px solid #000; padding: 5px 10px; text-align: center; font-weight: bold; text-transform: uppercase; margin: 16px 0 10px; background: #f5f5f5; font-size: 13px; }
-    .sec-cols { column-count: 2; column-gap: 24px; column-rule: 1px solid #ccc; }
-    .q-block { break-inside: avoid; page-break-inside: avoid; margin-bottom: 14px; font-size: 13px; }
-    .q-trans { margin-top: 3px; padding-left: 8px; border-left: 2px solid #444; color: #111; }
-    .q-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11.5px; }
-    .q-table th, .q-table td { border: 1px solid #000; padding: 3px 6px; text-align: left; }
+    @page { size: A4 portrait; margin: 10mm 12mm 12mm 12mm; }
+    body { font-family: "Times New Roman", Times, Georgia, serif; color: #000; margin: 0; padding: 0; line-height: 1.4; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .meta-bar { font-family: monospace; font-size: 10px; border: 1px solid #000; padding: 4px 8px; margin-bottom: 10px; background: #f8f8f8; }
+    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 10px; }
+    .header h1 { margin: 2px 0; font-size: 19px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .instructions { font-size: 11px; border-bottom: 1px solid #000; padding-bottom: 6px; margin-bottom: 10px; font-style: italic; }
+    .sec-title { border: 1px solid #000; padding: 4px 8px; text-align: center; font-weight: bold; text-transform: uppercase; margin: 12px 0 8px; background: #f5f5f5; font-size: 12px; letter-spacing: 0.5px; }
+    .sec-cols { column-count: 2; column-gap: 20px; column-rule: 1px solid #bbb; text-align: justify; }
+    .q-block { break-inside: avoid; page-break-inside: avoid; margin-bottom: 11px; font-size: 12.5px; }
+    .q-en { line-height: 1.4; }
+    .q-trans { margin-top: 2.5px; padding-left: 7px; border-left: 2px solid #555; color: #111; font-size: 12px; line-height: 1.35; }
+    .q-table { width: 100%; border-collapse: collapse; margin: 5px 0; font-size: 11px; }
+    .q-table th, .q-table td { border: 1px solid #000; padding: 2px 5px; text-align: left; }
     .q-diagram { margin: 6px 0; text-align: center; }
-    .sub-qs { margin-top: 5px; padding-left: 12px; font-size: 12px; }
-    .sub-q { margin-bottom: 4px; }
-    .options { margin-top: 5px; padding-left: 6px; }
-    .opt { margin-bottom: 3px; font-size: 12.5px; }
-    .trans-opt { font-size: 11.5px; color: #222; padding-left: 18px; }
-    .marks { font-family: sans-serif; font-size: 10.5px; font-weight: bold; color: #333; }
-    .footer { border-top: 1px solid #000; margin-top: 22px; padding-top: 8px; text-align: center; font-weight: bold; font-size: 12px; }
+    .sub-qs { margin-top: 4px; padding-left: 10px; font-size: 11.5px; }
+    .sub-q { margin-bottom: 3px; }
+    .options { margin-top: 4px; font-size: 12px; line-height: 1.35; }
+    .options-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5px 10px; }
+    .opt { margin-bottom: 2px; }
+    .opt-label { font-weight: bold; color: #000; }
+    .opt-en { color: #000; }
+    .trans-opt { font-size: 11px; color: #222; padding-left: 14px; }
+    .marks { font-family: sans-serif; font-size: 10px; font-weight: bold; color: #444; }
+    .footer { border-top: 1px solid #000; margin-top: 18px; padding-top: 6px; text-align: center; font-weight: bold; font-size: 11px; letter-spacing: 1px; }
+
+    /* KaTeX Core Fallback Styles for Print Enclave */
+    .katex { font: normal 1.1em KaTeX_Main, "Times New Roman", serif; line-height: 1.2; text-indent: 0; text-rendering: auto; }
+    .katex-display { display: block; margin: 0.4em 0; text-align: center; }
+    .katex-html { display: inline-block; }
+    .katex .mfrac { display: inline-block; vertical-align: -0.5em; text-align: center; }
+    .katex .vlist-t { display: inline-table; table-layout: fixed; }
+    .katex .vlist-r { display: table-row; }
+    .katex .vlist { display: table-cell; vertical-align: bottom; position: relative; }
+    .katex .frac-line { width: 100%; border-bottom: 0.08em solid; display: block; }
+    .katex .sqrt { display: inline-block; }
+    .katex .mord, .katex .mbin, .katex .mrel, .katex .mopen, .katex .mclose, .katex .mpunct, .katex .minner { display: inline-block; }
+    .katex .mbin { margin-left: 0.22em; margin-right: 0.22em; }
+    .katex .mrel { margin-left: 0.27em; margin-right: 0.27em; }
+    .katex .mord.mathbf { font-weight: bold; }
+    .katex .mord.mathnormal { font-style: italic; }
+
+    .print-watermark-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 99999;
+      opacity: 0.95;
+      display: block;
+    }
+    @media print {
+      .print-watermark-overlay {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        pointer-events: none !important;
+        z-index: 99999 !important;
+        opacity: 0.95 !important;
+        display: block !important;
+      }
+    }
   </style>
 </head>
 <body>
+  ${watermarkSvgOverlayHtml}
   <div class="meta-bar">
     <div><strong>AUTHORIZED CENTRE PRINT COPY:</strong> ${meta?.copyId || 'OFFICIAL-MASTER'} &nbsp;|&nbsp; <strong>CENTRE:</strong> ${meta?.centreCode || 'CTR-101'} &nbsp;|&nbsp; <strong>OPERATOR:</strong> ${meta?.operatorName || 'Centre Superintendent'}</div>
     <div><strong>PAPER ID:</strong> ${fullPaper.id} &nbsp;|&nbsp; <strong>EXAM DATE:</strong> ${fullPaper.scheduleExamDate || fullPaper.examDate || 'N/A'} &nbsp;|&nbsp; <strong>UNLOCK TIME:</strong> ${fullPaper.decryptionTimeDisplay || 'N/A'} &nbsp;|&nbsp; <strong>AUDIT TX:</strong> ${meta?.txHash || 'VERIFIED'}</div>
+    <div style="margin-top:2px;font-weight:bold;color:#0e7490;">${watermarkLine3}</div>
   </div>
   <div class="header">
-    <div style="font-size:11.5px;font-weight:bold;">${fullPaper.examType || 'COMPETITIVE EXAMINATION'}${
+    <div style="font-size:11px;font-weight:bold;">${fullPaper.examType || 'COMPETITIVE EXAMINATION'}${
       !isEnglishOnly && fullPaper.enableTranslation && fullPaper.translationLanguage
         ? ` • BILINGUAL EDITION (ENGLISH & ${fullPaper.translationLanguage.toUpperCase()})`
         : ' • ENGLISH EDITION'
     }</div>
     <h1>${fullPaper.title}</h1>
-    <div style="font-size:12.5px;">Time Allowed: <strong>${fullPaper.durationMinutes} Minutes</strong> &nbsp;|&nbsp; Maximum Marks: <strong>${fullPaper.totalMarks}</strong> &nbsp;|&nbsp; Total Questions: <strong>${fullPaper.totalQuestions}</strong></div>
+    <div style="font-size:12px;">Time Allowed: <strong>${fullPaper.durationMinutes || 180} Minutes</strong> &nbsp;|&nbsp; Maximum Marks: <strong>${fullPaper.totalMarks || 100}</strong> &nbsp;|&nbsp; Total Questions: <strong>${fullPaper.totalQuestions || 25}</strong></div>
   </div>
   ${
     fullPaper.instructions
@@ -605,10 +806,12 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
     try {
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
-      iframe.style.right = '0';
-      iframe.style.bottom = '0';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
+      iframe.style.left = '-10000px';
+      iframe.style.top = '0';
+      iframe.style.width = '1024px';
+      iframe.style.height = '1400px';
+      iframe.style.opacity = '0';
+      iframe.style.pointerEvents = 'none';
       iframe.style.border = '0';
       document.body.appendChild(iframe);
 
@@ -658,6 +861,7 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
         decryptedAt: fullPaper?.decryptedAt || printRec?.printedAt,
         printedAt: printRec?.printedAt || new Date().toISOString(),
         txHash: printRec?.txHash,
+        locationText: clientLocation?.displayText,
       };
 
       const effectiveMode = fullPaper?.enableTranslation ? 'BILINGUAL' : 'ORIGINAL_ENGLISH';
@@ -706,6 +910,7 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
         decryptedAt: fullPaper.decryptedAt || res.serverTimeIso,
         printedAt: res.serverTimeIso,
         txHash,
+        locationText: clientLocation?.displayText,
       };
       setActiveDecryptedPaper(fullPaper);
       setActiveOperatorPrintMeta(dlMeta);
@@ -788,10 +993,14 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
     copies: number,
     examName: string,
     paperVersionId?: string
-  ) => {
+  ): Promise<boolean> => {
     if (!examId) {
       setStatusMessage({ type: 'error', text: 'Select an examination before printing.' });
-      return;
+      return false;
+    }
+    if (!Number.isInteger(copies) || copies < 1 || copies > 50) {
+      setStatusMessage({ type: 'error', text: 'Choose a whole-number print quantity between 1 and 50.' });
+      return false;
     }
     setPrinting(true);
     setStatusMessage(null);
@@ -805,13 +1014,15 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
           ? `${result.message} Serialized ${first}${first === last ? '' : ` to ${last}`} for ${examName}.`
           : result.message,
       });
-      await loadData();
+      void loadData();
       onRefresh();
+      return true;
     } catch (err: any) {
       setStatusMessage({
         type: 'error',
         text: err.message || 'The server refused the print request.',
       });
+      return false;
     } finally {
       setPrinting(false);
     }
@@ -1338,6 +1549,7 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
             examId={activeDecryptedPaper.exam_id}
             examTitle={activeDecryptedPaper.title || 'Competitive Examination Paper'}
             examType="COMPETITIVE"
+            location={clientLocation}
           >
             <CompetitivePrintExaminationPaper
               paper={activeDecryptedPaper}
@@ -1464,7 +1676,7 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
                           primaryExam.id,
                           1,
                           primaryExam.name,
-                          primaryExam.current_paper_version_id
+                          (primaryExam as any).current_paper_version_id
                         )
                       }
                       disabled={printing}
@@ -1507,8 +1719,134 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
             );
           })()}
 
+
+          {/* ZEROLEAK INCOMING PRINT ANYWHERE REQUESTS (MANAGER -> OPERATOR) */}
+
+          <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-900 text-[10px] font-bold uppercase tracking-wider">
+                    Print Anywhere Dispatch Enclave
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono text-[10px]">
+                    Centre {currentUser?.centre_id || 'CTR-101'}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2 mt-1">
+                  <Printer className="w-5 h-5 text-indigo-600" />
+                  <span>Incoming Print Anywhere Requests</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Approved examination requests dispatched by Examination Manager for physical release at this centre.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => loadIncomingPrintRequests()}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 self-start sm:self-center transition-colors cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh Requests</span>
+              </button>
+            </div>
+
+            {incomingPrintRequests.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400 bg-slate-50/70 rounded-xl border border-dashed border-slate-200">
+                No active Print Anywhere requests pending for Centre {currentUser?.centre_id || 'CTR-101'}. When the Examination Manager makes a request, it will appear here in real time.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {incomingPrintRequests.map(reqItem => {
+                  const isCompleted = reqItem.status === 'COMPLETED';
+                  const isBlocked = reqItem.status === 'BLOCKED';
+                  const isReleasing = releasingRequestId === reqItem.id;
+                  return (
+                    <div
+                      key={reqItem.id}
+                      className="p-4 rounded-xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs"
+                    >
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-slate-900 text-sm">{reqItem.examName}</span>
+                          <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-mono text-[10px] font-bold">
+                            {reqItem.examType}
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono text-[10px] font-semibold">
+                            Version: {reqItem.paperVersion}
+                          </span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            isCompleted
+                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                              : isBlocked
+                              ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                              : 'bg-amber-100 text-amber-900 border border-amber-300'
+                          }`}>
+                            {reqItem.status}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-slate-600 font-mono pt-1">
+                          <div>
+                            <span className="text-slate-400">Request No: </span>
+                            <span className="font-semibold text-slate-800">{reqItem.requestNumber}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Printer: </span>
+                            <span className="font-semibold text-slate-800">{reqItem.printerName}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Approved Copies: </span>
+                            <span className="font-bold text-indigo-700">{reqItem.approvedCopies} Sheets</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Scheduled Date: </span>
+                            <span className="font-semibold text-slate-800">{reqItem.scheduledDate}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Unlock Time: </span>
+                            <span className="font-semibold text-slate-800">{reqItem.scheduledUnlockTime}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400">Requested By: </span>
+                            <span className="font-semibold text-slate-800">{reqItem.requestedByName}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-2">
+                        {isCompleted ? (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold text-xs">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>Printed &amp; Traceable Stamped</span>
+                          </div>
+                        ) : isBlocked ? (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 text-rose-800 border border-rose-200 font-semibold text-xs">
+                            <AlertTriangle className="w-4 h-4 text-rose-600" />
+                            <span>Blocked by Policy</span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setProctoringModalRequest(reqItem)}
+                            disabled={isReleasing}
+                            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Proctored Print</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           <div className="p-6 rounded-xl bg-white border border-slate-200 shadow-xs space-y-3">
             <h3 className="text-sm font-bold text-slate-900">Scheduled Examination Papers</h3>
+
             {releasedExams.length === 0 ? (
               <p className="text-xs text-slate-400 p-4 text-center">No examinations assigned to this centre.</p>
             ) : (
@@ -1775,7 +2113,7 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
                   <input
                     type="number"
                     min={1}
-                    max={100}
+                    max={50}
                     value={printCount}
                     onChange={e => setPrintCount(Number(e.target.value))}
                     className="w-24 px-3 py-2 rounded-lg bg-slate-50 border border-slate-300 text-slate-900"
@@ -1825,8 +2163,8 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
             <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-900 flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0 text-indigo-600" />
               <span>
-                Printing requires your account password and server-side print security checks. To print from another
-                desk, a phone or a tablet on this Wi-Fi, open a relay below instead of moving the paper by hand.
+                Printing is checked against the server-side time-lock, workstation approval, and copy quota. To print
+                from another desk, a phone or a tablet on this Wi-Fi, open a relay below instead of moving the paper by hand.
               </span>
             </div>
           </div>
@@ -1952,6 +2290,34 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
         );
       })()}
 
+      {/* ACCOUNT SETTINGS & PASSWORD RESET */}
+      {activeSubTab === 'account_settings' && currentUser && (
+        <div className="space-y-4">
+          <HierarchicalAccessManagementPanel
+            currentUser={currentUser}
+            onRefresh={onRefresh}
+          />
+        </div>
+      )}
+
+      {/* PROCTORED PRINTING WORKSPACE MODAL */}
+      {proctoringModalRequest && (
+        <ProctoredPrintingWorkspaceModal
+          isOpen={!!proctoringModalRequest}
+          onClose={() => setProctoringModalRequest(null)}
+          printRequest={proctoringModalRequest}
+          currentUser={{
+            id: currentUser?.id || '',
+            fullName: currentUser?.full_name || currentUser?.name,
+            role: currentUser?.role,
+            centre_id: currentUser?.centre_id,
+          }}
+          onPrintSuccess={() => {
+            loadIncomingPrintRequests();
+          }}
+        />
+      )}
+
       {/* Secure Viewer Modal */}
       {viewerOpen && viewerPaper && (
         <SecureViewerModal
@@ -1960,7 +2326,7 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
           currentUser={currentUser}
           onClose={() => setViewerOpen(false)}
           onPrintCopy={() =>
-            void handlePrintAuthorizedCopies(
+            handlePrintAuthorizedCopies(
               selectedExamId,
               printCount,
               viewerPaper?.exam_name || viewerPaper?.subject || 'Selected examination',
@@ -1988,6 +2354,53 @@ export const CentreOperatorWorkspace: React.FC<CentreOperatorWorkspaceProps> = (
           }}
         />
       )}
+
+      {/* 3-Attempt Decryption Key Verification Modal */}
+      {secureKeyModalOpen && secureKeyModalTarget && (
+        <SecureDecryptionKeyModal
+          isOpen={secureKeyModalOpen}
+          onClose={() => {
+            setSecureKeyModalOpen(false);
+            setSecureKeyModalTarget(null);
+          }}
+          examType={secureKeyModalTarget.examType}
+          paperId={secureKeyModalTarget.paperId}
+          paperVersion={secureKeyModalTarget.paperVersion}
+          paperTitle={secureKeyModalTarget.title}
+          currentUser={currentUser}
+          onDecryptionSuccess={() => {
+            if (secureKeyModalTarget.onSuccess) {
+              void secureKeyModalTarget.onSuccess();
+            }
+          }}
+        />
+      )}
+
+      {/* 3-Warning Proctoring Lockout Neutral Screen */}
+      {isWorkstationLocked && (
+        <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center justify-center p-6 text-center text-white animate-in fade-in duration-200">
+          <div className="w-16 h-16 rounded-2xl bg-rose-950 border border-rose-500/50 flex items-center justify-center mb-4 text-rose-500 shadow-xl shadow-rose-950/50 animate-pulse">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <span className="px-3 py-1 rounded-full bg-rose-900/60 text-rose-300 border border-rose-700/50 text-[10px] font-mono font-bold uppercase tracking-widest mb-2">
+            CRITICAL WORKSTATION LOCKOUT
+          </span>
+          <h2 className="text-xl font-black text-white tracking-tight">Printing Workstation Terminal Locked</h2>
+          <p className="text-xs text-slate-400 max-w-md mt-2 leading-relaxed">
+            Three confirmed proctoring violations (recording devices, unauthorized bystander, or capture anomaly) were detected on this station. All printing queues have been aborted.
+          </p>
+          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono text-slate-300 max-w-md w-full mt-5 text-left space-y-1">
+            <div>Centre Code: <span className="text-white font-bold">{currentUser?.centre_id || 'CTR-101'}</span></div>
+            <div>Operator: <span className="text-white">{currentUser?.name || 'Centre Superintendent'}</span></div>
+            <div>Policy Status: <span className="text-rose-400 font-bold">3 of 3 Warnings Triggered</span></div>
+            <div>Action: <span className="text-amber-300">Requires Administrative Unlock by Owner or Auditor</span></div>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-4">
+            Incident reports have been dispatched to the Examination Manager &amp; Chief Vigilance Auditor.
+          </p>
+        </div>
+      )}
     </div>
+
   );
 };

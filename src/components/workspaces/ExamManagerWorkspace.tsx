@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   Clock,
+  Printer,
+  Flame,
   Sparkles,
   FileCheck,
   Upload,
@@ -58,10 +60,17 @@ import { AddCentreModal } from './AddCentreModal';
 import { EmergencyRegenModal } from './EmergencyRegenModal';
 import { BlueprintPatternModule } from './BlueprintPatternModule';
 import { QuestionPaperPdfModal } from './QuestionPaperPdfModal';
+import { ThresholdEncryptionAndEmergencyPanel } from '../papers/ThresholdEncryptionAndEmergencyPanel';
 import { UniversityFormatGenerator } from './UniversityFormatGenerator';
 import { PaperGenerationModule } from '../PaperGenerationModule';
 import { CompetitiveExaminationUnifiedWorkflow } from '../competitive/CompetitiveExaminationUnifiedWorkflow';
 import { PrintAnywhereMonitorSection } from '../PrintAnywhereMonitorSection';
+import { PrintAnywhereRequestModal } from '../printing/PrintAnywhereRequestModal';
+import { PrintAnywhereTrackingView } from '../printing/PrintAnywhereTrackingView';
+import { PaperLeakResponseWizardModal } from '../leak/PaperLeakResponseWizardModal';
+import { PaperLeakManagementView } from '../leak/PaperLeakManagementView';
+import { HierarchicalAccessManagementPanel } from '../access/HierarchicalAccessManagementPanel';
+import { CustodianKeyApprovalsView } from '../papers/CustodianKeyApprovalsView';
 import {
   DashboardHeader,
   SecurityStatusBar,
@@ -264,6 +273,8 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
   const [allCentresList, setAllCentresList] = useState<ExaminationCentre[]>([]);
   const [centresFilterExamId, setCentresFilterExamId] = useState<string>('ALL');
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
+  const [printAnywhereModalExam, setPrintAnywhereModalExam] = useState<Examination | null>(null);
+  const [paperLeakModalExam, setPaperLeakModalExam] = useState<Examination | any | null>(null);
 
   const handleSimulateExam = (ex: Examination) => {
     if (ex.simulation_status === 'COMPLETED') {
@@ -314,7 +325,6 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
       text: statusText || 'Simulation completed. You may now proceed to Generate Encrypted Paper.',
     });
     loadData();
-    onRefresh();
   };
 
   const handleCentreAdded = (result: AddCentreResponse) => {
@@ -325,7 +335,6 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
         : `Centre "${result.centre.centre_name}" registered successfully. Final authorized copies: ${result.copyControl.finalAllowed}.`,
     });
     loadData();
-    onRefresh();
   };
 
   const handleEmergencyRegenCompleted = (result: EmergencyRegenerateResponse) => {
@@ -334,7 +343,6 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
       text: `Emergency regeneration complete: Replacement paper ${result.newVersionCode} generated & encrypted. ${result.quarantinedCount} suspect questions quarantined.`,
     });
     loadData();
-    onRefresh();
   };
 
   const [deletingExamId, setDeletingExamId] = useState<string | null>(null);
@@ -1098,7 +1106,7 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
 
                 <button
                   type="button"
-                  onClick={onRefresh}
+                  onClick={loadData}
                   className="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
@@ -1873,7 +1881,7 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
         <CompetitiveExaminationUnifiedWorkflow
           currentUser={currentUser}
           org={org}
-          onRefresh={onRefresh}
+          onRefresh={loadData}
         />
       )}
 
@@ -3269,26 +3277,56 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
 
       {/* PAPER VERSIONS */}
       {activeSubTab === 'paper_versions' && (
-        <div className="p-6 rounded-xl bg-white border border-slate-200 shadow-xs space-y-4">
-          <h3 className="text-base font-bold text-slate-900">Encrypted Paper Version Artifacts</h3>
-          <p className="text-xs text-slate-500">
-            All generated examination papers are stored as ciphertext with unique version hashes and key fingerprints.
-          </p>
+        <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-6">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">One-Time Paper Verification &amp; 2-of-3 Threshold Key Vault</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              University examination papers protected by Shamir 2-of-3 secret sharing across Organization Owner, Exam Manager, and Auditor custodians.
+            </p>
+          </div>
 
-          <div className="space-y-3">
+          <div className="space-y-6">
             {examinations.map(ex => (
-              <div key={ex.id} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs flex justify-between items-center">
-                <div>
-                  <span className="font-bold text-slate-900">{ex.name}</span>
-                  <div className="text-[10px] text-slate-500 font-mono">
-                    Time Lock: {ex.unlock_time} • Plaintext status: 🔒 ENCRYPTED (Locked until unlock minute)
+              <div key={ex.id} className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200">
+                  <div className="space-y-0.5">
+                    <h4 className="text-sm font-bold text-slate-900">{ex.name}</h4>
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      Exam ID: {ex.id} • Scheduled Unlock: {ex.unlock_time || '10:00 AM'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPaperLeakModalExam(ex)}
+                      className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>Report Paper Leak / Regenerate Paper</span>
+                    </button>
+                    <button
+                      onClick={() => setPrintAnywhereModalExam(ex)}
+                      className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Make Print Request (Print Anywhere)</span>
+                    </button>
                   </div>
                 </div>
-                <span className="px-2.5 py-1 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                  AES-256 GCM
-                </span>
+                <ThresholdEncryptionAndEmergencyPanel
+                  examType="UNIVERSITY"
+                  paperId={ex.id}
+                  paperVersion="v1"
+                  examId={ex.id}
+                  currentUser={currentUser}
+                />
               </div>
             ))}
+
+            {examinations.length === 0 && (
+              <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                No active university examinations found. Create an examination or ingest questions to begin.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -3542,6 +3580,40 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
         </div>
       )}
 
+      {/* ACCESS MANAGEMENT */}
+      {activeSubTab === 'authorized_managers' && (
+        <HierarchicalAccessManagementPanel
+          currentUser={currentUser}
+          onRefresh={loadData}
+        />
+      )}
+
+      {/* THRESHOLD ENCRYPTION & CUSTODIAN SECURITY */}
+      {activeSubTab === 'paper_security' && (
+        <CustodianKeyApprovalsView
+          currentUser={currentUser}
+          role="EXAM_MANAGER"
+          onRefresh={loadData}
+        />
+      )}
+
+      {/* PRINT ANYWHERE ROUTING & DISPATCH */}
+      {activeSubTab === 'print_anywhere_tracking' && (
+        <PrintAnywhereTrackingView
+          currentUser={currentUser}
+          onRefresh={loadData}
+        />
+      )}
+
+      {/* PAPER LEAK / REGENERATE WORKFLOW */}
+      {activeSubTab === 'paper_leak_management' && (
+        <PaperLeakManagementView
+          currentUser={currentUser}
+          role="EXAM_MANAGER"
+          onRefresh={loadData}
+        />
+      )}
+
       {/* Diagram Zoom Lightbox Modal */}
       {zoomDiagramUrl && (
         <div 
@@ -3618,6 +3690,44 @@ export const ExamManagerWorkspace: React.FC<ExamManagerWorkspaceProps> = ({
           }}
         />
       )}
+
+      {/* Print Anywhere Request Modal (Manager -> Centre Superintendent & Operator) */}
+      {printAnywhereModalExam && (
+        <PrintAnywhereRequestModal
+          isOpen={Boolean(printAnywhereModalExam)}
+          onClose={() => setPrintAnywhereModalExam(null)}
+          examId={printAnywhereModalExam.id}
+          examName={printAnywhereModalExam.name}
+          examType="UNIVERSITY"
+          paperId={printAnywhereModalExam.id}
+          paperVersion="v1"
+          currentUser={currentUser}
+          onRequestCreated={() => {
+            setStatusMessage({
+              type: 'success',
+              text: `Print Anywhere request submitted for "${printAnywhereModalExam.name}". Dispatched to destination centre registry.`,
+            });
+          }}
+        />
+      )}
+
+      {/* Paper Leak Response & Emergency Regeneration Modal */}
+      {paperLeakModalExam && (
+        <PaperLeakResponseWizardModal
+          isOpen={Boolean(paperLeakModalExam)}
+          onClose={() => setPaperLeakModalExam(null)}
+          exam={paperLeakModalExam}
+          currentUser={currentUser}
+          onRegenerationSuccess={(replacement) => {
+            setStatusMessage({
+              type: 'success',
+              text: `Replacement paper ${replacement.replacementVersionCode} generated, cryptographically sealed, and routed to Print Anywhere.`,
+            });
+            loadData();
+          }}
+        />
+      )}
     </div>
+
   );
 };

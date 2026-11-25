@@ -12,6 +12,11 @@ import { getDb, executeQuery, executeRun, getPostgresPool, isPostgresAvailable, 
 import { translateQuestionWithAI, extractQuestionsFromPaperWithAI } from './ai.ts';
 import { extractPdfTextWithOcr } from './ocrPdfHelper.ts';
 import { consumeViewOnceSession } from './viewOnceService.ts';
+import {
+  applyDynamicSecurityWatermarkToPdf,
+  WatermarkSecurityMetadata,
+  logSecurityWatermarkAuditEvent,
+} from './securityWatermarkService.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -298,6 +303,10 @@ export async function initializeCompetitiveSchema(db: any): Promise<void> {
         executeRun(db, `ALTER TABLE competitive_questions ADD COLUMN ${qCol};`);
       } catch {}
     }
+
+    try {
+      executeRun(db, 'ALTER TABLE competitive_question_pool_files ADD COLUMN file_path TEXT;');
+    } catch {}
 
     executeRun(
       db,
@@ -1074,6 +1083,13 @@ const COMPETITIVE_CAPTION_LINE_REGEX =
 const COMPETITIVE_SHARED_DIRECTION_REGEX =
   /(?:directions?|questions?|study\s+the\s+following|refer\s+to\s+the\s+following)[^.\n]{0,90}?(?:q(?:uestions?)?\.?\s*(?:nos?\.?\s*)?)?(\d+)\s*(?:to|-|–|—|and|&)\s*(\d+)/i;
 
+const COMPETITIVE_CANDIDATE_FIELD_REGEX =
+  /\b(?:seat\s*(?:no\.?|number)|roll\s*(?:no\.?|number)|candidate\s+(?:name|signature|details)|student\s+(?:name|id)|signature\s+of\s+(?:candidate|student))\b/i;
+
+function isCompetitiveCandidateFieldBlock(text: string): boolean {
+  return COMPETITIVE_CANDIDATE_FIELD_REGEX.test(text);
+}
+
 export function detectQuestionVisualMetadata(
   textLines: string[],
   options: Array<{ label: string; text: string }> = [],
@@ -1158,7 +1174,7 @@ export function detectQuestionVisualMetadata(
   );
   const visualReferences = Array.from(new Set(refMatches));
 
-  const tableData: CompetitiveTableData | null =
+  const detectedTableData: CompetitiveTableData | null =
     tableRows.length >= 2
       ? {
           headers: tableRows[0],
@@ -1166,6 +1182,10 @@ export function detectQuestionVisualMetadata(
           caption: captions.find(c => /table/i.test(c)),
         }
       : null;
+  const tableText = detectedTableData
+    ? [detectedTableData.headers || [], ...(detectedTableData.rows || [])].flat().join(' ')
+    : '';
+  const tableData = isCompetitiveCandidateFieldBlock(tableText) ? null : detectedTableData;
 
   const requiresVisual =
     visualReferences.length > 0 || tableData !== null || captions.length > 0;
@@ -1619,7 +1639,13 @@ export function bindVisualsToCompetitiveQuestions(
       for (const eq of pyQ.equations || []) {
         if (!target.equations!.includes(eq)) target.equations!.push(eq);
       }
-      if (pyQ.tableData && !target.tableData) {
+      if (
+        pyQ.tableData &&
+        !isCompetitiveCandidateFieldBlock(
+          [pyQ.tableData.headers || [], ...(pyQ.tableData.rows || [])].flat().join(' ')
+        ) &&
+        !target.tableData
+      ) {
         target.tableData = pyQ.tableData;
       }
       if (pyQ.sharedVisualGroupId && !target.sharedVisualGroupId) {
@@ -1628,6 +1654,14 @@ export function bindVisualsToCompetitiveQuestions(
       }
 
       for (const vis of pyQ.visualElements || []) {
+        const visualTableText = vis.tableData
+          ? [vis.tableData.headers || [], ...(vis.tableData.rows || [])].flat().join(' ')
+          : '';
+        if (
+          isCompetitiveCandidateFieldBlock(`${vis.caption || ''} ${visualTableText}`)
+        ) {
+          continue;
+        }
         const enrichedVis: CompetitiveVisualElement = {
           ...vis,
           sourcePdf: sourcePdfName,
@@ -1713,7 +1747,18 @@ function finalizeQuestionVisualState(
   sourcePdfName: string,
   sourceFileId: string
 ): ExtractedCompetitiveQuestion {
-  const visuals = Array.isArray(q.visualElements) ? q.visualElements : [];
+  const candidateTableText = q.tableData
+    ? [q.tableData.headers || [], ...(q.tableData.rows || [])].flat().join(' ')
+    : '';
+  if (isCompetitiveCandidateFieldBlock(candidateTableText)) {
+    q.tableData = null;
+  }
+  const visuals = (Array.isArray(q.visualElements) ? q.visualElements : []).filter(v => {
+    const visualTableText = v.tableData
+      ? [v.tableData.headers || [], ...(v.tableData.rows || [])].flat().join(' ')
+      : '';
+    return !isCompetitiveCandidateFieldBlock(`${v.caption || ''} ${visualTableText}`);
+  });
 
   // Ensure if tableData is present and no table visual exists, a structured_table visual entry is linked
   if (q.tableData && !visuals.some(v => v.type === 'table')) {
@@ -2193,6 +2238,14 @@ export function sanitizeAllCompetitivePoolsAndPapers(db: any, examIdFilter?: str
         }
       }
     }
+
+    // Sanitize pseudo-visuals (accidental equation text crops) in competitive_questions
+    try {
+      executeRun(
+        db,
+        "UPDATE competitive_questions SET has_visual = 0, image_url = NULL WHERE requires_visual = 0 AND (image_url LIKE 'data:image%' OR image_url IS NOT NULL) AND (visuals_json LIKE '%equation_image_crop%' OR visuals_json LIKE '%\"type\":\"equation\"%')"
+      );
+    } catch {}
 
     // Clean inline noise in question_translations rows
     const transRows = executeQuery(
@@ -3423,7 +3476,7 @@ export async function handleSaveCompetitiveExam(req: Request, res: Response) {
       return res.status(400).json({ error: 'Exam Name is required.' });
     }
 
-    const examId = is_new ? `comp-${uuidv4().slice(0, 8)}` : id || `comp-${uuidv4().slice(0, 8)}`;
+    const examId = (id && typeof id === 'string' && id.trim()) ? id.trim() : `comp-${uuidv4().slice(0, 8)}`;
     const now = new Date().toISOString();
     if (blueprint && Array.isArray(blueprint.subjects)) {
       reconcileCompetitiveExamPoolState(db, examId, orgId, blueprint.subjects);
@@ -3431,7 +3484,7 @@ export async function handleSaveCompetitiveExam(req: Request, res: Response) {
     const blueprintJson = blueprint ? JSON.stringify(blueprint) : null;
 
     const existing = executeQuery(db, 'SELECT id FROM competitive_exams WHERE id = ? AND org_id = ?', [examId, orgId]);
-    if (existing && existing.length > 0 && !is_new) {
+    if (existing && existing.length > 0) {
       executeRun(
         db,
         `UPDATE competitive_exams
@@ -3628,12 +3681,25 @@ export async function handleUploadSubjectPdf(req: Request, res: Response) {
     const now = new Date().toISOString();
     const effectiveFileName = file_name || 'uploaded_document.pdf';
 
+    // Persist uploaded PDF securely on server disk
+    let diskFilePath: string | null = null;
+    try {
+      const uploadsDir = path.resolve(process.cwd(), 'uploads', 'competitive');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      diskFilePath = path.join(uploadsDir, `${fileId}.pdf`);
+      fs.writeFileSync(diskFilePath, fileBuffer);
+    } catch (fsErr) {
+      console.warn('[ZeroLeak Competitive] Disk file write note:', fsErr);
+    }
+
     // 1. In-memory SQLite file tracking FIRST (guaranteed local persistence)
     executeRun(
       db,
       `INSERT INTO competitive_question_pool_files (
-        id, org_id, exam_id, subject_id, subject_name, file_name, mime_type, file_size, file_hash, status, question_count, uploaded_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PROCESSING', 0, ?)`,
+        id, org_id, exam_id, subject_id, subject_name, file_name, mime_type, file_size, file_hash, status, question_count, uploaded_at, file_path
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PROCESSING', 0, ?, ?)`,
       [
         fileId,
         orgId,
@@ -3645,6 +3711,7 @@ export async function handleUploadSubjectPdf(req: Request, res: Response) {
         fileSize,
         fileHash,
         now,
+        diskFilePath,
       ]
     );
 
@@ -3657,7 +3724,7 @@ export async function handleUploadSubjectPdf(req: Request, res: Response) {
     );
 
     // Optional PostgreSQL BYTEA persistence (non-blocking if PostgreSQL is offline)
-    if (pg) {
+    if (pg && isPostgresAvailable()) {
       try {
         await pg.query(
           `INSERT INTO competitive_question_pool_files (
@@ -3777,7 +3844,7 @@ export async function handleUploadSubjectPdf(req: Request, res: Response) {
     if (questions.length === 0) {
       const errMsg = `No extractable questions found in "${effectiveFileName}". Please ensure the uploaded PDF contains valid examination questions.`;
       executeRun(db, 'UPDATE competitive_question_pool_files SET status = ?, error_message = ? WHERE id = ?', ['FAILED', errMsg, fileId]);
-      if (pg) {
+      if (pg && isPostgresAvailable()) {
         try {
           await pg.query('UPDATE competitive_question_pool_files SET status = $1, error_message = $2 WHERE id = $3', ['FAILED', errMsg, fileId]);
         } catch {}
@@ -3873,7 +3940,7 @@ export async function handleUploadSubjectPdf(req: Request, res: Response) {
       'UPDATE competitive_question_pools SET question_count = ?, page_count = ? WHERE id = ?',
       [questions.length, pageCount, fileId]
     );
-    if (pg) {
+    if (pg && isPostgresAvailable()) {
       try {
         await pg.query(
           'UPDATE competitive_question_pool_files SET status = $1, question_count = $2, processed_at = $3 WHERE id = $4',
@@ -3921,7 +3988,7 @@ export async function handleUploadSubjectPdf(req: Request, res: Response) {
             exam_id,
             orgId,
           ]);
-          if (pg) {
+          if (pg && isPostgresAvailable()) {
             try {
               await pg.query('UPDATE competitive_exams SET blueprint_json = $1, updated_at = $2 WHERE id = $3 AND org_id = $4', [
                 bpStr,
@@ -5305,12 +5372,31 @@ export async function handleGenerateCompetitivePaper(req: Request, res: Response
               .filter(Boolean)
           : [];
 
-        const primaryVisualAsset = qVisualElements.find(v => v.dataUrl || v.publicUrl);
+        const primaryVisualAsset = qVisualElements.find(
+          v =>
+            (v.dataUrl || v.publicUrl) &&
+            v.type !== 'equation' &&
+            v.extractionMethod !== 'equation_image_crop'
+        );
+        const isEqCrop = (img?: string) => {
+          if (!img) return false;
+          return qVisualElements.some(
+            v =>
+              (v.dataUrl === img || v.publicUrl === img) &&
+              (v.type === 'equation' || v.extractionMethod === 'equation_image_crop')
+          );
+        };
         const effectiveImageUrl =
-          rawQ.image_url || primaryVisualAsset?.dataUrl || primaryVisualAsset?.publicUrl || undefined;
+          (!isEqCrop(rawQ.image_url) && rawQ.image_url) ||
+          primaryVisualAsset?.dataUrl ||
+          primaryVisualAsset?.publicUrl ||
+          undefined;
+        const realVisualElements = qVisualElements.filter(
+          v => v.type !== 'equation' && v.extractionMethod !== 'equation_image_crop'
+        );
         const hasVisual =
-          Boolean(rawQ.has_visual) ||
-          qVisualElements.length > 0 ||
+          (Boolean(rawQ.has_visual) && Boolean(rawQ.requires_visual)) ||
+          realVisualElements.length > 0 ||
           Boolean(qTableData) ||
           Boolean(effectiveImageUrl);
 
@@ -5923,7 +6009,23 @@ export async function handleDeletePoolFile(req: Request, res: Response) {
   try {
     const db = await getDb();
     const orgId = req.user?.org_id || 'ORG-DEV-001';
-    const { exam_id, subject, subject_id, source_pdf, file_id } = req.body;
+    let exam_id = req.body?.exam_id || (req.query?.exam_id as string) || '';
+    let file_id = req.body?.file_id || req.params?.fileId || req.params?.poolId || (req.query?.file_id as string) || '';
+    let source_pdf = req.body?.source_pdf || (req.query?.source_pdf as string) || '';
+    const subject = req.body?.subject;
+    const subject_id = req.body?.subject_id;
+
+    if ((!exam_id || !source_pdf) && file_id) {
+      const foundPool = executeQuery(
+        db,
+        'SELECT exam_id, file_name, file_path FROM competitive_question_pool_files WHERE id = ?',
+        [file_id]
+      );
+      if (foundPool && foundPool.length > 0) {
+        if (!exam_id) exam_id = foundPool[0].exam_id;
+        if (!source_pdf) source_pdf = foundPool[0].file_name;
+      }
+    }
 
     if (!exam_id || (!source_pdf && !file_id)) {
       return res.status(400).json({ error: 'exam_id and either file_id or source_pdf are required.' });
@@ -5932,8 +6034,18 @@ export async function handleDeletePoolFile(req: Request, res: Response) {
     const pg = getPostgresPool();
     const now = new Date().toISOString();
 
+    // Clean up physical file on disk
+    if (file_id) {
+      try {
+        const diskFile = path.resolve(process.cwd(), 'uploads', 'competitive', `${file_id}.pdf`);
+        if (fs.existsSync(diskFile)) {
+          fs.unlinkSync(diskFile);
+        }
+      } catch {}
+    }
+
     // 1. Delete from PostgreSQL if connected
-    if (pg) {
+    if (pg && isPostgresAvailable()) {
       try {
         if (file_id) {
           await pg.query(
@@ -6033,7 +6145,7 @@ export async function handleDeletePoolFile(req: Request, res: Response) {
             exam_id,
             orgId,
           ]);
-          if (pg) {
+          if (pg && isPostgresAvailable()) {
             try {
               await pg.query('UPDATE competitive_exams SET blueprint_json = $1, updated_at = $2 WHERE id = $3 AND org_id = $4', [
                 bpStr,
@@ -7007,8 +7119,16 @@ function resolveVisualElementBuffer(visual: CompetitiveVisualElement): Buffer | 
  */
 export async function generateCompetitiveExamPdfBuffer(
   paper: any,
-  options?: { viewMode?: 'original' | 'bilingual' | 'translated' }
-): Promise<{ pdfBuffer: Buffer; validationReport: CompetitivePaperVisualValidationReport }> {
+  options?: {
+    viewMode?: 'original' | 'bilingual' | 'translated';
+    watermarkMetadata?: Partial<WatermarkSecurityMetadata>;
+  }
+): Promise<{
+  pdfBuffer: Buffer;
+  validationReport: CompetitivePaperVisualValidationReport;
+  trackingCode?: string;
+  watermarkSummary?: string;
+}> {
   const viewMode = options?.viewMode || (paper?.hasBilingual && paper?.bilingualQuestions?.length > 0 ? 'bilingual' : 'original');
   const activeSections: any[] =
     viewMode === 'bilingual' && Array.isArray(paper?.bilingualSections) && paper.bilingualSections.length > 0
@@ -7041,11 +7161,43 @@ export async function generateCompetitiveExamPdfBuffer(
 
       const chunks: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-      doc.on('end', () => {
-        resolve({
-          pdfBuffer: Buffer.concat(chunks),
-          validationReport,
-        });
+      doc.on('end', async () => {
+        try {
+          const rawBuffer = Buffer.concat(chunks);
+          const meta: WatermarkSecurityMetadata = {
+            userId: options?.watermarkMetadata?.userId || 'usr-competitive-mgr',
+            userName: options?.watermarkMetadata?.userName || 'Authorized Competitive Official',
+            userRole: options?.watermarkMetadata?.userRole || 'EXAM_MANAGER',
+            examId: options?.watermarkMetadata?.examId || paper?.examId || paper?.exam_id || paper?.id || 'COMP-EXAM',
+            examName: paper?.examName || paper?.title || 'Competitive Examination',
+            trackingCode: options?.watermarkMetadata?.trackingCode,
+            timestamp: options?.watermarkMetadata?.timestamp,
+            location: options?.watermarkMetadata?.location,
+            ipAddress: options?.watermarkMetadata?.ipAddress || '127.0.0.1',
+            deviceFingerprint: options?.watermarkMetadata?.deviceFingerprint || 'enclave-node',
+            moduleType: 'COMPETITIVE',
+          };
+
+          const { watermarkedBuffer, trackingCode, watermarkText } = await applyDynamicSecurityWatermarkToPdf(
+            rawBuffer,
+            meta
+          );
+
+          await logSecurityWatermarkAuditEvent(
+            { ...meta, trackingCode },
+            'WATERMARK_APPLIED',
+            { paperId: paper?.id, examName: paper?.examName }
+          );
+
+          resolve({
+            pdfBuffer: watermarkedBuffer,
+            validationReport,
+            trackingCode,
+            watermarkSummary: watermarkText,
+          });
+        } catch (err) {
+          reject(err);
+        }
       });
       doc.on('error', (err: Error) => reject(err));
 
@@ -7604,7 +7756,8 @@ export async function handleDownloadCompetitivePaperPdf(req: Request, res: Respo
 export function registerCompetitiveExamRoutes(
   app: any,
   authenticateToken: any,
-  requireRole: (roles: string[]) => any
+  requireRole: (roles: string[]) => any,
+  requireVerifiedTranslatorSession?: any
 ) {
   // Serve extracted Competitive Exam visual assets statically
   const visualsDir = path.join(process.cwd(), 'public', 'competitive_visuals');
@@ -7613,7 +7766,7 @@ export function registerCompetitiveExamRoutes(
   } catch {
     // ignore mkdir errors
   }
-  const allowedManagerRoles = ['EXAM_MANAGER', 'ORG_OWNER', 'EXAM_CONTROLLER', 'ADMIN', 'SUPER_ADMIN', 'UNIVERSITY_ADMIN'];
+  const allowedManagerRoles = ['EXAM_MANAGER', 'ORG_OWNER', 'EXAM_CONTROLLER', 'ADMIN', 'SUPER_ADMIN', 'UNIVERSITY_ADMIN', 'AUDITOR'];
 
   app.use('/competitive_visuals', express.static(visualsDir));
   app.post('/api/competitive/papers/:paperId/validate-visuals', authenticateToken, handleValidateCompetitivePaperVisuals);
@@ -7635,9 +7788,10 @@ export function registerCompetitiveExamRoutes(
   app.get('/api/competitive/papers/:examId', authenticateToken, handleGetCompetitivePapersByExam);
 
   // Translator workflow routes
-  app.get('/api/competitive/translator/assigned-papers', authenticateToken, handleGetTranslatorAssignedPapers);
-  app.post('/api/competitive/papers/:paperId/return-translations', authenticateToken, requireRole(['TRANSLATOR', ...allowedManagerRoles]), handleReturnTranslatedPaperToManager);
-  app.post('/api/competitive/translator/return-paper/:paperId', authenticateToken, requireRole(['TRANSLATOR', ...allowedManagerRoles]), handleReturnTranslatedPaperToManager);
+  const translatorVerification = requireVerifiedTranslatorSession ? [requireVerifiedTranslatorSession] : [];
+  app.get('/api/competitive/translator/assigned-papers', authenticateToken, ...translatorVerification, handleGetTranslatorAssignedPapers);
+  app.post('/api/competitive/papers/:paperId/return-translations', authenticateToken, ...translatorVerification, requireRole(['TRANSLATOR', ...allowedManagerRoles]), handleReturnTranslatedPaperToManager);
+  app.post('/api/competitive/translator/return-paper/:paperId', authenticateToken, ...translatorVerification, requireRole(['TRANSLATOR', ...allowedManagerRoles]), handleReturnTranslatedPaperToManager);
   app.post('/api/competitive/papers/:paperId/generate-final-bilingual', authenticateToken, requireRole(allowedManagerRoles), handleGenerateFinalBilingualCompetitivePaper);
   app.post('/api/competitive/generate-final-bilingual/:paperId', authenticateToken, requireRole(allowedManagerRoles), handleGenerateFinalBilingualCompetitivePaper);
 
@@ -7662,7 +7816,5 @@ export function registerCompetitiveExamRoutes(
     })
   );
 }
-
-
 
 

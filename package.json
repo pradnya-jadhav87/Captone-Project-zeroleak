@@ -5,7 +5,7 @@
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
-    "dev": "tsx watch server.ts",
+    "dev": "tsx server.ts",
     "desktop": "electron .",
     "desktop:smoke": "electron . --smoke",
     "desktop:install": "node node_modules/electron/install.js",

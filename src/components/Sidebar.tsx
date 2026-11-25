@@ -20,6 +20,10 @@ import {
   FileText,
   Laptop,
   Users,
+  KeyRound,
+  AlertOctagon,
+  RotateCcw,
+  Search,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -30,12 +34,16 @@ export type NavSubTab =
   | 'security_settings'
   | 'security_events'
   | 'proctor_dashboard'
+  | 'account_settings'
   // Org Owner
   | 'org_profile'
   | 'verification_status'
   | 'documents'
   | 'authorized_managers'
   | 'trusted_devices'
+  | 'key_approvals'
+  | 'paper_leak_oversight'
+  | 'print_monitoring'
   // Exam Manager
   | 'all_examinations'
   | 'create_examination'
@@ -46,6 +54,9 @@ export type NavSubTab =
   | 'multi_paper_generator'
   | 'paper_versions'
   | 'examination_centres'
+  | 'paper_security'
+  | 'print_anywhere_tracking'
+  | 'paper_leak_management'
   // Translator
   | 'translation_tasks'
   | 'verification_history'
@@ -59,7 +70,9 @@ export type NavSubTab =
   | 'login_history'
   | 'paper_events'
   | 'printing_events'
-  | 'regeneration_events';
+  | 'regeneration_events'
+  | 'security_approvals'
+  | 'paper_leak_incidents';
 
 interface SidebarProps {
   activeSubTab: NavSubTab;
@@ -96,8 +109,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {
             title: 'ACCESS CONTROL',
             items: [
-              { id: 'authorized_managers', label: 'Authorized Managers', icon: Users },
+              { id: 'authorized_managers', label: 'Authorized Personnel', icon: Users },
               { id: 'trusted_devices', label: 'Trusted Workstations', icon: Laptop },
+            ],
+          },
+          {
+            title: 'SECURITY & CUSTODIAN',
+            items: [
+              { id: 'key_approvals', label: 'Encryption Key Approvals', icon: KeyRound },
+              { id: 'paper_leak_oversight', label: 'Leak & Quarantine Oversight', icon: AlertOctagon },
+              { id: 'print_monitoring', label: 'Print Fleet Monitoring', icon: Printer },
             ],
           },
         ];
@@ -128,8 +149,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ],
           },
           {
-            title: 'INFRASTRUCTURE',
-            items: [{ id: 'examination_centres', label: 'Examination Centres', icon: Building2 }],
+            title: 'SECURITY & ROUTING',
+            items: [
+              { id: 'paper_security', label: 'Threshold Encryption & Keys', icon: KeyRound },
+              { id: 'print_anywhere_tracking', label: 'Print Anywhere Routing', icon: Printer },
+              { id: 'paper_leak_management', label: 'Report Leak / Regenerate', icon: RotateCcw },
+            ],
+          },
+          {
+            title: 'STAFF & CENTRES',
+            items: [
+              { id: 'authorized_managers', label: 'Subordinate Personnel', icon: Users },
+              { id: 'examination_centres', label: 'Examination Centres', icon: Building2 },
+            ],
           },
         ];
 
@@ -144,6 +176,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             items: [
               { id: 'translation_tasks', label: 'Assigned Papers', icon: FileText },
               { id: 'verification_history', label: 'Translation Logs', icon: History },
+            ],
+          },
+          {
+            title: 'ACCOUNT',
+            items: [
+              { id: 'account_settings', label: 'Account & Reset', icon: Settings },
             ],
           },
         ];
@@ -163,8 +201,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ],
           },
           {
-            title: 'HARDWARE',
-            items: [{ id: 'device_status', label: 'Device Attestation', icon: Laptop }],
+            title: 'HARDWARE & ACCOUNT',
+            items: [
+              { id: 'device_status', label: 'Device Attestation', icon: Laptop },
+              { id: 'account_settings', label: 'Account & Reset', icon: Settings },
+            ],
           },
         ];
 
@@ -175,6 +216,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             items: [{ id: 'dashboard', label: 'Audit Dashboard', icon: LayoutDashboard }],
           },
           {
+            title: 'FORENSIC & LEAK INVESTIGATION',
+            items: [
+              { id: 'paper_leak_incidents', label: 'Watermark Forensics & Leaks', icon: Search },
+              { id: 'security_approvals', label: 'Custodian Key Approvals', icon: KeyRound },
+              { id: 'proctor_dashboard', label: 'Leak Surveillance Audit', icon: ShieldAlert },
+            ],
+          },
+          {
             title: 'AUDIT LEDGER',
             items: [
               { id: 'audit_trail', label: 'Cryptographic Trail', icon: History },
@@ -182,10 +231,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               { id: 'paper_events', label: 'Paper Lifecycle Logs', icon: FileText },
               { id: 'printing_events', label: 'Printing Logs', icon: Printer },
             ],
-          },
-          {
-            title: 'SURVEILLANCE',
-            items: [{ id: 'proctor_dashboard', label: 'Leak Surveillance Audit', icon: ShieldAlert }],
           },
         ];
 

@@ -19,7 +19,7 @@ import {
   KeyRound,
   Sparkles,
 } from 'lucide-react';
-import { api, getCanonicalOsExamContent } from '../../api';
+import { api, getCanonicalOsExamContent, saveLocalTransferredJob } from '../../api';
 
 export interface TransferToPrintingManagerModalProps {
   isOpen: boolean;
@@ -193,7 +193,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
           message: response.message,
         };
         setJobDetails(details);
-        api.saveLocalTransferredJob({
+        saveLocalTransferredJob({
           id: details.jobId,
           paperId: `EXAM-${configuredCourseCode}-${Date.now().toString().slice(-4)}`,
           title: configuredTitle,
@@ -249,7 +249,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
             sizeBytes: 48678,
           };
           setJobDetails(details);
-          api.saveLocalTransferredJob({
+          saveLocalTransferredJob({
             id: details.jobId,
             paperId: `EXAM-${configuredCourseCode}-${Date.now().toString().slice(-4)}`,
             title: configuredTitle,
@@ -288,7 +288,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
         sizeBytes: 48678,
       };
       setJobDetails(fallbackDetails);
-      api.saveLocalTransferredJob({
+      saveLocalTransferredJob({
         id: fallbackDetails.jobId,
         paperId: `EXAM-${configuredCourseCode}-${Date.now().toString().slice(-4)}`,
         title: configuredTitle,
@@ -414,7 +414,7 @@ export const TransferToPrintingManagerModal: React.FC<TransferToPrintingManagerM
       };
 
       // 0. Ensure configured job is stored in volatile session memory
-      api.saveLocalTransferredJob({
+      saveLocalTransferredJob({
         id: jobDetails?.jobId || `JOB-PRINT-${Date.now().toString().slice(-6)}`,
         paperId: `EXAM-${configuredCourseCode}-${Date.now().toString().slice(-4)}`,
         title: configuredTitle,

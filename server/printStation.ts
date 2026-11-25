@@ -281,7 +281,7 @@ export function describeStationRemaining(expiresAt: number, now: number): string
 }
 
 // ---------------------------------------------------------------------------
-// The print security gate
+// Print security checks
 // ---------------------------------------------------------------------------
 
 /**
@@ -381,122 +381,6 @@ export function evaluatePrintSecurity(input: PrintSecurityInput): {
   }
 
   return { allowed: !checks.some(check => check.status === 'FAIL'), checks };
-}
-
-/**
- * Single-use authorisation token for a print release.
- *
- * The operator's password proves *who* is printing; this token proves the
- * release was armed seconds ago for *this* exam, version, copy count and
- * workstation, and that it has not already been spent. Without it a replayed
- * `print-authorized-copy` body would mint copies forever.
- */
-export interface PrintAuthorizationToken {
-  token: string;
-  code: string;
-  expiresAt: number;
-}
-
-export interface PrintAuthorizationBinding {
-  userId: string;
-  deviceFingerprint: string;
-  examId: string;
-  paperVersionId: string;
-  copies: number;
-}
-
-export interface PrintAuthorizationConsumption extends PrintAuthorizationBinding {
-  token: string;
-  code: string;
-}
-
-export const PRINT_AUTH_TTL_MS = 3 * 60_000;
-
-function bindingMaterial(binding: PrintAuthorizationBinding, expiresAt: number, nonce: string, code: string): string {
-  return [
-    binding.userId,
-    binding.deviceFingerprint,
-    binding.examId,
-    binding.paperVersionId,
-    String(binding.copies),
-    String(expiresAt),
-    nonce,
-    code,
-  ].join('|');
-}
-
-export class PrintAuthorizationGuard {
-  private readonly secret: string;
-  private readonly now: () => number;
-  private readonly spent = new Set<string>();
-  private readonly codes = new Map<string, string>();
-
-  constructor(secret: string, options: { now?: () => number } = {}) {
-    this.secret = secret;
-    this.now = options.now ?? (() => Date.now());
-  }
-
-  arm(binding: PrintAuthorizationBinding, ttlMs = PRINT_AUTH_TTL_MS): PrintAuthorizationToken {
-    const expiresAt = this.now() + ttlMs;
-    const nonce = crypto.randomBytes(12).toString('base64url');
-    const code = createStationCode();
-    const digest = crypto
-      .createHmac('sha256', this.secret)
-      .update(bindingMaterial(binding, expiresAt, nonce, code))
-      .digest('base64url');
-    const token = `${expiresAt}.${nonce}.${digest}`;
-    this.codes.set(token, code);
-    this.pruneExpired();
-    return { token, code, expiresAt };
-  }
-
-  /** The code the operator must read back off the panel. */
-  peekCode(token: string): string | null {
-    return this.codes.get(token) ?? null;
-  }
-
-  /**
-   * Verifies, then burns the token so it can only ever be spent once.
-   *
-   * `reason` rides on both branches for the same no-`strictNullChecks` reason as
-   * the relay results: the caller must be able to explain a refusal without a cast.
-   */
-  consume(input: PrintAuthorizationConsumption): { ok: true; reason: string } | { ok: false; reason: string } {
-    const parts = String(input.token || '').split('.');
-    if (parts.length !== 3) return { ok: false, reason: 'Malformed print authorisation token.' };
-    const [expiresRaw, nonce, digest] = parts;
-    const expiresAt = Number(expiresRaw);
-    if (!Number.isFinite(expiresAt)) return { ok: false, reason: 'Malformed print authorisation token.' };
-    if (this.now() > expiresAt) return { ok: false, reason: 'Print authorisation expired; re-arm from the panel.' };
-    if (this.spent.has(input.token)) return { ok: false, reason: 'This print authorisation has already been used.' };
-
-    const code = normalizeStationCode(input.code);
-    if (!code) return { ok: false, reason: `Enter the ${STATION_CODE_LENGTH}-digit print authorisation code shown on the panel.` };
-    if (code !== this.codes.get(input.token)) return { ok: false, reason: 'Print authorisation code did not match.' };
-
-    const expected = crypto
-      .createHmac('sha256', this.secret)
-      .update(bindingMaterial(input, expiresAt, nonce, code))
-      .digest('base64url');
-    if (expected.length !== digest.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(digest))) {
-      return { ok: false, reason: 'Print authorisation does not match this examination, copy count or workstation.' };
-    }
-
-    this.spent.add(input.token);
-    this.codes.delete(input.token);
-    return { ok: true, reason: '' };
-  }
-
-  private pruneExpired(): void {
-    const cutoff = this.now();
-    for (const token of [...this.codes.keys()]) {
-      const expiresAt = Number(token.split('.')[0]);
-      if (!Number.isFinite(expiresAt) || expiresAt < cutoff - PRINT_AUTH_TTL_MS) {
-        this.codes.delete(token);
-        this.spent.delete(token);
-      }
-    }
-  }
 }
 
 // ---------------------------------------------------------------------------

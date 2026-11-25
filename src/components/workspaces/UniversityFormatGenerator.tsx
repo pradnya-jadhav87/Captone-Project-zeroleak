@@ -48,6 +48,12 @@ import { QuestionPaperPdfModal } from './QuestionPaperPdfModal';
 import { LaTeXText } from '../common/LaTeXText';
 import { FreeLatexToolchainPanel } from '../FreeLatexToolchainPanel';
 import { SecurePaperViewer } from '../security/SecurePaperViewer';
+import {
+  getSecurityWatermarkLocation,
+  getImmediateSecurityWatermarkLocation,
+  activatePlatformScreenProtection,
+  type ClientSecurityLocation,
+} from '../../utils/securityProtection';
 
 interface UniversityFormatGeneratorProps {
   currentUser: User | null;
@@ -143,8 +149,15 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
   const [showLatexModal, setShowLatexModal] = useState(false);
   const [latexCode, setLatexCode] = useState('');
   const [copiedLatex, setCopiedLatex] = useState(false);
+  const [watermarkLocation, setWatermarkLocation] = useState<ClientSecurityLocation>(() =>
+    getImmediateSecurityWatermarkLocation()
+  );
 
   useEffect(() => {
+    activatePlatformScreenProtection();
+    getSecurityWatermarkLocation().then((loc) => {
+      setWatermarkLocation(loc);
+    });
     loadExaminations();
     checkCloudinary();
     checkFormatex();
@@ -163,8 +176,16 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
     setGeneratingFinalPdf(true);
     setActionMessage(null);
     try {
+      let loc = watermarkLocation;
+      try {
+        loc = await getSecurityWatermarkLocation();
+        setWatermarkLocation(loc);
+      } catch {}
+
       const setLetter = ['P', 'Q', 'R', 'S'][activeSetIndex] || 'P';
-      const res = await api.generateUniversityFinalPaper(selectedExamId || 'EXAM-UNIV-MASTER-2026', setLetter);
+      const res = await api.generateUniversityFinalPaper(selectedExamId || 'EXAM-UNIV-MASTER-2026', setLetter, {
+        location: loc,
+      });
       if (res && res.success) {
         setFinalPaperResponse(res);
         setActionMessage({
@@ -246,9 +267,9 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
       return;
     }
 
-    if (filesArray.length !== 3) {
+    if (filesArray.length < 3 || filesArray.length > 5) {
       setSelectedFiles([]);
-      setUploadValidationError('INVALID_FILE_COUNT: Exactly 3 question-paper PDFs (Paper 1, Paper 2, Paper 3) must be selected.');
+      setUploadValidationError(`INVALID_FILE_COUNT: Between 3 and 5 question-paper PDFs must be selected. You selected ${filesArray.length}.`);
       return;
     }
 
@@ -272,8 +293,8 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
   };
 
   const handleUploadAndIngestDrafts = async () => {
-    if (selectedFiles.length !== 3) {
-      setUploadValidationError('EXACTLY 3 question-paper PDFs (Paper 1, Paper 2, Paper 3) are required for University Exam ingestion.');
+    if (selectedFiles.length < 3 || selectedFiles.length > 5) {
+      setUploadValidationError('Between 3 and 5 question-paper PDFs (min 3, max 5) are required for University Exam ingestion.');
       return;
     }
 
@@ -1719,6 +1740,8 @@ export const UniversityFormatGenerator: React.FC<UniversityFormatGeneratorProps>
                 examId={selectedExam?.id}
                 examTitle={selectedExam?.name || 'University Examination Paper'}
                 examType="UNIVERSITY"
+                trackingCode={finalPaperResponse?.trackingCode}
+                location={watermarkLocation}
               >
                 <div className="bg-white text-slate-900 p-6 sm:p-10 rounded-2xl shadow-md border border-slate-200 space-y-6 max-w-full overflow-hidden relative">
                 {/* Official University Header */}

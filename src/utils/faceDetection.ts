@@ -256,20 +256,31 @@ function detectFacesUsingCanvas(video: HTMLVideoElement): FaceDetectionResult {
       if (phoneDetected) break;
     }
 
-    // 2. Multiple faces / Secondary person detection via horizontal histogram & dual clustering
-    // 2. Multiple faces / Secondary person detection:
-    // Requires two widely separated skin mass centroids (at least 45% of width apart)
-    // with a deep valley of non-skin in between.
+    // 2. Multiple faces / Secondary person detection (Dual-Centroid & Spatial Clustering)
+    // Robust detection for two persons sitting side-by-side or shoulder-to-shoulder:
+    let leftSkinCount = 0;
+    let rightSkinCount = 0;
+    let leftSumX = 0;
+    let rightSumX = 0;
     let leftSkinMass = 0;
     let rightSkinMass = 0;
     let centerValleySkin = 0;
 
-    const leftBoundary = Math.floor(gridW * 0.35);
-    const rightBoundary = Math.floor(gridW * 0.65);
+    const midX = gridW / 2;
+    const leftBoundary = Math.floor(gridW * 0.38);
+    const rightBoundary = Math.floor(gridW * 0.62);
 
     for (let gy = 0; gy < gridH; gy++) {
       for (let gx = 0; gx < gridW; gx++) {
         if (skinGrid[gy * gridW + gx] === 1) {
+          if (gx < midX) {
+            leftSkinCount++;
+            leftSumX += gx;
+          } else {
+            rightSkinCount++;
+            rightSumX += gx;
+          }
+
           if (gx < leftBoundary) leftSkinMass++;
           else if (gx > rightBoundary) rightSkinMass++;
           else centerValleySkin++;
@@ -277,19 +288,32 @@ function detectFacesUsingCanvas(video: HTMLVideoElement): FaceDetectionResult {
       }
     }
 
-    const minPersonMass = totalCells * 0.06; // at least 6% of total cells on each separate side
-    // Two distinct persons require empty space between them (center valley significantly lower than either mass)
-    const hasTwoSeparatePeople =
-      leftSkinMass > minPersonMass &&
-      rightSkinMass > minPersonMass &&
-      centerValleySkin < Math.min(leftSkinMass, rightSkinMass) * 0.25;
+    const minPerSide = Math.max(10, totalCells * 0.012);
+    let hasTwoSeparatePeople = false;
+
+    if (leftSkinCount >= minPerSide && rightSkinCount >= minPerSide) {
+      const leftCentroid = leftSumX / leftSkinCount;
+      const rightCentroid = rightSumX / rightSkinCount;
+      const centroidDistance = rightCentroid - leftCentroid;
+      // When 2 people are in frame, their centroids are separated across the width (>= 22% of frame width)
+      if (centroidDistance >= gridW * 0.22) {
+        hasTwoSeparatePeople = true;
+      }
+    }
+
+    // Secondary check: distinct masses on left and right flanks
+    if (!hasTwoSeparatePeople && leftSkinMass >= 14 && rightSkinMass >= 14) {
+      if (centerValleySkin < (leftSkinMass + rightSkinMass) * 0.7) {
+        hasTwoSeparatePeople = true;
+      }
+    }
 
     if (hasTwoSeparatePeople) {
       return {
         faceCount: 2,
         status: 'MULTIPLE_FACES',
         lookingDirection: 'FORWARD',
-        confidence: 0.94,
+        confidence: 0.95,
         phoneDetected,
         phoneCount,
       };

@@ -26,6 +26,9 @@ import { User, Organization, OrganizationDocument, TrustedDevice, SecurityEvent 
 import { api, getDeviceFingerprint, performFullLogin } from '../../api';
 import { NavSubTab } from '../Sidebar';
 import { PrintAnywhereMonitorSection } from '../PrintAnywhereMonitorSection';
+import { HierarchicalAccessManagementPanel } from '../access/HierarchicalAccessManagementPanel';
+import { CustodianKeyApprovalsView } from '../papers/CustodianKeyApprovalsView';
+import { PaperLeakManagementView } from '../leak/PaperLeakManagementView';
 
 interface OrgOwnerWorkspaceProps {
   currentUser: User | null;
@@ -801,6 +804,12 @@ export const OrgOwnerWorkspace: React.FC<OrgOwnerWorkspaceProps> = ({
       {/* AUTHORIZED USERS */}
       {activeSubTab === 'authorized_managers' && (
         <div className="space-y-6">
+          {currentUser && (
+            <HierarchicalAccessManagementPanel
+              currentUser={currentUser}
+              onRefresh={loadData}
+            />
+          )}
           <div className="stat-card-luxury p-6 sm:p-8 rounded-3xl bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-[0_10px_30px_-5px_rgba(15,23,42,0.05)] space-y-5 relative overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-5">
               <div>
@@ -1581,6 +1590,31 @@ export const OrgOwnerWorkspace: React.FC<OrgOwnerWorkspaceProps> = ({
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {/* CUSTODIAN KEY APPROVALS */}
+      {activeSubTab === 'key_approvals' && (
+        <CustodianKeyApprovalsView
+          currentUser={currentUser}
+          role="ORG_OWNER"
+          onRefresh={loadData}
+        />
+      )}
+
+      {/* PAPER LEAK & QUARANTINE OVERSIGHT */}
+      {activeSubTab === 'paper_leak_oversight' && (
+        <PaperLeakManagementView
+          currentUser={currentUser}
+          role="ORG_OWNER"
+          onRefresh={loadData}
+        />
+      )}
+
+      {/* PRINT ANYWHERE FLEET MONITORING */}
+      {activeSubTab === 'print_monitoring' && (
+        <div className="space-y-6">
+          <PrintAnywhereMonitorSection variant="OWNER" />
         </div>
       )}
 

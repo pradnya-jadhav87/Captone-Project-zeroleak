@@ -78,6 +78,9 @@ export function initViewOnceSchema(db: Database) {
   try {
     executeRun(db, 'ALTER TABLE competitive_generated_papers ADD COLUMN preview_session_token TEXT;');
   } catch {}
+  try {
+    executeRun(db, 'ALTER TABLE competitive_generated_papers ADD COLUMN encrypted_at TEXT;');
+  } catch {}
 
   // Alter university_generated_papers if columns are missing
   try {
@@ -92,6 +95,9 @@ export function initViewOnceSchema(db: Database) {
   try {
     executeRun(db, 'ALTER TABLE university_generated_papers ADD COLUMN preview_session_token TEXT;');
   } catch {}
+  try {
+    executeRun(db, 'ALTER TABLE university_generated_papers ADD COLUMN encrypted_at TEXT;');
+  } catch {}
 }
 
 /**
@@ -101,7 +107,8 @@ export function initViewOnceSchema(db: Database) {
 export function getViewOnceStatus(
   db: Database,
   examType: ExamCategoryType,
-  paperId: string
+  paperId: string,
+  requestingUserId?: string
 ): ViewOnceStatusResult {
   initViewOnceSchema(db);
 
@@ -110,20 +117,70 @@ export function getViewOnceStatus(
   if (examType === 'COMPETITIVE') {
     const rows = executeQuery(
       db,
-      'SELECT id, exam_id, preview_status, preview_consumed_at, preview_consumed_by FROM competitive_generated_papers WHERE id = ?',
+      'SELECT * FROM competitive_generated_papers WHERE id = ?',
       [paperId]
     );
     paperRow = rows[0] || null;
   } else {
     const rows = executeQuery(
       db,
-      'SELECT id, exam_id, preview_status, preview_consumed_at, preview_consumed_by FROM university_generated_papers WHERE id = ?',
+      'SELECT * FROM university_generated_papers WHERE id = ?',
       [paperId]
     );
     paperRow = rows[0] || null;
   }
 
   const examId = paperRow?.exam_id || '';
+
+  // 1B. Hard lockout if paper is already encrypted (Requirement 6: no viewing after encryption)
+  if (paperRow?.is_encrypted === 1 || paperRow?.encryption_status === 'ENCRYPTED') {
+    return {
+      previewStatus: 'CONSUMED',
+      canView: false,
+      paperId,
+      examId,
+      examType,
+      consumedAt: paperRow?.encrypted_at || paperRow?.preview_consumed_at || null,
+      consumedBy: paperRow?.verified_by || null,
+      consumedReason: 'PAPER_ALREADY_ENCRYPTED',
+    };
+  }
+
+  // 1B2. Hard lockout if paper is compromised or under active leak incident
+  try {
+    const leakRows = executeQuery(
+      db,
+      `SELECT id, leak_status FROM paper_leak_incidents 
+       WHERE (paper_id = ? OR exam_id = ?) AND leak_status IN ('LEAK_SUSPECTED', 'LEAK_CONFIRMED', 'CONTAINED')
+       LIMIT 1`,
+      [paperId, examId]
+    );
+    if (leakRows && leakRows.length > 0) {
+      return {
+        previewStatus: 'CONSUMED',
+        canView: false,
+        paperId,
+        examId,
+        examType,
+        consumedAt: new Date().toISOString(),
+        consumedReason: 'PAPER_COMPROMISED_LEAK_CONTAINMENT',
+      };
+    }
+  } catch {}
+
+  // 1C. Hard lockout if paper verification has already completed (Requirement 1: view once per version)
+  if (paperRow?.verification_completed === 1 || paperRow?.verification_status === 'VERIFIED') {
+    return {
+      previewStatus: 'CONSUMED',
+      canView: false,
+      paperId,
+      examId,
+      examType,
+      consumedAt: paperRow?.verified_at || paperRow?.preview_consumed_at || null,
+      consumedBy: paperRow?.verified_by || null,
+      consumedReason: 'VERIFICATION_ALREADY_COMPLETED',
+    };
+  }
 
   // 2. Query session ledger
   const sessionRows = executeQuery(
@@ -205,7 +262,9 @@ export function getViewOnceStatus(
       paperId,
       examId,
       examType,
-      activeSessionToken: activeSession.session_token,
+      ...(requestingUserId && requestingUserId !== activeSession.user_id
+        ? {}
+        : { activeSessionToken: activeSession.session_token }),
       remainingSeconds: remainingSecs,
       startedAt: activeSession.started_at,
       expiresAt: activeSession.expires_at,
@@ -265,8 +324,38 @@ export function startViewOnceSession(
 
   // 2. Check if a session is currently in progress
   if (current.previewStatus === 'VIEWING') {
-    // If the caller provides the exact same sessionToken, allow resuming within its active window
-    if (params.requestSessionToken && params.requestSessionToken === current.activeSessionToken) {
+    const activeSession = executeQuery(
+      db,
+      'SELECT * FROM view_once_preview_sessions WHERE session_token = ?',
+      [current.activeSessionToken]
+    )[0];
+    let storedBrowserInfo: any = {};
+    try {
+      storedBrowserInfo = activeSession?.browser_info_json ? JSON.parse(activeSession.browser_info_json) : {};
+    } catch {
+      storedBrowserInfo = {};
+    }
+    const activeTabId = storedBrowserInfo?.viewOnceTabId;
+    const requestingTabId = params.browserInfo?.viewOnceTabId;
+    const sameOwner = activeSession?.user_id === params.userId;
+    const sameSession = params.requestSessionToken === current.activeSessionToken;
+    const sameTab = Boolean(requestingTabId && activeTabId && requestingTabId === activeTabId);
+    const recoverLegacySession = Boolean(
+      sameOwner &&
+      requestingTabId &&
+      !activeTabId &&
+      (!params.requestSessionToken || sameSession)
+    );
+
+    if (sameOwner && (sameTab || recoverLegacySession || (sameSession && !requestingTabId))) {
+      if (requestingTabId && !activeTabId) {
+        executeRun(
+          db,
+          'UPDATE view_once_preview_sessions SET browser_info_json = ? WHERE id = ?',
+          [JSON.stringify({ ...storedBrowserInfo, ...params.browserInfo }), activeSession.id]
+        );
+        saveDb();
+      }
       return {
         success: true,
         status: 'VIEWING',
@@ -372,12 +461,43 @@ export function consumeViewOnceSession(
   const nowIso = new Date().toISOString();
 
   if (params.sessionToken) {
+    const sessions = executeQuery(
+      db,
+      `SELECT * FROM view_once_preview_sessions
+       WHERE session_token = ? AND paper_id = ? AND user_id = ?`,
+      [params.sessionToken, params.paperId, params.userId]
+    );
+    const session = sessions[0];
+    if (!session) {
+      return {
+        success: false,
+        status: 'NOT_VIEWED',
+        consumedAt: nowIso,
+        reason: 'The preview session does not belong to this user or paper.',
+      };
+    }
+    if (session.status === 'CONSUMED') {
+      return {
+        success: true,
+        status: 'CONSUMED',
+        consumedAt: session.consumed_at || nowIso,
+        reason: session.consumed_reason || params.reason,
+      };
+    }
+    if (session.status !== 'VIEWING') {
+      return {
+        success: false,
+        status: session.status,
+        consumedAt: nowIso,
+        reason: 'The preview session is not active.',
+      };
+    }
     executeRun(
       db,
       `UPDATE view_once_preview_sessions 
        SET status = 'CONSUMED', consumed_at = ?, consumed_reason = ? 
-       WHERE session_token = ? OR paper_id = ?`,
-      [nowIso, params.reason, params.sessionToken, params.paperId]
+       WHERE session_token = ? AND paper_id = ? AND user_id = ? AND status = 'VIEWING'`,
+      [nowIso, params.reason, params.sessionToken, params.paperId, params.userId]
     );
   } else {
     executeRun(

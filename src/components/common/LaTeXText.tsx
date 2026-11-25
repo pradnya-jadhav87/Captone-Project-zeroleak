@@ -1,6 +1,9 @@
 import React from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { renderLatexToHtml } from '../../utils/latexRenderer';
+
+export { renderLatexToHtml };
 
 interface LaTeXTextProps {
   text: string;
@@ -10,21 +13,32 @@ interface LaTeXTextProps {
 export const LaTeXText: React.FC<LaTeXTextProps> = ({ text, className = '' }) => {
   if (!text) return null;
 
-  // If text does not contain LaTeX math delimiters, render cleanly as text
-  if (!text.includes('$')) {
-    return <span className={className}>{text}</span>;
+  let str = String(text);
+  // Normalize \( ... \) to $ ... $ and \[ ... \] to $$ ... $$
+  str = str.replace(/\\\[([\s\S]+?)\\\]/g, '$$$$$1$$$$');
+  str = str.replace(/\\\(([\s\S]+?)\\\)/g, '$$$1$$');
+
+  // If text does not contain LaTeX math delimiters, check if it's bare LaTeX
+  if (!str.includes('$')) {
+    if (/(\\[a-zA-Z]+|\^|_|\{|\})/.test(str)) {
+      try {
+        const html = katex.renderToString(str, { displayMode: false, throwOnError: false });
+        return <span className={className} dangerouslySetInnerHTML={{ __html: html }} />;
+      } catch {}
+    }
+    return <span className={className}>{str}</span>;
   }
 
   const parts: React.ReactNode[] = [];
-  const regex = /\$\$([^$]+)\$\$|\$([^$]+)\$/g;
+  const regex = /\$\$([\s\S]+?)\$\$|\$([^$]+?)\$/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = regex.exec(text)) !== null) {
+  while ((match = regex.exec(str)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(<span key={`txt-${lastIndex}`}>{text.substring(lastIndex, match.index)}</span>);
+      parts.push(<span key={`txt-${lastIndex}`}>{str.substring(lastIndex, match.index)}</span>);
     }
-    const isBlock = !!match[1];
+    const isBlock = Boolean(match[1]);
     const formula = (match[1] || match[2] || '').trim();
     try {
       const html = katex.renderToString(formula, {
@@ -44,10 +58,9 @@ export const LaTeXText: React.FC<LaTeXTextProps> = ({ text, className = '' }) =>
     lastIndex = regex.lastIndex;
   }
 
-  if (lastIndex < text.length) {
-    parts.push(<span key={`txt-${lastIndex}`}>{text.substring(lastIndex)}</span>);
+  if (lastIndex < str.length) {
+    parts.push(<span key={`txt-${lastIndex}`}>{str.substring(lastIndex)}</span>);
   }
 
   return <span className={className}>{parts}</span>;
 };
-

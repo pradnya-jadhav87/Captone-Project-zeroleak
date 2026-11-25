@@ -413,19 +413,6 @@ export interface PrintSecurityCheck {
   detail: string;
 }
 
-/** What the server hands back when a print release is armed. */
-export interface PrintSecurityArmResult {
-  message: string;
-  securityToken: string;
-  code: string;
-  expiresAt: number;
-  securityChecks: PrintSecurityCheck[];
-  examId: string;
-  examName: string;
-  paperVersionId: string;
-  quota: { authorizedCopies: number; alreadyPrinted: number; requested: number; remaining: number };
-}
-
 /** Payload the relay endpoints always answer with, panel side. */
 export interface PrintRelayEnvelope {
   message?: string;
@@ -577,6 +564,8 @@ export interface DynamicWatermarkData {
   ipAddress: string;
   timestamp: string;
   sessionTxRef: string;
+  location?: string;
+  trackingCode?: string;
   /** Set when the sheet came off a Wi-Fi print relay rather than a workstation. */
   relayId?: string;
   relayLabel?: string;
@@ -1107,6 +1096,9 @@ export interface IngestDraftPapersResponse {
     paper1Count: number;
     paper2Count: number;
     paper3Count: number;
+    paper4Count?: number;
+    paper5Count?: number;
+    [key: string]: number | undefined;
     totalQuestions: number;
     mcqCount: number;
     theoryCount: number;
@@ -1178,6 +1170,7 @@ export interface UniversityPaperAuditLogEntry {
 export interface UniversityFinalPaperResponse {
   success: boolean;
   message: string;
+  error?: string;
   generatedPaper: {
     id: string;
     exam_id: string;
@@ -1197,8 +1190,14 @@ export interface UniversityFinalPaperResponse {
     pdfFilename: string;
     pdfUrl: string;
     pdfHash: string;
+    trackingCode?: string;
+    watermarkSummary?: string;
     created_at: string;
   };
+  trackingCode?: string;
+  watermarkSummary?: string;
+  structuredPaper?: any;
+  latexCode?: string;
   validationSummary: {
     totalQuestions: number;
     mcqCount: number;
@@ -1210,6 +1209,9 @@ export interface UniversityFinalPaperResponse {
       paper1: number;
       paper2: number;
       paper3: number;
+      paper4?: number;
+      paper5?: number;
+      [key: string]: number | undefined;
     };
     validationPassed: boolean;
     errors: string[];
@@ -1313,7 +1315,11 @@ export interface StartViewOnceRequest {
   examType: 'COMPETITIVE' | 'UNIVERSITY';
   examId: string;
   paperId: string;
-  browserInfo?: any;
+  browserInfo?: {
+    userAgent?: string;
+    screen?: string;
+    viewOnceTabId?: string;
+  };
   durationSeconds?: number;
   requestSessionToken?: string;
 }
@@ -1344,4 +1350,43 @@ export interface ConsumeViewOnceResponse {
   error?: string;
 }
 
+export interface ManagedUserRecord {
+  id: string;
+  orgId: string;
+  email: string;
+  username: string;
+  fullName: string;
+  role: UserRole;
+  status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'REVOKED' | 'PASSWORD_RESET_PENDING';
+  authorizationStatus: string;
+  authorizedBy?: string;
+  authorizedByName?: string;
+  authorizedAt?: string;
+  centreId?: string;
+  scope?: string;
+  createdAt: string;
+  lastLoginAt?: string;
+}
+
+export interface PasswordResetRequestRecord {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  userRole: UserRole;
+  authorizingManagerId: string;
+  authorizingManagerRole: UserRole;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RESET_LINK_ISSUED' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
+  requestReason: string;
+  decisionReason?: string;
+  reviewedById?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  tokenHash?: string;
+  tokenIssuedAt?: string;
+  tokenExpiresAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 

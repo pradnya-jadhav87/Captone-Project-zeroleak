@@ -14,6 +14,10 @@ import {
   getUnifiedSessionEvidence,
   issueAuthorityWarning,
   handleAuditorReviewAction,
+  getTranslatorSecurityState,
+  initializeTranslatorSecuritySession,
+  recordTranslatorSecurityIncident,
+  recoverTranslatorSecurityLock,
 } from './proctor.ts';
 
 async function createTestDb(): Promise<Database> {
@@ -68,6 +72,33 @@ async function createTestDb(): Promise<Database> {
       metadata_json TEXT,
       snapshot_thumbnail TEXT,
       created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS translator_security_state (
+      user_id TEXT PRIMARY KEY,
+      current_session_id TEXT,
+      is_locked INTEGER NOT NULL DEFAULT 0,
+      lock_reason TEXT,
+      locked_session_id TEXT,
+      locked_at TEXT,
+      recovered_at TEXT,
+      recovered_by TEXT,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS translator_security_incidents (
+      session_id TEXT NOT NULL,
+      incident_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      confidence REAL,
+      warning_count INTEGER NOT NULL DEFAULT 0,
+      detection_result_json TEXT,
+      detected_at TEXT NOT NULL,
+      cleared_at TEXT,
+      event_id TEXT NOT NULL,
+      PRIMARY KEY (session_id, incident_id)
     );
 
     CREATE TABLE IF NOT EXISTS proctor_camera_evidence (
@@ -144,6 +175,45 @@ test('1. Authority Proctor Enclave session starts with verified camera and 0 ris
   assert.equal(session.face_status, 'VERIFIED');
   assert.equal(session.leak_risk_score, 0);
   assert.equal(session.leak_risk_level, 'NORMAL');
+});
+
+test('1a. Translator sessions remain unverified and do not retain camera snapshots', async () => {
+  const db = await createTestDb();
+  const user = {
+    id: 'usr-translator-secure',
+    full_name: 'Translator Security Test',
+    email: 'translator.security.test@zeroleak.example',
+    role: 'TRANSLATOR',
+    org_id: 'ORG-ZEROLEAK',
+  };
+  const session = startAuthorityEnclaveSession(
+    db,
+    user,
+    'TRANSLATOR_PORTAL',
+    'EXAM-CS-01',
+    'data:image/jpeg;base64,private-camera-frame'
+  );
+
+  assert.equal(session.face_status, 'UNVERIFIED');
+  assert.equal(session.verification_snapshot, null);
+  const rows = db.exec(
+    'SELECT face_status, verification_snapshot FROM authority_proctor_sessions WHERE id = ?',
+    [session.id]
+  );
+  assert.deepEqual(rows[0]?.values[0], ['UNVERIFIED', null]);
+
+  recordAuthorityLeakEvent(db, {
+    session_id: session.id,
+    user_id: user.id,
+    user_role: user.role,
+    event_type: 'SCREEN_UNMASKED',
+    severity: 'LOW',
+  });
+  const afterClientClaim = db.exec(
+    'SELECT face_status FROM authority_proctor_sessions WHERE id = ?',
+    [session.id]
+  );
+  assert.deepEqual(afterClientClaim[0]?.values[0], ['UNVERIFIED']);
 });
 
 test('2. Shoulder surfing detection immediately escalates risk score and updates face status', async () => {
@@ -412,6 +482,164 @@ test('8. WebRTC Live Audio signaling lifecycle for translator to auditor wire', 
         activeListeners: 0,
         lastUpdated: Date.now(),
       });
+
+      test('Translator warning incidents are idempotent, clearable, capped, and lock on warning three', async () => {
+        const db = await createTestDb();
+        const user = {
+          id: 'translator-warning-lock-test',
+          full_name: 'Translator Warning Test',
+          email: 'warning.test@zeroleak.example',
+          role: 'TRANSLATOR',
+          org_id: 'ORG-ZEROLEAK',
+        };
+        const session = startAuthorityEnclaveSession(db, user, 'TRANSLATOR_PORTAL', 'EXAM-CS-01');
+        initializeTranslatorSecuritySession(db, user.id, session.id);
+
+        const incident = (incidentId: string, status: 'ACTIVE' | 'CLEARED' = 'ACTIVE') =>
+          recordTranslatorSecurityIncident(db, {
+            session_id: session.id,
+            user_id: user.id,
+            incident_id: incidentId,
+            event_type: 'POTENTIAL_PHONE_DETECTION',
+            status,
+            confidence: 0.92,
+            detection_result: { phone_count: 1, violations: ['UNAUTHORIZED_DEVICE'] },
+          });
+
+        const first = incident('phone-incident-0001');
+        assert.equal(first.warning_count, 1);
+        assert.equal(first.warnings_remaining, 2);
+        assert.equal(first.is_new_warning, true);
+
+        const repeatedFrame = incident('phone-incident-0001');
+        assert.equal(repeatedFrame.warning_count, 1);
+        assert.equal(repeatedFrame.is_new_warning, false);
+
+        const cleared = incident('phone-incident-0001', 'CLEARED');
+        assert.equal(cleared.warning_count, 1);
+        assert.equal(cleared.incident_status, 'CLEARED');
+
+        const second = incident('phone-incident-0002');
+        assert.equal(second.warning_count, 2);
+        assert.equal(second.is_locked, false);
+        incident('phone-incident-0002', 'CLEARED');
+
+        const third = incident('phone-incident-0003');
+        assert.equal(third.warning_count, 3);
+        assert.equal(third.is_locked, true);
+        assert.equal(third.locked_session_id, session.id);
+
+        const authoritySession = db.exec(
+          'SELECT status, warning_count, emergency_locked FROM authority_proctor_sessions WHERE id = ?',
+          [session.id]
+        )[0]?.values[0];
+        assert.deepEqual(authoritySession, ['LOCKED', 3, 1]);
+
+        const lockedAgain = incident('phone-incident-0004');
+        assert.equal(lockedAgain.warning_count, 3);
+        assert.equal(lockedAgain.is_new_warning, false);
+
+        const lockEvents = db.exec(
+          `SELECT event_type FROM proctor_events
+           WHERE session_id = ? AND event_type = 'TRANSLATOR_SECURITY_LOCKED'`,
+          [session.id]
+        )[0]?.values;
+        assert.equal(lockEvents?.length, 1);
+
+        const recovered = recoverTranslatorSecurityLock(
+          db,
+          session.id,
+          { id: 'auditor-warning-test', full_name: 'Security Auditor', role: 'AUDITOR' },
+          'Reviewed the incident evidence and authorized a new verified session.'
+        );
+        assert.equal(recovered.is_locked, false);
+        assert.equal(recovered.warning_count, 0);
+        assert.equal(recovered.current_session_id, null);
+        assert.equal(recovered.user_id, user.id);
+
+        const recoveryEvents = db.exec(
+          `SELECT event_type, metadata_json FROM proctor_events
+           WHERE session_id = ? AND event_type = 'TRANSLATOR_SECURITY_LOCK_RECOVERED'`,
+          [session.id]
+        )[0]?.values;
+        assert.equal(recoveryEvents?.length, 1);
+        assert.match(String(recoveryEvents?.[0]?.[1]), /authorized a new verified session/);
+      });
+
+      test('A confirmed incident waits until the active incident clears before counting a new warning', async () => {
+        const db = await createTestDb();
+        const user = {
+          id: 'translator-pending-warning-test',
+          full_name: 'Translator Pending Warning Test',
+          email: 'pending.test@zeroleak.example',
+          role: 'TRANSLATOR',
+          org_id: 'ORG-ZEROLEAK',
+        };
+        const session = startAuthorityEnclaveSession(db, user, 'TRANSLATOR_PORTAL', 'EXAM-CS-01');
+        initializeTranslatorSecuritySession(db, user.id, session.id);
+
+        const first = recordTranslatorSecurityIncident(db, {
+          session_id: session.id,
+          user_id: user.id,
+          incident_id: 'simultaneous-incident-0001',
+          event_type: 'POTENTIAL_PHONE_DETECTION',
+          status: 'ACTIVE',
+        });
+        const pending = recordTranslatorSecurityIncident(db, {
+          session_id: session.id,
+          user_id: user.id,
+          incident_id: 'simultaneous-incident-0002',
+          event_type: 'POTENTIAL_MULTIPLE_PERSONS_DETECTED',
+          status: 'ACTIVE',
+        });
+        assert.equal(first.warning_count, 1);
+        assert.equal(pending.warning_count, 1);
+        assert.equal(pending.is_new_warning, false);
+
+        const clearedFirst = recordTranslatorSecurityIncident(db, {
+          session_id: session.id,
+          user_id: user.id,
+          incident_id: 'simultaneous-incident-0001',
+          event_type: 'POTENTIAL_PHONE_DETECTION',
+          status: 'CLEARED',
+        });
+        assert.equal(clearedFirst.warning_count, 2);
+        assert.equal(clearedFirst.is_new_warning, true);
+        assert.equal(clearedFirst.is_locked, false);
+      });
+
+      test('Concurrent duplicate translator incident submissions count once and never exceed the limit', async () => {
+        const db = await createTestDb();
+        const user = {
+          id: 'translator-concurrent-warning-test',
+          full_name: 'Translator Concurrent Test',
+          email: 'concurrent.test@zeroleak.example',
+          role: 'TRANSLATOR',
+          org_id: 'ORG-ZEROLEAK',
+        };
+        const session = startAuthorityEnclaveSession(db, user, 'TRANSLATOR_PORTAL', 'EXAM-CS-01');
+        initializeTranslatorSecuritySession(db, user.id, session.id);
+
+        const results = await Promise.all(
+          Array.from({ length: 8 }, () =>
+            Promise.resolve().then(() =>
+              recordTranslatorSecurityIncident(db, {
+                session_id: session.id,
+                user_id: user.id,
+                incident_id: 'concurrent-incident-0001',
+                event_type: 'POTENTIAL_MULTIPLE_PERSONS_DETECTED',
+                status: 'ACTIVE',
+                detection_result: { person_count: 2 },
+              })
+            )
+          )
+        );
+
+        const state = getTranslatorSecurityState(db, user.id);
+        assert.equal(state.warning_count, 1);
+        assert.equal(state.is_locked, false);
+        assert.equal(results.filter((result) => result.is_new_warning).length, 1);
+      });
     }
     return signalStore.get(sessionId)!;
   };
@@ -444,5 +672,3 @@ test('8. WebRTC Live Audio signaling lifecycle for translator to auditor wire', 
   signalStore.delete(sessionId);
   assert.equal(signalStore.has(sessionId), false);
 });
-
-

@@ -26,6 +26,7 @@ import { api, getStoredUser } from '../../api';
 import { CompetitivePrintExaminationPaper } from './CompetitivePrintExaminationPaper';
 import { ViewOncePaperPreviewModal } from '../ViewOncePaperPreviewModal';
 import { SecurePaperViewer } from '../security/SecurePaperViewer';
+import { ThresholdEncryptionAndEmergencyPanel } from '../papers/ThresholdEncryptionAndEmergencyPanel';
 
 export interface UploadedSubjectPdf {
   id: string;
@@ -56,6 +57,8 @@ export interface SubjectRule {
 export interface ExamDetails {
   id?: string;
   name: string;
+  subject?: string;
+  total_marks?: number;
   exam_type: string;
   duration_minutes?: number | string;
   exam_date?: string;
@@ -182,6 +185,17 @@ const TRANSLATION_WORKFLOW_STAGES = [
   { key: 'FINAL_GENERATED', label: 'Final Generated' },
 ];
 
+const VIEW_ONCE_TAB_ID_KEY = 'zeroleak_view_once_tab_id';
+
+const getViewOnceTabId = () => {
+  let tabId = sessionStorage.getItem(VIEW_ONCE_TAB_ID_KEY);
+  if (!tabId) {
+    tabId = crypto.randomUUID();
+    sessionStorage.setItem(VIEW_ONCE_TAB_ID_KEY, tabId);
+  }
+  return tabId;
+};
+
 export const CompetitiveBlueprintForm = ({
   examId,
   examDetails,
@@ -246,6 +260,7 @@ export const CompetitiveBlueprintForm = ({
         browserInfo: {
           userAgent: navigator.userAgent,
           screen: `${window.screen.width}x${window.screen.height}`,
+          viewOnceTabId: getViewOnceTabId(),
         },
       });
       if (resp.success && resp.sessionToken) {
@@ -906,6 +921,104 @@ export const CompetitiveBlueprintForm = ({
     setIsValidated(false);
     setGeneratedSuccessMsg(false);
     await fetchAvailablePoolCounts(updated);
+  };
+
+  // Replace a specific PDF for a subject card
+  const handleReplacePdf = async (sub: SubjectRule, oldPdf: UploadedSubjectPdf, files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const newFile = files[0];
+
+    // Mark current PDF item as extracting
+    let activeSubjects = subjects.map(s => {
+      if (s.id !== sub.id) return s;
+      return {
+        ...s,
+        pdfs: (s.pdfs || []).map(p => {
+          if (p.id === oldPdf.id || p.fileId === oldPdf.fileId) {
+            return { ...p, name: newFile.name, size: newFile.size, status: 'EXTRACTING' as const, errorMessage: undefined };
+          }
+          return p;
+        }),
+      };
+    });
+    onUpdateSubjects(activeSubjects);
+    setValidationResult(null);
+
+    try {
+      // 1. Delete old pool file from backend
+      try {
+        await api.competitive.deletePoolFile({
+          exam_id: examId,
+          subject_id: sub.id,
+          file_id: oldPdf.fileId || oldPdf.id,
+          source_pdf: oldPdf.name,
+          subject: sub.subjectName,
+        });
+      } catch (delErr) {
+        console.warn('Notice deleting replaced pool file from backend:', delErr);
+      }
+
+      // 2. Upload replacement PDF
+      const base64Data = await fileToBase64(newFile);
+      const resp = await api.competitive.uploadSubjectPdf({
+        exam_id: examId,
+        subject_id: sub.id,
+        subject_name: sub.subjectName,
+        subject: sub.subjectName,
+        file_name: newFile.name,
+        file_data: base64Data,
+        marks_per_question: sub.marksPerQuestion,
+        negative_marks: sub.negativeMarks,
+      });
+
+      if (resp && resp.success) {
+        activeSubjects = activeSubjects.map(s => {
+          if (s.id !== sub.id) return s;
+          const currentPdfs = [...(s.pdfs || [])];
+          const targetIdx = currentPdfs.findIndex(p => p.id === oldPdf.id || p.fileId === oldPdf.fileId);
+          const completedPdf: UploadedSubjectPdf = {
+            id: resp.fileId || oldPdf.id,
+            fileId: resp.fileId || oldPdf.fileId,
+            name: newFile.name,
+            size: newFile.size,
+            status: 'COMPLETED',
+            extractedCount: resp.extractedCount || resp.questions?.length || 0,
+            poolId: resp.poolId || resp.fileId,
+            subjectId: sub.id,
+            uploadedAt: new Date().toISOString(),
+          };
+
+          if (targetIdx !== -1) {
+            currentPdfs[targetIdx] = completedPdf;
+          } else {
+            currentPdfs.push(completedPdf);
+          }
+          return { ...s, pdfs: currentPdfs };
+        });
+        onUpdateSubjects(activeSubjects);
+      } else {
+        throw new Error((resp as any)?.error || 'Replacement extraction failed.');
+      }
+    } catch (err: any) {
+      activeSubjects = activeSubjects.map(s => {
+        if (s.id !== sub.id) return s;
+        return {
+          ...s,
+          pdfs: (s.pdfs || []).map(p => {
+            if (p.id === oldPdf.id || p.fileId === oldPdf.fileId) {
+              return { ...p, status: 'ERROR' as const, errorMessage: err.message || 'Replacement failed' };
+            }
+            return p;
+          }),
+        };
+      });
+      onUpdateSubjects(activeSubjects);
+    }
+
+    if (examDetails.name && examDetails.name.trim() && onSaveExamConfig) {
+      await onSaveExamConfig(examDetails, activeSubjects);
+    }
+    await fetchAvailablePoolCounts(activeSubjects);
   };
 
   // Validate Blueprint Action (Requirement 4)
@@ -1645,13 +1758,39 @@ export const CompetitiveBlueprintForm = ({
                               </span>
                             )}
 
+                            {/* Replace PDF Trigger */}
+                            <input
+                              type="file"
+                              accept=".pdf"
+                              id={`replace-pdf-${sub.id}-${pdf.id || pIdx}`}
+                              className="hidden"
+                              disabled={pdf.status === 'EXTRACTING'}
+                              onChange={e => {
+                                handleReplacePdf(sub, pdf, e.target.files);
+                                e.target.value = '';
+                              }}
+                            />
+                            <label
+                              htmlFor={`replace-pdf-${sub.id}-${pdf.id || pIdx}`}
+                              className={`px-2.5 py-1 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                                pdf.status === 'EXTRACTING' ? 'opacity-50 pointer-events-none' : ''
+                              }`}
+                              title={`Replace ${pdf.name} with another PDF`}
+                            >
+                              <RefreshCw className={`w-3 h-3 text-slate-500 ${pdf.status === 'EXTRACTING' ? 'animate-spin' : ''}`} />
+                              <span>Replace PDF</span>
+                            </label>
+
+                            {/* Remove PDF Button */}
                             <button
                               type="button"
                               onClick={() => handleRemovePdf(sub.id, pdf)}
-                              className="p-1 rounded text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                              disabled={pdf.status === 'EXTRACTING'}
+                              className="px-2.5 py-1 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors disabled:opacity-50"
                               title={`Remove ${pdf.name} from ${sub.subjectName}`}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3 h-3 text-rose-600" />
+                              <span>Remove PDF</span>
                             </button>
                           </div>
                         </div>
@@ -1934,7 +2073,7 @@ export const CompetitiveBlueprintForm = ({
                       title="This paper preview has already been viewed and permanently locked."
                     >
                       <Lock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Preview Consumed (Locked)</span>
+                      <span>Paper already viewed — access restricted</span>
                     </div>
                   ) : (
                     <button
@@ -1945,7 +2084,7 @@ export const CompetitiveBlueprintForm = ({
                       title="Open secure one-time preview session for paper verification"
                     >
                       <Eye className={`w-3.5 h-3.5 ${isLoadingViewOnce ? 'animate-spin' : ''}`} />
-                      <span>{isLoadingViewOnce ? 'Starting Session...' : 'View Once Preview'}</span>
+                      <span>{isLoadingViewOnce ? 'Starting Session...' : 'View Paper Once'}</span>
                     </button>
                   )
                 )}
@@ -2442,7 +2581,7 @@ export const CompetitiveBlueprintForm = ({
                 </p>
               </div>
               <p className="text-[11px] text-slate-400 max-w-md mx-auto">
-                Launch the secure verification session to check questions, sections, formatting, diagrams, tables, and marks. Downloading and printing are disabled.
+                Launch the verification session to check questions, sections, formatting, diagrams, tables, and marks. Downloading and printing are disabled to ensure zero question paper leakage.
               </p>
               <div className="pt-1">
                 <button
@@ -2452,12 +2591,34 @@ export const CompetitiveBlueprintForm = ({
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs inline-flex items-center gap-2 shadow-lg cursor-pointer transition-all disabled:opacity-50"
                 >
                   <Eye className={`w-4 h-4 ${isLoadingViewOnce ? 'animate-spin' : ''}`} />
-                  <span>{isLoadingViewOnce ? 'Starting Secure Session...' : 'Launch View-Once Preview'}</span>
+                  <span>{isLoadingViewOnce ? 'Starting Secure Session...' : 'View Paper Once'}</span>
                 </button>
               </div>
               {viewOnceError && (
                 <p className="text-xs text-rose-400 font-bold">{viewOnceError}</p>
               )}
+            </div>
+          )}
+
+          {/* 2-of-3 Threshold Key Authorization & Emergency Decryption Panel */}
+          {generatedPaper && (
+            <div className="pt-4">
+              <ThresholdEncryptionAndEmergencyPanel
+                examType="COMPETITIVE"
+                paperId={generatedPaper.id}
+                paperVersion={generatedPaper.paperVersion || 'v1'}
+                examId={examDetails.id || examId}
+                currentUser={getStoredUser()}
+                onPaperEncrypted={(encMeta) => {
+                  setGeneratedPaper((prev: any) => ({
+                    ...prev,
+                    is_encrypted: 1,
+                    encryption_status: 'ENCRYPTED',
+                    encryption_time_iso: encMeta.encryptedAt,
+                  }));
+                }}
+                onOpenViewOnceModal={handleStartViewOncePreview}
+              />
             </div>
           )}
 

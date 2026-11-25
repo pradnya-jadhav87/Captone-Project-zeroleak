@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import { Database } from 'sql.js';
-import { executeQuery, executeRun } from './db.ts';
+import { executeQuery, executeRun, executeTransactionWithResult } from './db.ts';
 
 export interface ProctorSettings {
   id: string;
@@ -388,6 +388,8 @@ export function startAuthorityEnclaveSession(
   examId?: string,
   verificationSnapshot?: string
 ): AuthorityProctorSession {
+  const translatorSession = workspaceType === 'TRANSLATOR_PORTAL';
+  const retainedSnapshot = translatorSession ? undefined : verificationSnapshot;
   const sessionId = `AUTH-SESS-${uuidv4().substring(0, 8).toUpperCase()}`;
   const now = new Date().toISOString();
 
@@ -399,7 +401,7 @@ export function startAuthorityEnclaveSession(
       face_status, faces_detected_count, audio_level_db, leak_risk_score,
       leak_risk_level, verification_snapshot, emergency_locked, warning_count, last_heartbeat_at,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'ACTIVE', 'ACTIVE', 'ACTIVE', 'VERIFIED', 1, -40.0, 0, 'NORMAL', ?, 0, 0, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'ACTIVE', 'ACTIVE', 'ACTIVE', ?, ?, -40.0, 0, 'NORMAL', ?, 0, 0, ?, ?, ?)`,
     [
       sessionId,
       user.id,
@@ -409,7 +411,9 @@ export function startAuthorityEnclaveSession(
       user.org_id,
       workspaceType,
       examId || null,
-      verificationSnapshot || null,
+      translatorSession ? 'UNVERIFIED' : 'VERIFIED',
+      translatorSession ? 0 : 1,
+      retainedSnapshot || null,
       now,
       now,
       now,
@@ -428,11 +432,11 @@ export function startAuthorityEnclaveSession(
       workspace: workspaceType,
       user_agent: 'ZeroLeak Secure Enclave Client',
     },
-    snapshot_thumbnail: verificationSnapshot || null,
+    snapshot_thumbnail: retainedSnapshot || null,
   });
 
   // If verification snapshot is provided, save it as official camera evidence
-  if (verificationSnapshot) {
+  if (retainedSnapshot) {
     try {
       saveCameraEvidence(db, {
         session_id: sessionId,
@@ -440,7 +444,7 @@ export function startAuthorityEnclaveSession(
         user_id: user.id,
         user_name: user.full_name,
         user_role: user.role,
-        image_data_url: verificationSnapshot,
+        image_data_url: retainedSnapshot,
         event_type: 'INITIAL_VERIFICATION_SNAPSHOT',
         presence_status: 'PRESENT',
         warning_number: 0,
@@ -545,13 +549,18 @@ export function recordAuthorityLeakEvent(
   );
 
   const risk = calculateAuthorityRisk(db, params.session_id);
+  const sessionWorkspace = executeQuery(
+    db,
+    'SELECT workspace_type FROM authority_proctor_sessions WHERE id = ?',
+    [params.session_id]
+  )[0]?.workspace_type;
 
   // If shoulder surfing or face absent, update session face_status immediately
   if (params.event_type === 'SHOULDER_SURFING_DETECTED') {
     executeRun(db, 'UPDATE authority_proctor_sessions SET face_status = "SHOULDER_SURFING_DETECTED", faces_detected_count = 2, updated_at = ? WHERE id = ?', [now, params.session_id]);
   } else if (params.event_type === 'FACE_ABSENT_MASKED') {
     executeRun(db, 'UPDATE authority_proctor_sessions SET face_status = "ABSENT", faces_detected_count = 0, updated_at = ? WHERE id = ?', [now, params.session_id]);
-  } else if (params.event_type === 'SCREEN_UNMASKED') {
+  } else if (params.event_type === 'SCREEN_UNMASKED' && sessionWorkspace !== 'TRANSLATOR_PORTAL') {
     executeRun(db, 'UPDATE authority_proctor_sessions SET face_status = "VERIFIED", faces_detected_count = 1, updated_at = ? WHERE id = ?', [now, params.session_id]);
   }
 
@@ -1140,6 +1149,453 @@ export function issueAuthorityWarning(
   };
 }
 
+export interface TranslatorSecurityState {
+  user_id: string;
+  current_session_id: string | null;
+  warning_count: number;
+  is_locked: boolean;
+  lock_reason: string | null;
+  locked_session_id: string | null;
+  locked_at: string | null;
+}
+
+export function getTranslatorSecurityState(db: Database, userId: string): TranslatorSecurityState {
+  const rows = executeQuery(
+    db,
+    `SELECT tss.user_id, tss.current_session_id, s.warning_count,
+            tss.is_locked, tss.lock_reason, tss.locked_session_id, tss.locked_at
+     FROM translator_security_state tss
+     LEFT JOIN authority_proctor_sessions s ON s.id = tss.current_session_id
+     WHERE tss.user_id = ?`,
+    [userId]
+  );
+  const state = rows[0];
+  return {
+    user_id: userId,
+    current_session_id: state?.current_session_id || null,
+    warning_count: Math.min(3, Math.max(0, Number(state?.warning_count) || 0)),
+    is_locked: Number(state?.is_locked) === 1,
+    lock_reason: state?.lock_reason || null,
+    locked_session_id: state?.locked_session_id || null,
+    locked_at: state?.locked_at || null,
+  };
+}
+
+export function initializeTranslatorSecuritySession(
+  db: Database,
+  userId: string,
+  sessionId: string
+): TranslatorSecurityState {
+  return executeTransactionWithResult(db, (run, query) => {
+    const current = query(
+      'SELECT is_locked, current_session_id FROM translator_security_state WHERE user_id = ?',
+      [userId]
+    )[0];
+    if (Number(current?.is_locked) === 1) {
+      throw new Error('Translator security access is locked pending authorized review.');
+    }
+    const session = query(
+      `SELECT status FROM authority_proctor_sessions
+       WHERE id = ? AND user_id = ? AND workspace_type = 'TRANSLATOR_PORTAL'`,
+      [sessionId, userId]
+    )[0];
+    if (!session) {
+      throw new Error('Translator security session ownership could not be verified.');
+    }
+    const now = new Date().toISOString();
+    run(
+      `INSERT INTO translator_security_state (
+         user_id, current_session_id, is_locked, updated_at
+       ) VALUES (?, ?, 0, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         current_session_id = excluded.current_session_id,
+         updated_at = excluded.updated_at`,
+      [userId, sessionId, now]
+    );
+    return getTranslatorSecurityState(db, userId);
+  });
+}
+
+export interface TranslatorIncidentInput {
+  session_id: string;
+  user_id: string;
+  incident_id: string;
+  event_type: string;
+  status: 'ACTIVE' | 'CLEARED';
+  confidence?: number;
+  detection_result?: Record<string, unknown>;
+  detected_at?: string;
+}
+
+export interface TranslatorIncidentResult extends TranslatorSecurityState {
+  incident_id: string;
+  incident_status: 'ACTIVE' | 'CLEARED';
+  is_new_warning: boolean;
+  warnings_remaining: number;
+}
+
+export function recordTranslatorSecurityIncident(
+  db: Database,
+  input: TranslatorIncidentInput
+): TranslatorIncidentResult {
+  return executeTransactionWithResult(db, (run, query) => {
+    const session = query(
+      `SELECT id, user_id, user_name, user_role, exam_id, status
+       FROM authority_proctor_sessions
+       WHERE id = ? AND user_id = ? AND workspace_type = 'TRANSLATOR_PORTAL'`,
+      [input.session_id, input.user_id]
+    )[0];
+    if (!session) {
+      throw new Error('The translator security session is not owned by this account.');
+    }
+    const stateRow = query(
+      `SELECT tss.user_id, tss.current_session_id, tss.is_locked,
+              tss.lock_reason, tss.locked_session_id, tss.locked_at, s.warning_count
+       FROM translator_security_state tss
+       LEFT JOIN authority_proctor_sessions s ON s.id = tss.current_session_id
+       WHERE tss.user_id = ?`,
+      [input.user_id]
+    )[0];
+    if (!stateRow || stateRow.current_session_id !== input.session_id) {
+      throw new Error('The translator security session is no longer current.');
+    }
+    if (Number(stateRow.is_locked) === 1 && input.status === 'ACTIVE') {
+      return {
+        ...getTranslatorSecurityState(db, input.user_id),
+        incident_id: input.incident_id,
+        incident_status: input.status,
+        is_new_warning: false,
+        warnings_remaining: 0,
+      };
+    }
+
+    const now = new Date().toISOString();
+    const applyWarningState = (warningCount: number, locked: boolean, reason: string, incidentId: string, eventType: string) => {
+      run(
+        `UPDATE translator_security_state SET
+           is_locked = ?,
+           lock_reason = CASE WHEN ? = 1 THEN ? ELSE lock_reason END,
+           locked_session_id = CASE WHEN ? = 1 THEN ? ELSE locked_session_id END,
+           locked_at = CASE WHEN ? = 1 THEN ? ELSE locked_at END,
+           updated_at = ?
+         WHERE user_id = ? AND current_session_id = ? AND is_locked = 0`,
+        [
+          locked ? 1 : 0, locked ? 1 : 0, reason, locked ? 1 : 0, input.session_id,
+          locked ? 1 : 0, locked ? now : null, now, input.user_id, input.session_id,
+        ]
+      );
+      run(
+        `UPDATE authority_proctor_sessions SET
+           warning_count = ?,
+           status = CASE WHEN ? = 1 THEN 'LOCKED' ELSE status END,
+           emergency_locked = CASE WHEN ? = 1 THEN 1 ELSE emergency_locked END,
+           emergency_lock_reason = CASE WHEN ? = 1 THEN ? ELSE emergency_lock_reason END,
+           locked_by = CASE WHEN ? = 1 THEN 'SECURITY_POLICY' ELSE locked_by END,
+           updated_at = ?
+         WHERE id = ? AND user_id = ?`,
+        [
+          warningCount, locked ? 1 : 0, locked ? 1 : 0, locked ? 1 : 0, reason,
+          locked ? 1 : 0, now, input.session_id, input.user_id,
+        ]
+      );
+      if (!locked) return;
+
+      const lockEventId = `TRANSLATOR-SECURITY-LOCK-${uuidv4()}`;
+      const incidentReferences = query(
+        `SELECT incident_id FROM translator_security_incidents
+         WHERE session_id = ? AND user_id = ? AND warning_count > 0
+         ORDER BY detected_at ASC`,
+        [input.session_id, input.user_id]
+      ).map((row: { incident_id: string }) => row.incident_id);
+      run(
+        `INSERT INTO proctor_events (
+           id, session_id, attempt_id, user_id, user_role, exam_id, event_type,
+           severity, risk_points, timestamp, metadata_json, snapshot_thumbnail, created_at
+         ) VALUES (?, ?, NULL, ?, 'TRANSLATOR', ?, 'TRANSLATOR_SECURITY_LOCKED', 'CRITICAL', 0, ?, ?, NULL, ?)`,
+        [
+          lockEventId,
+          input.session_id,
+          input.user_id,
+          session.exam_id,
+          now,
+          JSON.stringify({
+            lock_reason: reason,
+            warning_count: warningCount,
+            translator_id: input.user_id,
+            session_id: input.session_id,
+            locked_at: now,
+            incident_id: incidentId,
+            incident_type: eventType,
+            incident_references: incidentReferences,
+          }),
+          now,
+        ]
+      );
+    };
+
+    const existing = query(
+      `SELECT status, warning_count, event_id FROM translator_security_incidents
+       WHERE session_id = ? AND incident_id = ? AND user_id = ?`,
+      [input.session_id, input.incident_id, input.user_id]
+    )[0];
+    if (input.status === 'CLEARED') {
+      if (!existing) {
+        throw new Error('No active event was found for this incident.');
+      }
+      let promotedWarning = false;
+      if (existing.status === 'ACTIVE') {
+        const eventId = existing.event_id;
+        const eventRows = eventId
+          ? query('SELECT metadata_json FROM proctor_events WHERE id = ?', [eventId])
+          : [];
+        let metadata: Record<string, unknown> = {};
+        try {
+          metadata = JSON.parse(eventRows[0]?.metadata_json || '{}');
+        } catch {
+          metadata = {};
+        }
+        run(
+          `UPDATE translator_security_incidents
+           SET status = 'CLEARED', cleared_at = ?
+           WHERE session_id = ? AND incident_id = ? AND user_id = ? AND status = 'ACTIVE'`,
+          [now, input.session_id, input.incident_id, input.user_id]
+        );
+        if (eventId) {
+          run('UPDATE proctor_events SET metadata_json = ? WHERE id = ?', [
+            JSON.stringify({ ...metadata, status: 'CLEARED', cleared_at: now }),
+            eventId,
+          ]);
+        }
+
+        if (Number(existing.warning_count) > 0 && Number(stateRow.is_locked) !== 1) {
+          const pending = query(
+            `SELECT incident_id, event_type, event_id, confidence, detection_result_json, detected_at
+             FROM translator_security_incidents
+             WHERE session_id = ? AND user_id = ? AND status = 'ACTIVE' AND warning_count = 0
+               AND event_type != 'IDENTITY_TEMPLATE_NOT_PROVISIONED'
+             ORDER BY detected_at ASC LIMIT 1`,
+            [input.session_id, input.user_id]
+          )[0];
+          if (pending) {
+            const currentWarningCount = Number(
+              query('SELECT warning_count FROM authority_proctor_sessions WHERE id = ?', [input.session_id])[0]?.warning_count
+            ) || 0;
+            const warningCount = Math.min(3, currentWarningCount + 1);
+            const locked = warningCount >= 3;
+            const reason = `Three confirmed translator security incidents reached the warning limit. Last incident: ${pending.event_type}.`;
+            let pendingMetadata: Record<string, unknown> = {};
+            try {
+              pendingMetadata = JSON.parse(
+                query('SELECT metadata_json FROM proctor_events WHERE id = ?', [pending.event_id])[0]?.metadata_json || '{}'
+              );
+            } catch {
+              pendingMetadata = {};
+            }
+            const warningEvent = `TRANSLATOR_SECURITY_WARNING_${warningCount}`;
+            run(
+              `UPDATE translator_security_incidents SET warning_count = ?
+               WHERE session_id = ? AND incident_id = ? AND user_id = ? AND status = 'ACTIVE' AND warning_count = 0`,
+              [warningCount, input.session_id, pending.incident_id, input.user_id]
+            );
+            run(
+              `UPDATE proctor_events SET event_type = ?, severity = ?, metadata_json = ? WHERE id = ?`,
+              [
+                warningEvent,
+                warningCount === 3 ? 'CRITICAL' : warningCount === 2 ? 'HIGH' : 'MEDIUM',
+                JSON.stringify({
+                  ...pendingMetadata,
+                  warning_number: warningCount,
+                  pending_warning: false,
+                  promoted_at: now,
+                  lock_reason: locked ? reason : null,
+                }),
+                pending.event_id,
+              ]
+            );
+            applyWarningState(warningCount, locked, reason, pending.incident_id, pending.event_type);
+            promotedWarning = true;
+          }
+        }
+      }
+      const currentState = getTranslatorSecurityState(db, input.user_id);
+      return {
+        ...currentState,
+        incident_id: input.incident_id,
+        incident_status: 'CLEARED',
+        is_new_warning: promotedWarning,
+        warnings_remaining: Math.max(0, 3 - currentState.warning_count),
+      };
+    }
+
+    if (existing) {
+      return {
+        ...getTranslatorSecurityState(db, input.user_id),
+        incident_id: input.incident_id,
+        incident_status: existing.status === 'CLEARED' ? 'CLEARED' : 'ACTIVE',
+        is_new_warning: false,
+        warnings_remaining: Math.max(0, 3 - Number(stateRow.warning_count || 0)),
+      };
+    }
+
+    const countsAsWarning = input.event_type !== 'IDENTITY_TEMPLATE_NOT_PROVISIONED';
+    const activeWarning = countsAsWarning && query(
+      `SELECT incident_id FROM translator_security_incidents
+       WHERE session_id = ? AND user_id = ? AND status = 'ACTIVE' AND warning_count > 0
+       LIMIT 1`,
+      [input.session_id, input.user_id]
+    ).length > 0;
+    const isCountedWarning = countsAsWarning && !activeWarning;
+    const warningCount = isCountedWarning
+      ? Math.min(3, Number(stateRow.warning_count || 0) + 1)
+      : Number(stateRow.warning_count || 0);
+    const locked = isCountedWarning && warningCount >= 3;
+    const reason = `Three confirmed translator security incidents reached the warning limit. Last incident: ${input.event_type}.`;
+    const eventId = `TRANSLATOR-SECURITY-${uuidv4()}`;
+    const warningEvent = isCountedWarning
+      ? `TRANSLATOR_SECURITY_WARNING_${warningCount}`
+      : countsAsWarning ? 'TRANSLATOR_SECURITY_INCIDENT_PENDING' : 'TRANSLATOR_IDENTITY_TEMPLATE_UNAVAILABLE';
+    const detectionResult = JSON.stringify(input.detection_result || {});
+    const metadata = JSON.stringify({
+      incident_id: input.incident_id,
+      incident_type: input.event_type,
+      status: 'ACTIVE',
+      confidence: input.confidence ?? null,
+      detection_result: input.detection_result || {},
+      detected_at: input.detected_at || now,
+      warning_number: isCountedWarning ? warningCount : 0,
+      pending_warning: countsAsWarning && !isCountedWarning,
+      max_warnings: 3,
+      translator_id: input.user_id,
+      session_id: input.session_id,
+      review_label: 'Potential security violation; automated detection is not a finding of misconduct.',
+      lock_reason: locked ? reason : null,
+    });
+
+    run(
+      `INSERT INTO translator_security_incidents (
+         session_id, incident_id, user_id, event_type, status, confidence,
+         warning_count, detection_result_json, detected_at, event_id
+       ) VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?, ?)`,
+      [
+        input.session_id,
+        input.incident_id,
+        input.user_id,
+        input.event_type,
+        input.confidence ?? null,
+        isCountedWarning ? warningCount : 0,
+        detectionResult,
+        now,
+        eventId,
+      ]
+    );
+    if (isCountedWarning) {
+      run(
+        `UPDATE authority_proctor_sessions SET warning_count = ?, updated_at = ?
+         WHERE id = ? AND user_id = ? AND status = 'ACTIVE'`,
+        [warningCount, now, input.session_id, input.user_id]
+      );
+    }
+    run(
+      `INSERT INTO proctor_events (
+         id, session_id, attempt_id, user_id, user_role, exam_id, event_type,
+         severity, risk_points, timestamp, metadata_json, snapshot_thumbnail, created_at
+       ) VALUES (?, ?, NULL, ?, 'TRANSLATOR', ?, ?, ?, 0, ?, ?, NULL, ?)`,
+      [
+        eventId,
+        input.session_id,
+        input.user_id,
+        session.exam_id,
+        warningEvent,
+        !isCountedWarning ? 'LOW' : warningCount === 3 ? 'CRITICAL' : warningCount === 2 ? 'HIGH' : 'MEDIUM',
+        now,
+        metadata,
+        now,
+      ]
+    );
+    if (isCountedWarning) applyWarningState(warningCount, locked, reason, input.incident_id, input.event_type);
+
+    return {
+      ...getTranslatorSecurityState(db, input.user_id),
+      incident_id: input.incident_id,
+      incident_status: 'ACTIVE',
+      is_new_warning: isCountedWarning,
+      warnings_remaining: Math.max(0, 3 - warningCount),
+    };
+  });
+}
+
+export function recoverTranslatorSecurityLock(
+  db: Database,
+  sessionId: string,
+  actor: { id: string; full_name: string; role: string; org_id?: string },
+  reason: string
+): TranslatorSecurityState {
+  return executeTransactionWithResult(db, (run, query) => {
+    const session = query(
+      `SELECT user_id, org_id, status FROM authority_proctor_sessions
+       WHERE id = ? AND workspace_type = 'TRANSLATOR_PORTAL'`,
+      [sessionId]
+    )[0];
+    if (!session) throw new Error('Translator security session not found.');
+    if (actor.role === 'ORG_OWNER' && actor.org_id !== session.org_id) {
+      throw new Error('Organization owners may recover translator locks only within their organization.');
+    }
+    const state = query(
+      `SELECT tss.user_id, tss.is_locked, tss.locked_session_id, s.warning_count
+       FROM translator_security_state tss
+       LEFT JOIN authority_proctor_sessions s ON s.id = tss.locked_session_id
+       WHERE tss.user_id = ?`,
+      [session.user_id]
+    )[0];
+    if (!state || Number(state.is_locked) !== 1 || state.locked_session_id !== sessionId) {
+      throw new Error('No active warning lock exists for this translator session.');
+    }
+
+    const now = new Date().toISOString();
+    const eventId = `TRANSLATOR-SECURITY-RECOVERY-${uuidv4()}`;
+    run(
+      `UPDATE translator_security_state SET
+         current_session_id = NULL, is_locked = 0,
+         lock_reason = NULL, locked_session_id = NULL, locked_at = NULL,
+         recovered_at = ?, recovered_by = ?, updated_at = ?
+       WHERE user_id = ? AND is_locked = 1 AND locked_session_id = ?`,
+      [now, actor.id, now, session.user_id, sessionId]
+    );
+    run(
+      `UPDATE authority_proctor_sessions SET
+         status = 'COMPLETED', emergency_locked = 0,
+         emergency_lock_reason = COALESCE(emergency_lock_reason, 'Warning lock recovered; a new verified session is required.'),
+         updated_at = ?
+       WHERE id = ? AND user_id = ?`,
+      [now, sessionId, session.user_id]
+    );
+    run(
+      `INSERT INTO proctor_events (
+         id, session_id, attempt_id, user_id, user_role, exam_id, event_type,
+         severity, risk_points, timestamp, metadata_json, snapshot_thumbnail, created_at
+       ) VALUES (?, ?, NULL, ?, ?, NULL, 'TRANSLATOR_SECURITY_LOCK_RECOVERED', 'HIGH', 0, ?, ?, NULL, ?)`,
+      [
+        eventId,
+        sessionId,
+        actor.id,
+        actor.role,
+        now,
+        JSON.stringify({
+          translator_id: session.user_id,
+          session_id: sessionId,
+          prior_warning_count: Number(state.warning_count) || 3,
+          reason,
+          recovered_by: actor.id,
+          recovered_by_name: actor.full_name,
+          recovered_at: now,
+        }),
+        now,
+      ]
+    );
+    return getTranslatorSecurityState(db, session.user_id);
+  });
+}
+
 export function handleAuditorReviewAction(
   db: Database,
   sessionId: string,
@@ -1226,6 +1682,3 @@ export function handleAuditorReviewAction(
     session: updatedRows[0] as AuthorityProctorSession,
   };
 }
-
-
-

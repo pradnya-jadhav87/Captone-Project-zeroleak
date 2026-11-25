@@ -1327,7 +1327,10 @@ const PrismChromeWebAuthPane: React.FC<{
   tab: BrowserTab;
   frameKey: number;
   statusRef: React.MutableRefObject<PaneStatus>;
-}> = ({ statusRef }) => {
+  isTransferModalOpen: boolean;
+  onOpenTransferModal: () => void;
+  onCloseTransferModal: () => void;
+}> = ({ statusRef, isTransferModalOpen, onOpenTransferModal, onCloseTransferModal }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return sessionStorage.getItem('zeroleak_prism_auth') === 'true';
@@ -1339,7 +1342,6 @@ const PrismChromeWebAuthPane: React.FC<{
   const [isCompiling, setIsCompiling] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [compileNotice, setCompileNotice] = useState<string | null>(null);
 
@@ -1542,7 +1544,7 @@ const PrismChromeWebAuthPane: React.FC<{
 
           <button
             type="button"
-            onClick={() => setIsTransferModalOpen(true)}
+            onClick={onOpenTransferModal}
             className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
             title="Download: Automatically fetches exact document from your PC and transfers to Printing Manager (Zero-Leak Anti-Extraction)"
           >
@@ -1706,7 +1708,7 @@ const PrismChromeWebAuthPane: React.FC<{
               </button>
               <button
                 type="button"
-                onClick={() => setIsTransferModalOpen(true)}
+                onClick={onOpenTransferModal}
                 className="p-1 hover:text-white rounded hover:bg-white/10 transition-colors ml-1 cursor-pointer"
                 title="Transfer to Printing Manager (Zero-Leak: Local laptop printing/saving restricted)"
               >
@@ -1740,7 +1742,7 @@ const PrismChromeWebAuthPane: React.FC<{
       {/* Transfer to Printing Manager Modal */}
       <TransferToPrintingManagerModal
         isOpen={isTransferModalOpen}
-        onClose={() => setIsTransferModalOpen(false)}
+        onClose={onCloseTransferModal}
         paperTitle={activeProject.includes('Cryptography') && !latexDoc.toLowerCase().includes('operating') ? 'PUNYASHLOK AHILYADEVI HOLKAR SOLAPUR UNIVERSITY — APPLIED CRYPTOGRAPHY (SLR-VB-602)' : 'T.Y. B.Tech. (Semester II) Examination — OPERATING SYSTEMS (BTN04605)'}
         subject={activeProject.includes('Cryptography') && !latexDoc.toLowerCase().includes('operating') ? 'APPLIED CRYPTOGRAPHY' : 'OPERATING SYSTEMS'}
         courseCode={activeProject.includes('Cryptography') && !latexDoc.toLowerCase().includes('operating') ? 'SLR-VB-602' : 'BTN04605'}
@@ -1775,8 +1777,27 @@ const BrowserPane = React.forwardRef<
     onStreamedUrl?: (url: string) => void;
     onStreamedTitle?: (title: string) => void;
     onStreamedStatus?: (status: StreamedBrowserStatus | null) => void;
+    isTransferModalOpen: boolean;
+    onOpenTransferModal: () => void;
+    onCloseTransferModal: () => void;
   }
->(({ tab, visible, desktopShell, status, streamed, onStreamedUrl, onStreamedTitle, onStreamedStatus }, ref) => {
+>(
+  (
+    {
+      tab,
+      visible,
+      desktopShell,
+      status,
+      streamed,
+      onStreamedUrl,
+      onStreamedTitle,
+      onStreamedStatus,
+      isTransferModalOpen,
+      onOpenTransferModal,
+      onCloseTransferModal,
+    },
+    ref,
+  ) => {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<any>(null);
   const [frameKey, setFrameKey] = useState(0);
@@ -1924,6 +1945,9 @@ const BrowserPane = React.forwardRef<
             tab={tab}
             frameKey={frameKey}
             statusRef={statusRef}
+            isTransferModalOpen={isTransferModalOpen}
+            onOpenTransferModal={onOpenTransferModal}
+            onCloseTransferModal={onCloseTransferModal}
           />
         ) : (
           <iframe
@@ -1946,7 +1970,8 @@ const BrowserPane = React.forwardRef<
       )}
     </div>
   );
-});
+  },
+);
 BrowserPane.displayName = 'BrowserPane';
 
 /**
@@ -2039,6 +2064,7 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
   const [omnibox, setOmnibox] = useState<string>('');
   const [notice, setNotice] = useState<string | null>(null);
   const [focusOmnibox, setFocusOmnibox] = useState(false);
+  const [transferModalTabId, setTransferModalTabId] = useState<string | null>(null);
 
   const paneHandles = useRef<Map<string, PaneHandle>>(new Map());
   const omniboxRef = useRef<HTMLInputElement>(null);
@@ -2304,11 +2330,11 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
       } else if (key === 's') {
         event.preventDefault();
         // Zero-Leak restriction: Prevent laptop disk write, open Transfer to Printing Manager
-        setIsTransferModalOpen(true);
+        setTransferModalTabId(activeId);
       } else if (key === 'p') {
         event.preventDefault();
         // Zero-Leak restriction: Intercept local printing, route to physical Printing Manager
-        setIsTransferModalOpen(true);
+        setTransferModalTabId(activeId);
       } else if (key === 'tab') {
         event.preventDefault();
         setActiveId(current => cycleTab(tabs, current, event.shiftKey ? -1 : 1));
@@ -2594,6 +2620,9 @@ export const ChromeLikeBrowser: React.FC<ChromeLikeBrowserProps> = ({
             streamed={streamed}
             onStreamedUrl={onActiveUrlChange}
             onStreamedTitle={title => setTabs(current => updateTab(current, tab.id, t => ({ ...t, title })))}
+            isTransferModalOpen={transferModalTabId === tab.id}
+            onOpenTransferModal={() => setTransferModalTabId(tab.id)}
+            onCloseTransferModal={() => setTransferModalTabId(null)}
           />
         ))}
 

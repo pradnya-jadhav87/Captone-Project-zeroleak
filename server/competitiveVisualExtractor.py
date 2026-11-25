@@ -73,6 +73,13 @@ HEADER_FOOTER_NOISE_PATTERNS = [
     re.compile(r"^roll\s+no\.?\s*[:\-_]*$", re.I),
 ]
 
+CANDIDATE_FIELD_PATTERN = re.compile(
+    r"\b(?:seat\s*(?:no\.?|number)|roll\s*(?:no\.?|number)|"
+    r"candidate\s+(?:name|signature|details)|student\s+(?:name|id)|"
+    r"signature\s+of\s+(?:candidate|student))\b",
+    re.I,
+)
+
 QUESTION_START_RE = re.compile(
     r"^\s*(?:Q(?:uestion)?\.?\s*(\d+[a-z]?)|(\d+[a-z]?)[\.\)])\s+(.*)",
     re.I | re.S,
@@ -222,6 +229,18 @@ def is_noise_text(text):
     if not clean:
         return True
     return any(rx.search(clean) for rx in HEADER_FOOTER_NOISE_PATTERNS)
+
+
+def is_candidate_field_visual(page, visual):
+    rect = visual.get("rect")
+    if rect is None:
+        return False
+    visual_text = page.get_text("text", clip=rect)
+    table_data = visual.get("tableData") or {}
+    table_text = " ".join(
+        [str(cell) for row in [table_data.get("headers") or []] + (table_data.get("rows") or []) for cell in row]
+    )
+    return bool(CANDIDATE_FIELD_PATTERN.search(f"{visual_text} {table_text}"))
 
 
 def save_crop_asset(pixmap_or_bytes, output_dir, public_prefix, filename, width=0, height=0):
@@ -720,6 +739,8 @@ def map_visuals_to_questions(
 
     for v_idx, vis in enumerate(visual_candidates):
         v_rect = vis["rect"]
+        if is_candidate_field_visual(page, vis):
+            continue
 
         # 1. Attach nearest caption (immediately below or above the visual)
         attached_caption = None

@@ -66,6 +66,15 @@ export function App() {
     printing_events: 'printing-events',
     regeneration_events: 'regeneration-events',
     proctor_dashboard: 'proctor-dashboard',
+    account_settings: 'account-settings',
+    key_approvals: 'key-approvals',
+    paper_leak_oversight: 'paper-leak-oversight',
+    print_monitoring: 'print-monitoring',
+    paper_security: 'paper-security',
+    print_anywhere_tracking: 'print-anywhere-tracking',
+    paper_leak_management: 'paper-leak-management',
+    security_approvals: 'security-approvals',
+    paper_leak_incidents: 'paper-leak-incidents',
   };
 
   const routeToTab = (tab: NavSubTab): void => {
@@ -130,8 +139,10 @@ export function App() {
         role: 'CENTRE_OPERATOR',
         org_id: 'ORG-ZEROLEAK-NATIONAL',
         centre_id: 'CTR-101',
+        status: 'ACTIVE',
         authorization_status: 'AUTHORIZED',
         account_type: 'STANDARD',
+        created_at: new Date().toISOString(),
       };
 
       try {
@@ -162,6 +173,27 @@ export function App() {
     window.addEventListener('zeroleak:switch-to-printing-manager', handleSwitchToPrintingManager as EventListener);
     return () => {
       window.removeEventListener('zeroleak:switch-to-printing-manager', handleSwitchToPrintingManager as EventListener);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleSwitchToPaperGenerator = () => {
+      const managerUser = getStoredUser();
+      if (!managerUser) return;
+
+      setCurrentUser(managerUser);
+      setActiveSubTab('paper_generation');
+      window.history.pushState(
+        {},
+        '',
+        `${window.location.pathname}${window.location.search}#paper-generation`
+      );
+      setRefreshTrigger(prev => prev + 1);
+    };
+
+    window.addEventListener('zeroleak:switch-to-paper-generator', handleSwitchToPaperGenerator);
+    return () => {
+      window.removeEventListener('zeroleak:switch-to-paper-generator', handleSwitchToPaperGenerator);
     };
   }, []);
 
@@ -341,16 +373,16 @@ export function App() {
           <div className="max-w-[1400px] mx-auto space-y-6">
             <ErrorBoundary fallbackTitle="Workspace Interface Interrupted">
               {/* User Profile & Security Settings */}
-              {(activeSubTab === 'profile' || activeSubTab === 'security_settings') ? (
+              {(activeSubTab === 'profile' || activeSubTab === 'security_settings') && currentUser.role !== 'TRANSLATOR' ? (
                 <UserProfileSettings
-                  key={`profile-${refreshTrigger}`}
+                  key="profile"
                   currentUser={currentUser}
                   activeSubTab={activeSubTab}
                   onLogout={handleLogout}
                 />
               ) : currentUser.role === 'ORG_OWNER' ? (
                 <OrgOwnerWorkspace
-                  key={`owner-${refreshTrigger}`}
+                  key="owner"
                   currentUser={currentUser}
                   activeSubTab={activeSubTab}
                   onRefresh={handleRefreshData}
@@ -358,7 +390,7 @@ export function App() {
                 />
               ) : currentUser.role === 'EXAM_MANAGER' ? (
                 <ExamManagerWorkspace
-                  key={`manager-${refreshTrigger}`}
+                  key="manager"
                   currentUser={currentUser}
                   activeSubTab={activeSubTab}
                   onRefresh={handleRefreshData}
@@ -370,21 +402,22 @@ export function App() {
                 />
               ) : currentUser.role === 'TRANSLATOR' ? (
                 <TranslatorWorkspace
-                  key={`translator-${refreshTrigger}`}
+                  key="translator"
                   currentUser={currentUser}
                   activeSubTab={activeSubTab}
                   onRefresh={handleRefreshData}
+                  onLogout={handleLogout}
                 />
               ) : currentUser.role === 'CENTRE_OPERATOR' ? (
                 <CentreOperatorWorkspace
-                  key={`operator-${refreshTrigger}`}
+                  key="operator"
                   currentUser={currentUser}
                   activeSubTab={activeSubTab}
                   onRefresh={handleRefreshData}
                 />
               ) : currentUser.role === 'AUDITOR' ? (
                 <AuditorWorkspace
-                  key={`auditor-${refreshTrigger}`}
+                  key="auditor"
                   currentUser={currentUser}
                   activeSubTab={activeSubTab}
                   onRefresh={handleRefreshData}

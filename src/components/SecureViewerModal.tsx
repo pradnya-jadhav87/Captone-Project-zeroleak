@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { DynamicWatermarkData, User } from '../types';
 import { AuthorityProctorEnclave } from './proctor/AuthorityProctorEnclave';
 import {
@@ -15,7 +15,7 @@ interface SecureViewerModalProps {
   watermark: DynamicWatermarkData | null;
   currentUser?: User | null;
   onClose: () => void;
-  onPrintCopy?: () => void;
+  onPrintCopy?: () => Promise<boolean | void>;
 }
 
 export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
@@ -26,7 +26,10 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
   onPrintCopy,
 }) => {
   const [securityViolations, setSecurityViolations] = useState<string[]>([]);
-  const [printed, setPrinted] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printAuthorized, setPrintAuthorized] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
+  const paperRef = useRef<HTMLDivElement>(null);
 
   // Prevent right-click, text copy, print screen shortcuts
   useEffect(() => {
@@ -63,10 +66,79 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
     };
   }, []);
 
-  const handlePrint = () => {
-    if (onPrintCopy) {
-      onPrintCopy();
-      setPrinted(true);
+  const handlePrint = async () => {
+    if (!onPrintCopy || isPrinting) return;
+    setIsPrinting(true);
+    setPrintError(null);
+    let printWindow: Window | null = null;
+
+    try {
+      printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        throw new Error('The print window was blocked. Allow pop-ups for this site, then try again.');
+      }
+
+      const paperElement = paperRef.current;
+      if (!paperElement) {
+        throw new Error('The examination paper is not available to print.');
+      }
+      const printablePaper = paperElement.cloneNode(true) as HTMLElement;
+      printablePaper.classList.add('paper-print-content');
+
+      if (!printAuthorized) {
+        const authorized = await onPrintCopy();
+        if (authorized === false) {
+          printWindow.close();
+          printWindow = null;
+          setPrintError('The server did not authorize printing. Check the Centre Operator status message and try again.');
+          return;
+        }
+        setPrintAuthorized(true);
+      }
+
+      const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+        .map(node => node.outerHTML)
+        .join('\n');
+      const printDocument = printWindow.document;
+      printDocument.open();
+      printDocument.write(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <base href="${document.baseURI}" />
+    <title>${examName}</title>
+    ${styles}
+    <style>
+      @page { size: A4; margin: 14mm; }
+      html, body { background: #fff !important; color: #000 !important; margin: 0 !important; padding: 0 !important; }
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .paper-print-content { width: 100% !important; max-width: none !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; overflow: visible !important; }
+      @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style>
+  </head>
+  <body>${printablePaper.outerHTML}</body>
+</html>`);
+      printDocument.close();
+
+      await Promise.race([
+        Promise.all(
+          Array.from(printDocument.images).map(image =>
+            image.decode().catch(() => undefined)
+          )
+        ),
+        new Promise<void>(resolve => window.setTimeout(resolve, 2500)),
+      ]);
+      await Promise.race([
+        printDocument.fonts.ready,
+        new Promise<void>(resolve => window.setTimeout(resolve, 1500)),
+      ]);
+      printWindow.focus();
+      printWindow.print();
+    } catch (error) {
+      printWindow?.close();
+      setPrintError(error instanceof Error ? error.message : 'Failed to open the print dialog.');
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -145,6 +217,8 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
                 <span>Centre: <strong className="text-white">{watermark.centreId}</strong></span>
                 <span>Operator: <strong className="text-white">{watermark.operatorName}</strong></span>
                 <span>Fingerprint: <strong className="font-mono text-emerald-400">{watermark.deviceFingerprint}</strong></span>
+                <span>•</span>
+                <span>Location: <strong className="text-cyan-300">{watermark.location || 'Maharashtra, India • Centre CTR-101'}</strong></span>
               </div>
             )}
           </div>
@@ -153,11 +227,12 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
         <div className="flex items-center gap-3">
           {onPrintCopy && (
             <button
-              onClick={handlePrint}
+              onClick={() => void handlePrint()}
+              disabled={isPrinting}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold shadow-md transition-colors"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>{printed ? 'Print Dispatched' : 'Print Serialized Copy'}</span>
+              <span>{isPrinting ? 'Preparing Print...' : printAuthorized ? 'Print Again' : 'Print Serialized Copy'}</span>
             </button>
           )}
 
@@ -189,9 +264,11 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
         workspaceType="DECRYPTED_PAPER_VIEWER"
         examId={paper?.exam_id || paper?.id}
         title="Decrypted Question Paper Enclave"
+        containerClassName="relative flex min-h-0 flex-1 flex-col text-[#142B38]"
+        contentClassName="flex min-h-0 w-full flex-1 flex-col"
       >
-        <div className="flex-1 overflow-y-auto p-6 md:p-12 relative flex justify-center bg-slate-950">
-          <div className="relative w-full max-w-4xl bg-white text-slate-900 rounded-xl shadow-2xl p-8 md:p-14 border border-slate-300 overflow-hidden font-sans">
+        <div className="relative flex min-h-0 flex-1 justify-center overflow-y-auto overscroll-contain bg-slate-950 p-6 md:p-12">
+          <div ref={paperRef} className="relative min-h-full w-full max-w-4xl overflow-visible rounded-xl border border-slate-300 bg-white p-8 font-sans text-slate-900 shadow-2xl md:p-14">
           {/* 7-LAYER DYNAMIC WATERMARK OVERLAY */}
           {watermark && (
             <div className="absolute inset-0 pointer-events-none z-10 flex flex-wrap items-center justify-center gap-16 p-8 opacity-[0.12] select-none rotate-[-25deg]">
@@ -200,7 +277,8 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
                   <div className="text-sm uppercase tracking-widest">{watermark.organizationName}</div>
                   <div>CENTRE ID: {watermark.centreId} | OP: {watermark.operatorName}</div>
                   <div>HW: {watermark.deviceFingerprint} | {watermark.timestamp}</div>
-                  <div className="text-[9px] text-slate-600">TX: {watermark.sessionTxRef}</div>
+                  <div className="text-[9.5px] text-slate-800 font-semibold">{watermark.location && watermark.location.toUpperCase().startsWith('LOCATION:') ? watermark.location : `LOCATION: ${watermark.location || 'Maharashtra, India • Centre CTR-101 (Enclave Station)'}`}</div>
+                  <div className="text-[9px] text-slate-600">TX: {watermark.trackingCode || watermark.sessionTxRef}</div>
                 </div>
               ))}
             </div>
@@ -309,6 +387,11 @@ export const SecureViewerModal: React.FC<SecureViewerModalProps> = ({
         </div>
       </div>
     </AuthorityProctorEnclave>
+    {printError && (
+      <div role="alert" className="fixed bottom-4 left-1/2 z-[60] -translate-x-1/2 rounded-lg border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-800 shadow-lg">
+        {printError}
+      </div>
+    )}
   </div>
 );
 };

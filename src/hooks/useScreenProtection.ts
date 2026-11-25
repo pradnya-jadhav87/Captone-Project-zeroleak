@@ -14,6 +14,7 @@ export interface ScreenProtectionState {
   isObscured: boolean;
   captureWarning: string | null;
   clearWarning: () => void;
+  resumeViewing: () => void;
   reportSecurityEvent: (eventType: string, details?: any, threatScore?: number) => Promise<void>;
 }
 
@@ -106,8 +107,17 @@ export function useScreenProtection(options: ScreenProtectionOptions = {}): Scre
   // Monitor Window Focus and Visibility
   useEffect(() => {
     const handleBlur = () => {
-      setIsObscured(true);
-      reportSecurityEvent('WINDOW_BLUR_OBSCURED', { reason: 'Window lost focus / minimized' }, 60);
+      // Defer check to see if active element is an embedded iframe/object/embed (e.g. PDF viewer)
+      setTimeout(() => {
+        const activeTag = document.activeElement?.tagName;
+        if (activeTag === 'IFRAME' || activeTag === 'EMBED' || activeTag === 'OBJECT') {
+          return;
+        }
+        if (!document.hasFocus()) {
+          setIsObscured(true);
+          reportSecurityEvent('WINDOW_BLUR_OBSCURED', { reason: 'Window lost focus / minimized' }, 60);
+        }
+      }, 150);
     };
 
     const handleFocus = () => {
@@ -235,6 +245,7 @@ export function useScreenProtection(options: ScreenProtectionOptions = {}): Scre
     isObscured,
     captureWarning,
     clearWarning,
+    resumeViewing: () => setIsObscured(false),
     reportSecurityEvent,
   };
 }

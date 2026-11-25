@@ -6,8 +6,6 @@ import {
   MAX_CODE_ATTEMPTS,
   MAX_PRINTS_PER_DEVICE,
   MAX_STATION_DEVICES,
-  PRINT_AUTH_TTL_MS,
-  PrintAuthorizationGuard,
   PrintStationHub,
   STATION_CODE_LENGTH,
   STATION_TTL_MS,
@@ -184,90 +182,6 @@ test('a live relay is reported, and an inactive one is only a warning', () => {
   });
   assert.equal(paused.allowed, true, 'a paused relay must not block the workstation print path');
   assert.equal(paused.checks.find(check => check.id === 'RELAY')?.status, 'WARN');
-});
-
-// ---------------------------------------------------------------------------
-// Print authorisation guard
-// ---------------------------------------------------------------------------
-
-const binding = {
-  userId: 'user-1',
-  deviceFingerprint: 'FP-A',
-  examId: 'exam-1',
-  paperVersionId: 'pv-1',
-  copies: 3,
-};
-
-test('an armed release can be spent exactly once, with the right code', () => {
-  const guard = new PrintAuthorizationGuard('secret');
-  const armed = guard.arm(binding);
-  assert.equal(armed.code.length, STATION_CODE_LENGTH);
-
-  const first = guard.consume({ ...binding, token: armed.token, code: armed.code });
-  assert.equal(first.ok, true);
-
-  const replay = guard.consume({ ...binding, token: armed.token, code: armed.code });
-  assert.equal(replay.ok, false);
-  assert.match(replay.reason, /already been used/);
-});
-
-test('the wrong code is refused and does not burn the arming', () => {
-  const guard = new PrintAuthorizationGuard('secret');
-  const armed = guard.arm(binding);
-  const wrong = guard.consume({ ...binding, token: armed.token, code: '000000' });
-  assert.equal(wrong.ok, false);
-  assert.match(wrong.reason, /did not match/);
-  assert.equal(guard.consume({ ...binding, token: armed.token, code: armed.code }).ok, true);
-});
-
-test('an arming is bound to its exam, copy count and workstation', () => {
-  const guard = new PrintAuthorizationGuard('secret');
-  const armed = guard.arm(binding);
-
-  const otherCopies = guard.consume({ ...binding, copies: 50, token: armed.token, code: armed.code });
-  assert.equal(otherCopies.ok, false);
-  assert.match(otherCopies.reason, /does not match/);
-
-  const otherExam = guard.consume({ ...binding, examId: 'exam-2', token: armed.token, code: armed.code });
-  assert.equal(otherExam.ok, false);
-
-  const otherDevice = guard.consume({ ...binding, deviceFingerprint: 'FP-B', token: armed.token, code: armed.code });
-  assert.equal(otherDevice.ok, false);
-});
-
-test('an arming expires, and a foreign signature is refused', () => {
-  let now = 1_000_000;
-  const guard = new PrintAuthorizationGuard('secret', { now: () => now });
-  const armed = guard.arm(binding);
-  assert.equal(armed.expiresAt, now + PRINT_AUTH_TTL_MS);
-
-  now += PRINT_AUTH_TTL_MS + 1;
-  const late = guard.consume({ ...binding, token: armed.token, code: armed.code });
-  assert.equal(late.ok, false);
-  assert.match(late.reason, /expired/);
-
-  // A release armed by a process holding a different secret must not be
-  // honoured here, whichever check catches it first.
-  const forger = new PrintAuthorizationGuard('other-secret', { now: () => now });
-  const forged = forger.arm(binding);
-  const verified = guard.consume({ ...binding, token: forged.token, code: forged.code });
-  assert.equal(verified.ok, false);
-  assert.notEqual(verified.reason, '');
-});
-
-test('a malformed token or a non-numeric code is refused without throwing', () => {
-  const guard = new PrintAuthorizationGuard('secret');
-  assert.equal(guard.consume({ ...binding, token: 'nonsense', code: '123456' }).ok, false);
-  const armed = guard.arm(binding);
-  assert.equal(guard.consume({ ...binding, token: armed.token, code: 'abcdef' }).ok, false);
-  assert.equal(guard.consume({ ...binding, token: armed.token, code: '' }).ok, false);
-});
-
-test('peekCode exposes the code for the panel but not through the token', () => {
-  const guard = new PrintAuthorizationGuard('secret');
-  const armed = guard.arm(binding);
-  assert.equal(guard.peekCode(armed.token), armed.code);
-  assert.equal(armed.token.includes(armed.code), false, 'the code must never ride inside the token');
 });
 
 // ---------------------------------------------------------------------------

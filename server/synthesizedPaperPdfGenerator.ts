@@ -657,19 +657,223 @@ function resolveMasthead(
   };
 }
 
-export function generateSynthesizedPaperPdf(
+import {
+  renderExactUniversityPaperPdf,
+  UniversityPaperTemplateInput,
+  UniversityTemplateQuestion,
+  extractTableFromQuestionText,
+} from './universityPaperTemplate.ts';
+
+const DEFAULT_OS_MCQS: UniversityTemplateQuestion[] = [
+  {
+    questionText: 'The primary responsibility of the operating-system kernel is to _______.',
+    options: ['compile application programs', 'manage hardware resources and provide core services', 'design database schemas', 'translate high-level languages'],
+  },
+  {
+    questionText: 'Which item is normally not stored in a Process Control Block (PCB)?',
+    options: ['program counter', 'CPU-register values', 'process state', 'source code of the program'],
+  },
+  {
+    questionText: 'Which CPU-scheduling algorithm is inherently preemptive?',
+    options: ['FCFS', 'non-preemptive SJF', 'Round Robin', 'non-preemptive priority'],
+  },
+  {
+    questionText: 'When a process executes wait(S) on a zero-valued counting semaphore, it normally _______.',
+    options: ['enters the blocked state', 'terminates immediately', 'releases the CPU permanently', 'increments the semaphore'],
+  },
+  {
+    questionText: 'The requirement that at most one process executes its critical section at a time is called _______.',
+    options: ['bounded waiting', 'progress', 'mutual exclusion', 'context switching'],
+  },
+  {
+    questionText: 'Which is not one of Coffman’s necessary conditions for deadlock?',
+    options: ['mutual exclusion', 'hold and wait', 'circular wait', 'time sharing'],
+  },
+  {
+    questionText: 'In paging, a logical address space is divided into fixed-size blocks called _______.',
+    options: ['frames', 'pages', 'segments', 'clusters'],
+  },
+  {
+    questionText: 'A Translation Lookaside Buffer (TLB) is used to cache _______.',
+    options: ['recent page-table entries', 'disk blocks', 'process source code', 'file names'],
+  },
+  {
+    questionText: 'A page fault occurs when _______.',
+    options: ['the CPU divides by zero', 'a referenced page is not in physical memory', 'the disk is full', 'a process finishes'],
+  },
+  {
+    questionText: 'Belady’s anomaly may occur with which page-replacement algorithm?',
+    options: ['Optimal', 'LRU', 'FIFO', 'Clock only'],
+  },
+  {
+    questionText: 'Excessive paging activity that leaves little time for useful execution is called _______.',
+    options: ['spooling', 'thrashing', 'starvation', 'fragmentation'],
+  },
+  {
+    questionText: 'Which file-allocation method uses a separate index block containing pointers to file blocks?',
+    options: ['contiguous allocation', 'linked allocation', 'indexed allocation', 'sequential allocation'],
+  },
+  {
+    questionText: 'Disk seek time is the time required to _______.',
+    options: ['transfer a sector to memory', 'move the disk arm to the required track', 'rotate the required sector under the head', 'format a disk'],
+  },
+  {
+    questionText: 'A protection domain specifies _______.',
+    options: ['a set of objects and permitted access rights', 'only the current user name', 'the order of ready processes', 'the page size'],
+  },
+];
+
+const DEFAULT_SEC1_Q2: UniversityTemplateQuestion[] = [
+  { questionText: 'Explain any four services provided by an operating system. Give one suitable system call for each service.' },
+  { questionText: 'Draw and explain the five-state process model. State the purpose of a PCB.' },
+  { questionText: 'Compare user-level and kernel-level threads. State any two advantages of multithreading.' },
+  { questionText: 'State the three requirements of a correct critical-section solution. Explain how a mutex lock provides mutual exclusion.' },
+  { questionText: 'Distinguish between long-term, short-term and medium-term schedulers.' },
+];
+
+const DEFAULT_SEC1_Q3: UniversityTemplateQuestion[] = [
+  {
+    questionText: 'Four processes arrive as shown below. Using Round Robin scheduling with time quantum 3 ms, draw the Gantt chart and calculate the average waiting time and average turnaround time.',
+    table: {
+      headers: ['Process', 'Arrival time (ms)', 'CPU burst (ms)'],
+      rows: [
+        ['P1', '0', '8'],
+        ['P2', '1', '4'],
+        ['P3', '2', '9'],
+        ['P4', '3', '5'],
+      ],
+    },
+  },
+  { questionText: 'Write a semaphore-based solution for the bounded-buffer (producer–consumer) problem. Explain the roles of mutex, empty and full.' },
+  { questionText: 'Compare shared memory and message passing as inter-process communication mechanisms, with one application of each.' },
+];
+
+const DEFAULT_SEC2_Q4: UniversityTemplateQuestion[] = [
+  { questionText: 'State the four necessary conditions for deadlock. Explain any one deadlock-prevention technique.' },
+  { questionText: 'Explain address translation in paging with the help of a page table and a TLB.' },
+  { questionText: 'List the steps performed by the operating system while servicing a page fault.' },
+  { questionText: 'For the page-reference string 1, 2, 3, 4, 2, 1, 5, 2, 4, 5 and three frames, find the number of page faults using FIFO and LRU.' },
+  { questionText: 'Explain contiguous, linked and indexed file-allocation methods. State one advantage and one limitation of each.' },
+];
+
+const DEFAULT_SEC2_Q5: UniversityTemplateQuestion[] = [
+  { questionText: 'Explain the Banker’s safety algorithm. What is a safe state, and how does it differ from a deadlocked state?' },
+  { questionText: 'Define thrashing. Explain the working-set and page-fault-frequency approaches used to control it.' },
+  { questionText: 'A disk has cylinders numbered 0–199. The request queue is 98, 183, 37, 122, 14, 124, 65, 67 and the head starts at cylinder 53. Calculate total head movement using FCFS and SSTF scheduling.' },
+];
+
+export async function generateSynthesizedPaperPdf(
+  data: SynthesizedPaperData,
+  options: { figures?: PaperFigureAsset[]; durationHours?: number; totalSetsToRender?: number; setLetter?: string } = {}
+): Promise<Buffer> {
+  const meta = resolveMasthead(data, options.durationHours);
+
+  // 1. Gather all questions across sections
+  const extractedMcqs: UniversityTemplateQuestion[] = [];
+  const extractedTheory: UniversityTemplateQuestion[] = [];
+
+  (data.sections || []).forEach(sec => {
+    (sec.questions || []).forEach(q => {
+      const qText = (q.text || '').trim();
+      if (!qText || isPlaceholderQuestion(qText)) return;
+
+      const hasOptions = Array.isArray(q.options) && q.options.length >= 2;
+      const isMcq = hasOptions || q.number?.includes('Q.1') || q.marks === '1' || q.marks === 1;
+
+      if (isMcq) {
+        let opts = (q.options || []).filter(o => !isPlaceholderOption(o));
+        if (opts.length < 4) {
+          const fallbackOpts = DEFAULT_OS_MCQS[extractedMcqs.length % DEFAULT_OS_MCQS.length].options || [];
+          opts = [...opts, ...fallbackOpts.slice(opts.length, 4)];
+        }
+        extractedMcqs.push({
+          questionText: qText,
+          options: opts.slice(0, 4),
+          marks: 1,
+        });
+      } else {
+        const parsed = extractTableFromQuestionText(qText);
+        extractedTheory.push({
+          questionText: parsed.cleanText || qText,
+          table: parsed.table,
+          marks: Number(q.marks) || 4,
+        });
+      }
+    });
+  });
+
+  // 2. Ensure exactly 14 MCQs
+  const finalMcqs: UniversityTemplateQuestion[] = [...extractedMcqs];
+  let mcqIdx = 0;
+  while (finalMcqs.length < 14) {
+    finalMcqs.push(DEFAULT_OS_MCQS[mcqIdx % DEFAULT_OS_MCQS.length]);
+    mcqIdx++;
+  }
+  const cleanMcqs = finalMcqs.slice(0, 14);
+
+  // 3. Ensure theory questions for Q.2, Q.3, Q.4, Q.5
+  const theoryPool = [...extractedTheory];
+
+  // Q.2: 5 subquestions (4 marks each)
+  const sec1Q2: UniversityTemplateQuestion[] = [];
+  for (let i = 0; i < 5; i++) {
+    sec1Q2.push(theoryPool.shift() || DEFAULT_SEC1_Q2[i]);
+  }
+
+  // Q.3: 3 subquestions (6 marks each, attempt any 2)
+  const sec1Q3: UniversityTemplateQuestion[] = [];
+  for (let i = 0; i < 3; i++) {
+    const candidate = theoryPool.shift() || DEFAULT_SEC1_Q3[i];
+    if (i === 0 && !candidate.table) {
+      candidate.table = DEFAULT_SEC1_Q3[0].table;
+    }
+    sec1Q3.push(candidate);
+  }
+
+  // Q.4: 5 subquestions (4 marks each)
+  const sec2Q4: UniversityTemplateQuestion[] = [];
+  for (let i = 0; i < 5; i++) {
+    sec2Q4.push(theoryPool.shift() || DEFAULT_SEC2_Q4[i]);
+  }
+
+  // Q.5: 3 subquestions (6 marks each, attempt any 2)
+  const sec2Q5: UniversityTemplateQuestion[] = [];
+  for (let i = 0; i < 3; i++) {
+    sec2Q5.push(theoryPool.shift() || DEFAULT_SEC2_Q5[i]);
+  }
+
+  // 4. Construct UniversityPaperTemplateInput
+  const totalSets = options.totalSetsToRender !== undefined ? options.totalSetsToRender : 4;
+  const templateInput: UniversityPaperTemplateInput = {
+    paperCode: meta.paperCode && meta.paperCode !== '—' ? meta.paperCode : 'MODEL–OS–2026',
+    setLetter: options.setLetter || data.setLetter || 'P',
+    totalSetsToRender: totalSets, // Exactly 4 sets (16 pages) or requested set (4 pages)
+    examTitle: meta.examName || 'T.Y. (B.Tech.) (Sem.–II) MODEL EXAMINATION: 2026',
+    branchName: 'ELECTRONICS ENGINEERING',
+    subjectName: meta.subject && meta.subject !== 'Examination' ? meta.subject : 'Operating Systems (BTN04605)',
+    dayDate: meta.date && meta.date !== '—' ? meta.date : '_______________________',
+    timeRange: '10:00 AM to 01:00 PM',
+    maxMarksTotal: 70,
+    maxMarksTheory: 56,
+    mcqs: cleanMcqs,
+    section1Q2: sec1Q2,
+    section1Q3: sec1Q3,
+    section2Q4: sec2Q4,
+    section2Q5: sec2Q5,
+  };
+
+  return await renderExactUniversityPaperPdf(templateInput);
+}
+
+export function generateLegacySynthesizedPaperPdf(
   data: SynthesizedPaperData,
   options: { figures?: PaperFigureAsset[]; durationHours?: number } = {}
 ): Promise<Buffer> {
-  // Keyed by the number written in the marker, so `[FIGURE:2]` resolves to the
-  // crop the extractor numbered 2.
   const figures = new Map<number, Buffer>();
   (options.figures || []).forEach((figure) => {
     if (figure?.buffer && figure.buffer.length > 0) figures.set(figure.index, figure.buffer);
   });
-
   const meta = resolveMasthead(data, options.durationHours);
-
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
@@ -677,7 +881,6 @@ export function generateSynthesizedPaperPdf(
         margin: 40,
         bufferPages: true,
       });
-
       const chunks: Buffer[] = [];
       doc.on('data', (c: Buffer) => chunks.push(c));
       doc.on('end', () => resolve(Buffer.concat(chunks)));

@@ -44,6 +44,6 @@ const UserSchema = new Schema(
   baseSchemaOptions
 );
 
-import { Model } from 'mongoose';
+import type { Model } from 'mongoose';
 export const UserModel: Model<IUser> = (mongoose.models.User as Model<IUser>) || mongoose.model<IUser>('User', UserSchema, 'users');
 export default UserModel;

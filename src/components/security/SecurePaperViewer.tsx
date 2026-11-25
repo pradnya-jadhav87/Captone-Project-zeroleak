@@ -1,7 +1,14 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { ShieldAlert, ShieldCheck, Lock, AlertTriangle, EyeOff, RefreshCw } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { ShieldAlert, ShieldCheck, Lock, AlertTriangle, EyeOff, RefreshCw, MapPin } from 'lucide-react';
 import { useScreenProtection } from '../../hooks/useScreenProtection';
 import { getStoredUser, getDeviceFingerprint } from '../../api';
+import {
+  getSecurityWatermarkLocation,
+  getImmediateSecurityWatermarkLocation,
+  activatePlatformScreenProtection,
+  createWatermarkSvgPattern,
+  type ClientSecurityLocation,
+} from '../../utils/securityProtection';
 
 export interface SecurePaperViewerProps {
   children: React.ReactNode;
@@ -13,6 +20,8 @@ export interface SecurePaperViewerProps {
   className?: string;
   encryptionTime?: string | null;
   unlockTime?: string | null;
+  trackingCode?: string;
+  location?: ClientSecurityLocation | null;
 }
 
 /**
@@ -32,15 +41,21 @@ export const SecurePaperViewer: React.FC<SecurePaperViewerProps> = ({
   className = '',
   encryptionTime,
   unlockTime,
+  trackingCode: explicitTrackingCode,
+  location: propLocation,
 }) => {
-  const { isElectron, isObscured, captureWarning, clearWarning, reportSecurityEvent } = useScreenProtection({
+  const { isElectron, isObscured, captureWarning, clearWarning, resumeViewing, reportSecurityEvent } = useScreenProtection({
     paperId,
     examId,
     examType: examType as 'COMPETITIVE' | 'UNIVERSITY',
     sessionToken,
   });
 
-  const [authorizedBrowserPreview, setAuthorizedBrowserPreview] = useState<boolean>(false);
+  const [authorizedBrowserPreview, setAuthorizedBrowserPreview] = useState<boolean>(() => {
+    const user = getStoredUser();
+    // Authorized roles in the examination system can preview directly in browser
+    return Boolean(user && ['EXAM_MANAGER', 'ORG_OWNER', 'ADMIN', 'AUDITOR', 'INVIGILATOR'].includes(user.role));
+  });
   const [showDesktopHelp, setShowDesktopHelp] = useState<boolean>(false);
 
   const effectiveEncryptionTime = encryptionTime || new Date().toLocaleString('en-IN', {
@@ -65,14 +80,50 @@ export const SecurePaperViewer: React.FC<SecurePaperViewerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const watermarkContainerRef = useRef<HTMLDivElement>(null);
   const [tamperTrigger, setTamperTrigger] = useState<number>(0);
+  const [locationData, setLocationData] = useState<ClientSecurityLocation>(() =>
+    propLocation || getImmediateSecurityWatermarkLocation()
+  );
+  const [watermarkPatternUrl, setWatermarkPatternUrl] = useState<string>('');
+
+  const trackingCode = useMemo(() => {
+    if (explicitTrackingCode) return explicitTrackingCode;
+    const raw = `${examId || 'EXAM'}:${userId}:${Date.now()}`;
+    let hash = 0;
+    for (let i = 0; i < raw.length; i++) {
+      hash = (hash << 5) - hash + raw.charCodeAt(i);
+      hash |= 0;
+    }
+    return `TRK-VIEW-${Math.abs(hash).toString(16).toUpperCase().padStart(8, '0')}`;
+  }, [examId, userId]);
+
+  useEffect(() => {
+    activatePlatformScreenProtection();
+    if (propLocation) {
+      setLocationData(propLocation);
+    } else {
+      getSecurityWatermarkLocation().then((loc) => {
+        setLocationData(loc);
+      });
+    }
+  }, [propLocation]);
+
+  const effectiveLocation = propLocation || locationData;
+  const line3 = effectiveLocation?.displayText || getImmediateSecurityWatermarkLocation().displayText;
+
+  const watermarkSvgUrl = useMemo(() => {
+    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+    const l1 = `ZEROLEAK SECURE • ${operatorName.toUpperCase()} (${userId}) • ${userRole}`;
+    const l2 = `EXAM: ${examId || 'EXAM-SECURE'} • TRACK: ${trackingCode} • ${timestamp}`;
+    return createWatermarkSvgPattern(l1, l2, line3);
+  }, [operatorName, userId, userRole, examId, trackingCode, line3]);
 
   // Draw dense tiled watermark across the paper view
   const renderWatermarkCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const width = 600;
-    const height = 400;
+    const width = 640;
+    const height = 420;
     canvas.width = width;
     canvas.height = height;
 
@@ -82,24 +133,30 @@ export const SecurePaperViewer: React.FC<SecurePaperViewerProps> = ({
     ctx.clearRect(0, 0, width, height);
     ctx.save();
     ctx.translate(width / 2, height / 2);
-    ctx.rotate((-25 * Math.PI) / 180);
+    ctx.rotate((-28 * Math.PI) / 180);
     ctx.translate(-width / 2, -height / 2);
 
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.12)';
-    ctx.font = 'bold 13px "Courier New", monospace';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.11)';
+    ctx.font = 'bold 12px "Courier New", monospace';
     ctx.textAlign = 'center';
 
-    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-    const line1 = `ZEROLEAK VAULT • CONFIDENTIAL • DO NOT COPY`;
-    const line2 = `${operatorName} (${userRole}) • ID: ${userId.slice(0, 8)}`;
-    const line3 = `DEV: ${deviceId.slice(0, 10)} • IP: ${clientIp} • ${timestamp}`;
+    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+    const line1 = `ZEROLEAK SECURE • ${operatorName.toUpperCase()} (${userId}) • ${userRole}`;
+    const line2 = `EXAM: ${examId || 'EXAM-SECURE'} • TRACK: ${trackingCode} • ${timestamp}`;
+    const effectiveLocation = propLocation || locationData;
+    const line3 = effectiveLocation?.displayText || getImmediateSecurityWatermarkLocation().displayText;
 
-    ctx.fillText(line1, width / 2, height / 2 - 20);
-    ctx.fillText(line2, width / 2, height / 2 + 2);
+    ctx.fillText(line1, width / 2, height / 2 - 22);
+    ctx.fillText(line2, width / 2, height / 2 + 1);
     ctx.fillText(line3, width / 2, height / 2 + 24);
 
     ctx.restore();
-  }, [operatorName, userRole, userId, deviceId, clientIp]);
+    try {
+      setWatermarkPatternUrl(canvas.toDataURL());
+    } catch (e) {
+      console.warn('Canvas toDataURL failed:', e);
+    }
+  }, [operatorName, userRole, userId, examId, trackingCode, locationData, propLocation]);
 
   useEffect(() => {
     renderWatermarkCanvas();
@@ -303,7 +360,10 @@ export const SecurePaperViewer: React.FC<SecurePaperViewerProps> = ({
 
       {/* Obscured Overlay (Window minimized, blurred, or lost focus) */}
       {isObscured && (
-        <div className="absolute inset-0 z-40 bg-slate-950/95 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center p-8 text-center text-white space-y-4 shadow-2xl">
+        <div
+          onClick={resumeViewing}
+          className="absolute inset-0 z-40 bg-slate-950/95 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center p-8 text-center text-white space-y-4 shadow-2xl cursor-pointer"
+        >
           <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
             <EyeOff className="w-7 h-7" />
           </div>
@@ -315,9 +375,19 @@ export const SecurePaperViewer: React.FC<SecurePaperViewerProps> = ({
               Examination content is hidden because the application lost active window focus.
             </p>
             <p className="text-[11px] text-slate-400 pt-2">
-              Click inside this window to return focus and resume verified viewing.
+              Click anywhere inside this card or click the button below to resume verified viewing.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              resumeViewing();
+            }}
+            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs cursor-pointer shadow-md transition-transform active:scale-95"
+          >
+            Click to Resume Viewing
+          </button>
         </div>
       )}
 
@@ -329,9 +399,7 @@ export const SecurePaperViewer: React.FC<SecurePaperViewerProps> = ({
         style={{
           pointerEvents: 'none',
           userSelect: 'none',
-          backgroundImage: canvasRef.current
-            ? `url(${canvasRef.current.toDataURL()})`
-            : undefined,
+          backgroundImage: `url("${watermarkSvgUrl}")`,
           backgroundRepeat: 'repeat',
         }}
       >
@@ -339,17 +407,25 @@ export const SecurePaperViewer: React.FC<SecurePaperViewerProps> = ({
       </div>
 
       {/* Top Security & Encryption Timestamp Badge */}
-      <div className="mb-3 px-3.5 py-2 rounded-xl bg-slate-900 border border-emerald-500/30 text-white flex flex-wrap items-center justify-between gap-2.5 text-xs font-mono shadow-sm">
-        <div className="flex items-center gap-2">
+      <div className="mb-3 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-emerald-500/30 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-mono shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
           <span className="font-bold text-emerald-400">ZEROLEAK HARDWARE VAULT</span>
           <span className="text-slate-500">|</span>
           <span className="text-slate-300 font-sans font-medium">{examTitle}</span>
+          <span className="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+            {trackingCode}
+          </span>
         </div>
-        <div className="flex items-center gap-3 text-[11px]">
-          <span>Sealed (Encryption Time): <strong className="text-white">{effectiveEncryptionTime} IST</strong></span>
+        <div className="flex flex-wrap items-center gap-3 text-[11px]">
+          <span className="text-slate-400 flex items-center gap-1">
+            <MapPin className="w-3 h-3 text-cyan-400" />
+            <span className="text-cyan-300">{(propLocation || locationData)?.displayText || getImmediateSecurityWatermarkLocation().displayText}</span>
+          </span>
           <span className="text-slate-500">•</span>
-          <span>Unlock: <strong className="text-amber-300">{effectiveUnlockTime} IST</strong></span>
+          <span>Sealed: <strong className="text-white">{effectiveEncryptionTime}</strong></span>
+          <span className="text-slate-500">•</span>
+          <span>Unlock: <strong className="text-amber-300">{effectiveUnlockTime}</strong></span>
         </div>
       </div>
 

@@ -77,7 +77,7 @@ export const CompetitiveExaminationUnifiedWorkflow: React.FC<WorkflowProps> = ({
   // Blueprint Subjects (Step 2)
   const [subjects, setSubjects] = useState<SubjectRule[]>([]);
 
-  const applyExamRecordToState = (found: any) => {
+  const applyExamRecordToState = async (found: any) => {
     if (!found || !found.id) return;
     unsavedNewExamIdsRef.current.delete(found.id);
     setActiveExamId(found.id);
@@ -94,11 +94,49 @@ export const CompetitiveExaminationUnifiedWorkflow: React.FC<WorkflowProps> = ({
       exam_time: found.exam_time || '',
       instructions: found.instructions || '',
     });
+
+    let rawSubjects: SubjectRule[] = [];
     if (found.blueprint?.subjects && found.blueprint.subjects.length > 0) {
-      setSubjects(found.blueprint.subjects.map((s: any) => ({ ...s, pdfs: s.pdfs || [] })));
-    } else {
-      setSubjects([]);
+      rawSubjects = found.blueprint.subjects.map((s: any) => ({ ...s, pdfs: s.pdfs || [] }));
     }
+
+    // Immediately fetch question pool files from database to ensure PDF persistence on page refresh
+    try {
+      const poolResp = await api.competitive.getQuestionPools(found.id);
+      const poolFiles = poolResp?.success && Array.isArray(poolResp.pools) ? poolResp.pools : [];
+
+      if (poolFiles.length > 0 && rawSubjects.length > 0) {
+        rawSubjects = rawSubjects.map(sub => {
+          const matchedFiles = poolFiles.filter((f: any) => {
+            if (f.subject_id && sub.id && f.subject_id === sub.id) return true;
+            if (sub.subjectName && sub.subjectName.trim()) {
+              return (f.subject_name || '').trim().toLowerCase() === sub.subjectName.trim().toLowerCase();
+            }
+            return false;
+          });
+
+          const activePdfs = matchedFiles.map((f: any) => ({
+            id: f.id,
+            fileId: f.id,
+            name: f.file_name,
+            size: f.file_size || 0,
+            status: Number(f.question_count || 0) > 0 ? 'COMPLETED' : f.status || 'COMPLETED',
+            extractedCount: f.question_count || 0,
+            subjectId: sub.id,
+            uploadedAt: f.uploaded_at,
+          }));
+
+          return {
+            ...sub,
+            pdfs: activePdfs.length > 0 ? activePdfs : (sub.pdfs || []),
+          };
+        });
+      }
+    } catch (poolErr) {
+      console.warn('Notice hydrating question pool files during applyExamRecordToState:', poolErr);
+    }
+
+    setSubjects(rawSubjects);
   };
 
   // Load existing competitive exams from database and restore active exam ONLY if it matches targetId
@@ -111,7 +149,7 @@ export const CompetitiveExaminationUnifiedWorkflow: React.FC<WorkflowProps> = ({
         const targetId = preferredExamId || activeExamId;
         const matched = resp.exams.find((x: any) => x.id === targetId);
         if (matched) {
-          applyExamRecordToState(matched);
+          await applyExamRecordToState(matched);
         } else if (!unsavedNewExamIdsRef.current.has(targetId)) {
           // Only if targetId was NOT created as a new blank exam, check if localStorage has a saved match
           let storedId = '';
@@ -120,10 +158,10 @@ export const CompetitiveExaminationUnifiedWorkflow: React.FC<WorkflowProps> = ({
           } catch {}
           const storedMatch = storedId ? resp.exams.find((x: any) => x.id === storedId) : null;
           if (storedMatch && !unsavedNewExamIdsRef.current.has(storedId)) {
-            applyExamRecordToState(storedMatch);
+            await applyExamRecordToState(storedMatch);
           } else if (resp.exams.length > 0) {
             // Clean fallback: targetId/storedId was deleted, select first available valid exam
-            applyExamRecordToState(resp.exams[0]);
+            await applyExamRecordToState(resp.exams[0]);
           } else {
             // Treat current targetId as a clean new exam
             unsavedNewExamIdsRef.current.add(targetId);
@@ -147,7 +185,7 @@ export const CompetitiveExaminationUnifiedWorkflow: React.FC<WorkflowProps> = ({
     const targetId = selectedExamId.trim();
     const matched = existingExams.find(x => x.id === targetId);
     if (matched) {
-      applyExamRecordToState(matched);
+      void applyExamRecordToState(matched);
     } else {
       loadExams(targetId);
     }

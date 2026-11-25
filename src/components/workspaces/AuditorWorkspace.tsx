@@ -17,11 +17,17 @@ import {
   ShieldCheck,
   Eye,
   Users,
+  Key,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { User, AuditEvent, SecurityEvent, PrintCopy, AuthorityProctorSession, CameraEvidenceItem, VoiceEvidenceItem } from '../../types';
 import { api } from '../../api';
 import { NavSubTab } from '../Sidebar';
 import { AuthoritySurveillanceDashboard } from '../proctor/AuthoritySurveillanceDashboard';
+import { AuditorLeakInvestigationPanel } from '../forensics/AuditorLeakInvestigationPanel';
+import { CustodianKeyApprovalsView } from '../papers/CustodianKeyApprovalsView';
+import { PaperLeakManagementView } from '../leak/PaperLeakManagementView';
 
 interface AuditorWorkspaceProps {
   currentUser: User | null;
@@ -41,6 +47,8 @@ export const AuditorWorkspace: React.FC<AuditorWorkspaceProps> = ({
   const [evidenceBySession, setEvidenceBySession] = useState<Record<string, { camera: CameraEvidenceItem[]; voice: VoiceEvidenceItem[] }>>({});
   const [previewPhoto, setPreviewPhoto] = useState<{ open: boolean; url: string; title: string; official: string; timestamp: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [translatorRecoveryReason, setTranslatorRecoveryReason] = useState('');
+  const [recoveringTranslatorSession, setRecoveringTranslatorSession] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -96,6 +104,24 @@ export const AuditorWorkspace: React.FC<AuditorWorkspaceProps> = ({
     }
   };
 
+  const handleRecoverTranslatorLock = async (sessionId: string) => {
+    const reason = translatorRecoveryReason.trim();
+    if (reason.length < 10) {
+      alert('Enter a review reason of at least 10 characters.');
+      return;
+    }
+    setRecoveringTranslatorSession(sessionId);
+    try {
+      await api.authorityProctor.recoverTranslatorLock(sessionId, reason);
+      setTranslatorRecoveryReason('');
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Translator lock recovery failed.');
+    } finally {
+      setRecoveringTranslatorSession(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* DASHBOARD */}
@@ -147,6 +173,54 @@ export const AuditorWorkspace: React.FC<AuditorWorkspaceProps> = ({
                 </div>
                 <span className="text-2xl font-black text-emerald-800">100%</span>
                 <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">VERIFIED TAMPER-FREE</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2-OF-3 THRESHOLD KEY CUSTODIAN OVERVIEW (AUDITOR ROLE) */}
+          <div className="modern-card p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-800 bg-teal-50 px-2.5 py-0.5 rounded-full border border-teal-200">
+                  Custody Share #3 &bull; Auditor Enclave
+                </span>
+                <h3 className="text-base font-bold text-slate-900 mt-1 flex items-center gap-2">
+                  <Key className="w-4 h-4 text-teal-600" />
+                  2-of-3 Emergency Threshold Key Authorization
+                </h3>
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 font-mono">
+                Shamir GF(256) k=2, n=3
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              As the designated <strong>Auditor Custodian</strong>, you hold Share #3 in the 2-of-3 threshold cryptosystem. Reconstructing the examination data-encryption key (DEK) requires authorizations from at least 2 distinct custodians (Organization Owner, Exam Manager, or Auditor). A single custodian alone can never decrypt or access the paper.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs space-y-1">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                  Custodian 1: Org Owner
+                </span>
+                <p className="text-[11px] text-slate-500">Holds Share #1. Validates institution-level authorization.</p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs space-y-1">
+                <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  Custodian 2: Exam Manager
+                </span>
+                <p className="text-[11px] text-slate-500">Holds Share #2. Validates examination blueprint &amp; generation.</p>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-teal-50/70 border border-teal-200/80 text-xs space-y-1">
+                <span className="font-bold text-teal-900 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
+                  Custodian 3: Auditor (You)
+                </span>
+                <p className="text-[11px] text-teal-700">Holds Share #3. Independent vigilance &amp; emergency oversight.</p>
               </div>
             </div>
           </div>
@@ -334,6 +408,9 @@ export const AuditorWorkspace: React.FC<AuditorWorkspaceProps> = ({
               {/* 2. LINGUISTIC TRANSLATOR */}
               {(() => {
                 const transSess = surveillanceSessions.find(
+                  s => (s.workspace_type === 'TRANSLATOR_PORTAL' && s.emergency_locked === 1) ||
+                    (s.user_role === 'TRANSLATOR' && s.emergency_locked === 1)
+                ) || surveillanceSessions.find(
                   s => s.user_role === 'TRANSLATOR' || s.workspace_type === 'TRANSLATOR_PORTAL' || s.id === 'AUTH-SESS-TRANS-01'
                 ) || {
                   id: 'AUTH-SESS-TRANS-01',
@@ -384,6 +461,40 @@ export const AuditorWorkspace: React.FC<AuditorWorkspaceProps> = ({
                         </span>
                       </div>
                     </div>
+
+                    {transSess.emergency_locked === 1 &&
+                      transSess.warning_count >= 3 &&
+                      (currentUser?.role === 'AUDITOR' || currentUser?.role === 'ORG_OWNER') && (
+                        <form
+                          className="space-y-2 rounded-xl border border-rose-200 bg-rose-50 p-3"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            handleRecoverTranslatorLock(transSess.id);
+                          }}
+                        >
+                          <p className="text-sm font-bold text-rose-900">Translator access locked after 3/3 warnings</p>
+                          <label htmlFor={`translator-recovery-${transSess.id}`} className="block text-xs font-semibold text-slate-700">
+                            Administrator review reason (required)
+                          </label>
+                          <textarea
+                            id={`translator-recovery-${transSess.id}`}
+                            value={translatorRecoveryReason}
+                            onChange={(event) => setTranslatorRecoveryReason(event.target.value)}
+                            minLength={10}
+                            maxLength={1000}
+                            rows={3}
+                            required
+                            className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+                          />
+                          <button
+                            type="submit"
+                            disabled={recoveringTranslatorSession === transSess.id || translatorRecoveryReason.trim().length < 10}
+                            className="min-h-10 rounded-lg bg-rose-800 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {recoveringTranslatorSession === transSess.id ? 'Recording recovery…' : 'Authorize recovery'}
+                          </button>
+                        </form>
+                      )}
 
                     {/* Camera Photos Section */}
                     <div className="space-y-2 bg-white p-3.5 rounded-xl border border-slate-200/80">
@@ -616,11 +727,15 @@ export const AuditorWorkspace: React.FC<AuditorWorkspaceProps> = ({
 
       {/* PRINTING & PAPER EVENTS */}
       {(activeSubTab === 'printing_events' || activeSubTab === 'paper_events' || activeSubTab === 'regeneration_events') && (
-        <div className="modern-card p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
-          <div className="border-b border-slate-100 pb-3">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-              Distribution Forensics
-            </span>
+        <div className="space-y-6">
+          <AuditorLeakInvestigationPanel />
+
+          <div className="modern-card p-6 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-4">
+            <div className="border-b border-slate-100 pb-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                Distribution Forensics
+              </span>
+
             <h3 className="text-lg font-bold text-slate-900 mt-1">
               Physical Paper Distribution & Serialization Audit
             </h3>
@@ -646,6 +761,30 @@ export const AuditorWorkspace: React.FC<AuditorWorkspaceProps> = ({
               ))
             )}
           </div>
+        </div>
+      </div>
+    )}
+
+
+
+      {/* CUSTODIAN KEY APPROVALS */}
+      {activeSubTab === 'security_approvals' && (
+        <CustodianKeyApprovalsView
+          currentUser={currentUser}
+          role="AUDITOR"
+          onRefresh={loadData}
+        />
+      )}
+
+      {/* PAPER LEAK INCIDENTS & FORENSICS */}
+      {activeSubTab === 'paper_leak_incidents' && (
+        <div className="space-y-6">
+          <AuditorLeakInvestigationPanel />
+          <PaperLeakManagementView
+            currentUser={currentUser}
+            role="AUDITOR"
+            onRefresh={loadData}
+          />
         </div>
       )}
 

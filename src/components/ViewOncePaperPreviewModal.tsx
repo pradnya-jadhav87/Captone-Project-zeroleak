@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -10,14 +10,23 @@ import {
   CheckCircle2,
   AlertCircle,
   FileCheck,
+  MapPin,
 } from 'lucide-react';
 import { api } from '../api';
 import { User } from '../types';
+import {
+  getSecurityWatermarkLocation,
+  getImmediateSecurityWatermarkLocation,
+  activatePlatformScreenProtection,
+  createWatermarkSvgPattern,
+  type ClientSecurityLocation,
+} from '../utils/securityProtection';
 
 interface ViewOncePaperPreviewModalProps {
   examType: 'COMPETITIVE' | 'UNIVERSITY';
   examId: string;
   paperId: string;
+  paperVersion?: string;
   paperTitle: string;
   sessionToken: string;
   durationSeconds: number;
@@ -31,6 +40,7 @@ export const ViewOncePaperPreviewModal: React.FC<ViewOncePaperPreviewModalProps>
   examType,
   examId,
   paperId,
+  paperVersion = 'v1',
   paperTitle,
   sessionToken,
   durationSeconds: initialDurationSeconds,
@@ -44,8 +54,19 @@ export const ViewOncePaperPreviewModal: React.FC<ViewOncePaperPreviewModalProps>
   const [obscureReason, setObscureReason] = useState<string>('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isConsuming, setIsConsuming] = useState(false);
+  const [finalizeError, setFinalizeError] = useState('');
   const [securityWarnings, setSecurityWarnings] = useState<string[]>([]);
+  const [locationData, setLocationData] = useState<ClientSecurityLocation>(() =>
+    getImmediateSecurityWatermarkLocation()
+  );
   const hasConsumedRef = useRef(false);
+
+  useEffect(() => {
+    activatePlatformScreenProtection();
+    getSecurityWatermarkLocation().then((loc) => {
+      setLocationData(loc);
+    });
+  }, []);
 
   // Formatted countdown timer MM:SS
   const formatTime = (secs: number) => {
@@ -57,27 +78,46 @@ export const ViewOncePaperPreviewModal: React.FC<ViewOncePaperPreviewModalProps>
   // Safe server-side consume call
   const triggerConsume = useCallback(
     async (reason: 'CONFIRMED_FINALIZE' | 'USER_CLOSED' | 'CANCELLED' | 'EXPIRED') => {
-      if (hasConsumedRef.current) return;
-      hasConsumedRef.current = true;
+      if (hasConsumedRef.current || isConsuming) return;
       setIsConsuming(true);
+      setFinalizeError('');
       try {
-        await api.consumeViewOnce({
-          examType,
-          paperId,
-          sessionToken,
-          reason,
-        });
+        if (reason === 'CONFIRMED_FINALIZE') {
+          const result = await api.verifyPaperOnce({
+            examType,
+            paperId,
+            paperVersion,
+            sessionToken,
+            verificationNotes: 'Exam Manager verified questions, marks, sections, diagrams, and total marks.',
+          });
+          if (!result.success) {
+            throw new Error(result.error || 'Paper verification could not be recorded.');
+          }
+        } else {
+          const result = await api.consumeViewOnce({
+            examType,
+            paperId,
+            sessionToken,
+            reason,
+          });
+          if (!result.success) {
+            throw new Error('The preview session could not be securely consumed. Please retry or contact an administrator.');
+          }
+        }
       } catch (err) {
-        console.warn('[ViewOnce] Consume notice:', err);
+        const message = err instanceof Error ? err.message : 'Verification could not be recorded.';
+        setFinalizeError(message);
+        return;
       } finally {
         setIsConsuming(false);
-        onClose(reason);
-        if (reason === 'CONFIRMED_FINALIZE' && onConfirmFinalize) {
-          onConfirmFinalize();
-        }
+      }
+      hasConsumedRef.current = true;
+      onClose(reason);
+      if (reason === 'CONFIRMED_FINALIZE' && onConfirmFinalize) {
+        onConfirmFinalize();
       }
     },
-    [examType, paperId, sessionToken, onClose, onConfirmFinalize]
+    [examType, paperId, paperVersion, sessionToken, onClose, onConfirmFinalize, isConsuming]
   );
 
   // Countdown timer effect
@@ -144,27 +184,29 @@ export const ViewOncePaperPreviewModal: React.FC<ViewOncePaperPreviewModalProps>
         return;
       }
 
-      // Intercept Ctrl+P, Cmd+P (Print)
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
-        e.preventDefault();
-        e.stopPropagation();
-        setSecurityWarnings((prev) => [...prev.slice(-4), 'Browser Print shortcut blocked']);
-        api.recordViewOnceSecurityEvent({
-          examType,
-          examId,
-          paperId,
-          sessionToken,
-          eventType: 'PRINT_SHORTCUT_BLOCKED',
-          details: { shortcut: 'Ctrl+P', timestamp: new Date().toISOString() },
-        }).catch(() => {});
-        return;
-      }
-
       // Intercept Ctrl+S, Cmd+S (Save)
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
         e.stopPropagation();
         setSecurityWarnings((prev) => [...prev.slice(-4), 'Save webpage shortcut blocked']);
+        return;
+      }
+
+      // Intercept Ctrl+P, Cmd+P (Print)
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsObscured(true);
+        setObscureReason('Print attempt intercepted. Printing is strictly disabled in View-Once Verification Mode.');
+        setSecurityWarnings((prev) => [...prev.slice(-4), 'Print attempt intercepted']);
+        api.recordViewOnceSecurityEvent({
+          examType,
+          examId,
+          paperId,
+          sessionToken,
+          eventType: 'PRINT_ATTEMPT_DETECTED',
+          details: { key: e.key, code: e.code, timestamp: new Date().toISOString() },
+        }).catch(() => {});
         return;
       }
 
@@ -174,44 +216,58 @@ export const ViewOncePaperPreviewModal: React.FC<ViewOncePaperPreviewModalProps>
       }
     };
 
+    const handleBeforePrint = (e: Event) => {
+      e.preventDefault();
+      setIsObscured(true);
+      setObscureReason('Browser print attempt detected. Printing is strictly disabled in View-Once Verification Mode.');
+      setSecurityWarnings((prev) => [...prev.slice(-4), 'Print dialog intercepted']);
+      api.recordViewOnceSecurityEvent({
+        examType,
+        examId,
+        paperId,
+        sessionToken,
+        eventType: 'BROWSER_PRINT_DETECTED',
+        details: { timestamp: new Date().toISOString() },
+      }).catch(() => {});
+    };
+
     window.addEventListener('blur', handleBlur);
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('keydown', handleKeyDown, true);
-
-    // Unload beacon to consume preview on refresh/navigate away
-    const handleBeforeUnload = () => {
-      if (!hasConsumedRef.current) {
-        hasConsumedRef.current = true;
-        try {
-          const payload = JSON.stringify({
-            examType,
-            paperId,
-            sessionToken,
-            reason: 'USER_CLOSED',
-          });
-          navigator.sendBeacon('/api/delivery/view-once/consume', payload);
-        } catch {}
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('beforeprint', handleBeforePrint);
 
     return () => {
       window.removeEventListener('blur', handleBlur);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('beforeprint', handleBeforePrint);
     };
   }, [examType, examId, paperId, sessionToken]);
 
-  const timestampStr = new Date().toLocaleString();
-  const watermarkText = `ZEROLEAK CONFIDENTIAL • VIEW ONLY • ${currentUser?.email || 'OFFICIAL'} • ${currentUser?.role || 'EXAM_MANAGER'} • ${paperId.slice(0, 8).toUpperCase()} • ${timestampStr}`;
+  const timestampStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+  const userName = currentUser?.full_name || currentUser?.email || 'Authorized Official';
+  const userRole = currentUser?.role || 'EXAM_MANAGER';
+  const trackingCode = `TRK-VO-${paperId.slice(0, 8).toUpperCase()}`;
+
+  const watermarkLine1 = `ZEROLEAK CONFIDENTIAL • VIEW ONLY • ${userName.toUpperCase()} (${userRole})`;
+  const watermarkLine2 = `EXAM: ${examId} • PAPER: ${paperId.slice(0, 10).toUpperCase()} • ${timestampStr}`;
+  const watermarkLine3 = locationData?.displayText || getImmediateSecurityWatermarkLocation().displayText;
+  const watermarkSvgUrl = useMemo(
+    () => createWatermarkSvgPattern(watermarkLine1, watermarkLine2, watermarkLine3, 'rgba(255, 255, 255, 0.14)', 'rgba(34, 211, 238, 0.28)'),
+    [watermarkLine1, watermarkLine2, watermarkLine3]
+  );
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-md flex flex-col overflow-hidden select-none"
+      className="fixed inset-0 z-[9999] bg-slate-950/95 backdrop-blur-md flex flex-col overflow-hidden select-none print:hidden"
       onContextMenu={(e) => e.preventDefault()}
       style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
     >
+      <style>{`
+        @media print {
+          html, body, body * { display: none !important; visibility: hidden !important; }
+        }
+      `}</style>
       {/* ========================================================================= */}
       {/* 1. TOP SECURITY CONTROL BAR                                               */}
       {/* ========================================================================= */}
@@ -229,9 +285,18 @@ export const ViewOncePaperPreviewModal: React.FC<ViewOncePaperPreviewModalProps>
                 {paperTitle}
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-              Exam: {examId} • Paper ID: {paperId} • Viewer: {currentUser?.full_name || currentUser?.email} ({currentUser?.role})
-            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400 font-mono mt-0.5">
+              <span>Exam: <strong>{examId}</strong></span>
+              <span>•</span>
+              <span>Paper ID: <strong>{paperId.slice(0, 10)}</strong></span>
+              <span>•</span>
+              <span>Viewer: <strong>{userName}</strong> ({userRole})</span>
+              <span>•</span>
+              <span className="text-cyan-400 flex items-center gap-1 font-semibold">
+                <MapPin className="w-3 h-3 text-cyan-400" />
+                <span>{watermarkLine3}</span>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -252,7 +317,7 @@ export const ViewOncePaperPreviewModal: React.FC<ViewOncePaperPreviewModalProps>
           {/* Policy Notice Tooltip / Badge */}
           <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700 text-[11px] text-slate-300">
             <Eye className="w-3.5 h-3.5 text-slate-400" />
-            <span>No Download &bull; No Print &bull; Single View Only</span>
+            <span>No Download &bull; Print Disabled &bull; Single View Only</span>
           </div>
 
           {/* Finish Verification Button */}
@@ -302,17 +367,12 @@ export const ViewOncePaperPreviewModal: React.FC<ViewOncePaperPreviewModalProps>
         {/* Full-bleed repeating security watermark layer */}
         <div
           aria-hidden="true"
-          className="pointer-events-none select-none absolute inset-0 z-40 overflow-hidden flex flex-wrap gap-x-20 gap-y-24 p-8 justify-around items-around opacity-15 rotate-[-22deg]"
-        >
-          {Array.from({ length: 48 }).map((_, idx) => (
-            <div
-              key={idx}
-              className="font-mono text-xs font-bold text-slate-400 tracking-wider whitespace-nowrap"
-            >
-              {watermarkText}
-            </div>
-          ))}
-        </div>
+          className="pointer-events-none select-none absolute inset-0 z-40"
+          style={{
+            backgroundImage: `url("${watermarkSvgUrl}")`,
+            backgroundRepeat: 'repeat',
+          }}
+        />
 
         {/* Paper Document Container (Centered Sheet) */}
         <div className="relative z-10 w-full max-w-4xl bg-white text-slate-900 rounded-2xl shadow-2xl p-6 sm:p-10 border border-slate-300 min-h-full">
@@ -398,10 +458,14 @@ export const ViewOncePaperPreviewModal: React.FC<ViewOncePaperPreviewModalProps>
                 <span>{isConsuming ? 'Finalizing...' : 'Confirm & Finalize'}</span>
               </button>
             </div>
+            {finalizeError && (
+              <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+                {finalizeError}
+              </p>
+            )}
           </div>
         </div>
       )}
     </div>
   );
 };
-

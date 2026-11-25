@@ -1267,6 +1267,9 @@ const createPrimary = () => {
   });
   session.fromPartition(PARTITION).setUserAgent(USER_AGENT);
   win.webContents.setUserAgent(USER_AGENT);
+  try {
+    win.setContentProtection(true);
+  } catch {}
   return win;
 };
 

@@ -1,5 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { LaTeXText } from '../common/LaTeXText';
+import {
+  getSecurityWatermarkLocation,
+  getImmediateSecurityWatermarkLocation,
+  activatePlatformScreenProtection,
+  createWatermarkSvgPattern,
+  buildWatermarkSvgOverlayHtml,
+  type ClientSecurityLocation,
+} from '../../utils/securityProtection';
 
 export interface CompetitiveVisualItem {
   id: string;
@@ -161,9 +169,41 @@ export const CompetitivePrintExaminationPaper: React.FC<PrintExaminationPaperPro
       ? paper.bilingualSections
       : paper.sections;
 
-  const watermarkText = operatorPrintMeta?.copyId
-    ? `ZEROLEAK AUTHORIZED PRINT • ${operatorPrintMeta.copyId} • ${operatorPrintMeta.centreCode || 'CTR-101'} • ${paperTitle.toUpperCase()}`
-    : `ZEROLEAK SECURE ENCLAVE • ${paperTitle.toUpperCase()} • ${paper.paperFingerprint?.slice(0, 16) || 'AUTH-VERIFIED'}`;
+  const centreCode = operatorPrintMeta?.centreCode || 'CTR-101';
+  const [locationData, setLocationData] = useState<ClientSecurityLocation>(() =>
+    getImmediateSecurityWatermarkLocation(centreCode)
+  );
+
+  useEffect(() => {
+    activatePlatformScreenProtection();
+    getSecurityWatermarkLocation(centreCode).then((loc) => {
+      setLocationData(loc);
+    });
+  }, [centreCode]);
+
+  const opName = operatorPrintMeta?.operatorName || 'Authorized Examination Official';
+  const copyId = operatorPrintMeta?.copyId || `COPY-${(paper.id || 'PPR').slice(0, 8).toUpperCase()}`;
+  const centre = operatorPrintMeta?.centreCode || 'CTR-101';
+  const timestampStr = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', hour12: true });
+
+  const watermarkLine1 = `ZEROLEAK SECURE • ${opName.toUpperCase()} • ${copyId} • ${centre}`;
+  const watermarkLine2 = `EXAM: ${paperTitle.toUpperCase()} • ${timestampStr}`;
+  const watermarkLine3 = locationData?.displayText || getImmediateSecurityWatermarkLocation(centre).displayText;
+
+  const watermarkSvgUrl = useMemo(
+    () => createWatermarkSvgPattern(watermarkLine1, watermarkLine2, watermarkLine3),
+    [watermarkLine1, watermarkLine2, watermarkLine3]
+  );
+
+  const printWatermarkSvgHtml = useMemo(
+    () => buildWatermarkSvgOverlayHtml(watermarkLine1, watermarkLine2, watermarkLine3),
+    [watermarkLine1, watermarkLine2, watermarkLine3]
+  );
+
+  const isCandidateFieldBlock = (text: string) =>
+    /\b(?:seat\s*(?:no\.?|number)|roll\s*(?:no\.?|number)|candidate\s+(?:name|signature|details)|student\s+(?:name|id)|signature\s+of\s+(?:candidate|student))\b/i.test(
+      text
+    );
 
   // Helper to determine if an option set can be rendered in 2 compact columns
   const shouldRenderTwoColumnOptions = (
@@ -236,27 +276,57 @@ export const CompetitivePrintExaminationPaper: React.FC<PrintExaminationPaperPro
 
   return (
     <div
+      id="competitive-single-paper-document"
       className="bg-white text-black font-serif antialiased select-none relative max-w-[960px] mx-auto p-6 sm:p-12 border border-neutral-300 shadow-md my-4 print:shadow-none print:border-none print:my-0 print:p-4"
       style={{ fontFamily: '"Times New Roman", Times, Georgia, serif' }}
       onContextMenu={e => e.preventDefault()}
     >
-      {/* Subtle Security Diagonal Watermark in Background */}
-      <div className="absolute inset-0 pointer-events-none opacity-[0.04] overflow-hidden flex items-center justify-center select-none">
-        <p className="text-3xl font-mono font-bold rotate-[-30deg] tracking-widest text-black uppercase text-center px-6">
-          {watermarkText}
-        </p>
-      </div>
+      <style>{`
+        @media print {
+          .print-fixed-watermark {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            pointer-events: none !important;
+            z-index: 99999 !important;
+            background-repeat: repeat !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      `}</style>
+      {/* Continuous Repeating Full-Document Security Watermark Layer with Location */}
+      <div
+        className="pointer-events-none absolute inset-0 z-20 select-none print:hidden"
+        style={{
+          backgroundImage: `url("${watermarkSvgUrl}")`,
+          backgroundRepeat: 'repeat',
+        }}
+        aria-hidden="true"
+      />
+      {/* Indelible Vector Text Watermark for Print & PDF Exporter (Immune to "Background graphics: OFF") */}
+      <div
+        className="hidden print:block fixed inset-0 pointer-events-none z-[99999] select-none"
+        dangerouslySetInnerHTML={{ __html: printWatermarkSvgHtml }}
+        aria-hidden="true"
+      />
 
       {/* Authorized Centre Print Security Header (When Printed by Centre Operator) */}
       {operatorPrintMeta && (
-        <div className="mb-3 p-2 border border-neutral-800 bg-neutral-50 text-[10px] font-mono flex flex-wrap items-center justify-between gap-2 text-neutral-900">
-          <div>
-            <strong>AUTHORIZED CENTRE PRINT COPY:</strong> {operatorPrintMeta.copyId || 'OFFICIAL-MASTER'} •{' '}
-            <strong>CENTRE:</strong> {operatorPrintMeta.centreCode || 'CTR-101'}
+        <div className="mb-3 p-2.5 border border-neutral-800 bg-neutral-50 text-[10px] font-mono flex flex-col gap-1.5 text-neutral-900">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <strong>AUTHORIZED CENTRE PRINT COPY:</strong> {operatorPrintMeta.copyId || 'OFFICIAL-MASTER'} •{' '}
+              <strong>CENTRE:</strong> {operatorPrintMeta.centreCode || 'CTR-101'}
+            </div>
+            <div>
+              <strong>OPERATOR:</strong> {operatorPrintMeta.operatorName || 'Authorized Superintendent'} •{' '}
+              <strong>PAPER ID:</strong> {paper.id}
+            </div>
           </div>
-          <div>
-            <strong>OPERATOR:</strong> {operatorPrintMeta.operatorName || 'Authorized Superintendent'} •{' '}
-            <strong>PAPER ID:</strong> {paper.id}
+          <div className="text-[9px] text-cyan-800 flex items-center gap-1 font-semibold">
+            <span>{watermarkLine3}</span>
           </div>
           {operatorPrintMeta.txHash && (
             <div className="w-full text-[9px] text-neutral-700 border-t border-neutral-300 pt-1">
@@ -428,9 +498,23 @@ export const CompetitivePrintExaminationPaper: React.FC<PrintExaminationPaperPro
                     Boolean(cleanedTranslatedText);
                   const isCompactTwoCol = shouldRenderTwoColumnOptions(options, q.translatedOptions);
 
-                  const visualElements: CompetitiveVisualItem[] = Array.isArray(q.visualElements)
+                  const candidateTableText = q.tableData
+                    ? [q.tableData.headers || [], ...(q.tableData.rows || [])].flat().join(' ')
+                    : '';
+                  const hasCandidateFieldTable = isCandidateFieldBlock(candidateTableText);
+                  const visualElements: CompetitiveVisualItem[] = (Array.isArray(q.visualElements)
                     ? q.visualElements
-                    : [];
+                    : []).filter(v => {
+                      const isEquationCrop = v.type === 'equation' || v.extractionMethod === 'equation_image_crop';
+                      if (isEquationCrop && !q.requiresVisual) return false;
+                      if (isEquationCrop && (v.aspectRatio || 0) > 4) return false;
+                      const visualTableText = v.tableData
+                        ? [v.tableData.headers || [], ...(v.tableData.rows || [])].flat().join(' ')
+                        : '';
+                      return !isCandidateFieldBlock(`${v.caption || ''} ${visualTableText}`) &&
+                        !(hasCandidateFieldTable && v.type === 'table');
+                    });
+                  const paperTableData = hasCandidateFieldTable ? null : q.tableData;
                   const isSecondaryShared = Boolean(
                     q.sharedVisualGroupId && q.isPrimarySharedVisualInstance === false
                   );
@@ -514,19 +598,19 @@ export const CompetitivePrintExaminationPaper: React.FC<PrintExaminationPaperPro
                       {/* Structured Table Data (when not already rendered as a cropped table image) */}
                       {!isSecondaryShared &&
                         !hasRenderedTableImage &&
-                        q.tableData &&
-                        (q.tableData.headers || q.tableData.rows) && (
+                        paperTableData &&
+                        (paperTableData.headers || paperTableData.rows) && (
                           <div className="my-2 overflow-x-auto break-inside-avoid">
-                            {q.tableData.caption && (
+                            {paperTableData.caption && (
                               <div className="text-[11px] font-bold text-neutral-800 mb-1">
-                                <LaTeXText text={q.tableData.caption} />
+                                <LaTeXText text={paperTableData.caption} />
                               </div>
                             )}
                             <table className="w-full border-collapse border border-black text-[11.5px]">
-                              {q.tableData.headers && q.tableData.headers.length > 0 && (
+                              {paperTableData.headers && paperTableData.headers.length > 0 && (
                                 <thead>
                                   <tr className="bg-neutral-100">
-                                    {q.tableData.headers.map((h, hIdx) => (
+                                    {paperTableData.headers.map((h, hIdx) => (
                                       <th
                                         key={hIdx}
                                         className="border border-black px-2 py-1 text-left font-bold"
@@ -537,9 +621,9 @@ export const CompetitivePrintExaminationPaper: React.FC<PrintExaminationPaperPro
                                   </tr>
                                 </thead>
                               )}
-                              {q.tableData.rows && q.tableData.rows.length > 0 && (
+                              {paperTableData.rows && paperTableData.rows.length > 0 && (
                                 <tbody>
-                                  {q.tableData.rows.map((r, rIdx) => (
+                                  {paperTableData.rows.map((r, rIdx) => (
                                     <tr key={rIdx}>
                                       {r.map((cell, cIdx) => (
                                         <td key={cIdx} className="border border-black px-2 py-1">
@@ -561,7 +645,20 @@ export const CompetitivePrintExaminationPaper: React.FC<PrintExaminationPaperPro
                           dangerouslySetInnerHTML={{ __html: q.diagramSvg }}
                         />
                       )}
-                      {visualElements.length === 0 && (q.imageUrl || q.diagramUrl) && (
+                      {!hasCandidateFieldTable &&
+                        visualElements.length === 0 &&
+                        (q.imageUrl || q.diagramUrl) &&
+                        !(
+                          !q.requiresVisual &&
+                          (Array.isArray(q.visualElements)
+                            ? q.visualElements.some(
+                                v =>
+                                  (v.dataUrl === (q.imageUrl || q.diagramUrl) ||
+                                    v.publicUrl === (q.imageUrl || q.diagramUrl)) &&
+                                  (v.type === 'equation' || v.extractionMethod === 'equation_image_crop')
+                              )
+                            : false)
+                        ) && (
                         <div className="my-2 flex justify-center">
                           <img
                             src={q.imageUrl || q.diagramUrl}
@@ -690,4 +787,3 @@ export const CompetitivePrintExaminationPaper: React.FC<PrintExaminationPaperPro
     </div>
   );
 };
-

@@ -85,6 +85,18 @@ Page 2 of 4
   assert.doesNotMatch(parsed[0].questionText, /SPACE FOR ROUGH WORK/i);
 });
 
+test('2a. Excludes candidate seat-number blocks from extracted paper tables', () => {
+  const result = detectQuestionVisualMetadata([
+    'What is the wavelength of the electron?',
+    'Seat | No. | Candidate Name',
+    '1 | 2 |',
+  ]);
+
+  assert.equal(result.tableData, null);
+  assert.match(result.cleanedQuestionText, /wavelength of the electron/i);
+  assert.doesNotMatch(result.cleanedQuestionText, /Seat|Candidate Name/i);
+});
+
 test('3. Blueprint calculation and independent subject validation logic', () => {
   const subjects: CompetitiveSubjectRule[] = [
     {
@@ -521,6 +533,63 @@ D) 100 m
   assert.ok((bound[1].visualElements?.length || 0) >= 1, 'Fallback visual record must be preserved so visual is never silently omitted');
 });
 
+test('8a. Removes candidate detail visuals from final paper questions', () => {
+  const questions = parseQuestionsFromRawText(
+    'Q1. What is the wavelength of the electron?',
+    'Physics',
+    'seat-number-draft.pdf'
+  );
+  const result = bindVisualsToCompetitiveQuestions(
+    questions,
+    {
+      success: true,
+      pageCount: 1,
+      isScannedPdf: false,
+      scannedPageCount: 0,
+      ocrUsed: false,
+      questions: [
+        {
+          questionNumber: '1',
+          page: 1,
+          bbox: [40, 80, 520, 160],
+          questionText: questions[0].questionText,
+          requiresVisual: false,
+          visualReferences: [],
+          captions: [],
+          equations: [],
+          tableData: {
+            headers: ['Seat No.', 'Candidate Name'],
+            rows: [['', '']],
+          },
+          visualElements: [
+            {
+              id: 'seat-number-box',
+              type: 'table',
+              extractionMethod: 'table_visual_crop',
+              sourcePdf: 'seat-number-draft.pdf',
+              sourcePage: 1,
+              tableData: {
+                headers: ['Seat No.', 'Candidate Name'],
+                rows: [['', '']],
+              },
+              dataUrl: 'data:image/png;base64,test',
+            },
+          ],
+        },
+      ],
+      unassignedVisuals: [],
+      totalVisualsExtracted: 1,
+      warnings: [],
+    },
+    'seat-number-draft.pdf',
+    'seat-number-file'
+  );
+
+  assert.equal(result[0].tableData, null);
+  assert.equal(result[0].visualElements?.length, 0);
+  assert.equal(result[0].hasVisual, false);
+});
+
 test('9. Permutation/combination carries question + bound visuals as an atomic block and links shared multi-question visuals', () => {
   const samplePngDataUrl =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -874,7 +943,6 @@ test('13. handleGenerateCompetitivePaper generates paper seamlessly without bloc
   assert.equal(jsonResult.paper.questions.length, 5);
   assert.ok(jsonResult.paper.paperFingerprint, 'Paper must have fingerprint hash');
 });
-
 
 
 

@@ -1,4 +1,32 @@
 import fs from 'fs';
+import net from 'net';
+
+export function isPortOpen(host: string, port: number, timeoutMs = 200): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+
+    const done = (result: boolean) => {
+      if (!settled) {
+        settled = true;
+        socket.destroy();
+        resolve(result);
+      }
+    };
+
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
+
+    try {
+      socket.connect(port, host);
+    } catch {
+      done(false);
+    }
+  });
+}
+
 import path from 'path';
 import initSqlJs, { type Database } from 'sql.js';
 import { Pool } from 'pg';
@@ -26,10 +54,21 @@ export async function connectDB(): Promise<typeof mongoose> {
     return mongoConnectionPromise;
   }
 
+  if (uri.includes('127.0.0.1') || uri.includes('localhost')) {
+    const portMatch = uri.match(/:(\d+)/);
+    const port = portMatch ? parseInt(portMatch[1], 10) : 27017;
+    const host = uri.includes('localhost') ? 'localhost' : '127.0.0.1';
+    const isOpen = await isPortOpen(host, port, 200);
+    if (!isOpen) {
+      console.log(`[ZeroLeak DB] MongoDB offline (${host}:${port} unreachable). Instant fallback to SQLite engine.`);
+      throw new Error(`MongoDB offline at ${host}:${port}`);
+    }
+  }
+
   try {
     mongoConnectionPromise = mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 2000,
+      connectTimeoutMS: 3000,
     });
     const conn = await mongoConnectionPromise;
     mongoInitialized = true;
@@ -137,6 +176,17 @@ export async function initPostgres(): Promise<boolean> {
     return false;
   }
   lastPgInitAttempt = Date.now();
+
+  const host = process.env.DB_HOST || 'localhost';
+  const port = parseInt(process.env.DB_PORT || '5432', 10);
+  if (host === 'localhost' || host === '127.0.0.1') {
+    const isOpen = await isPortOpen(host, port, 200);
+    if (!isOpen) {
+      console.log(`[ZeroLeak DB] PostgreSQL offline (${host}:${port} unreachable). Instant fallback to SQLite engine.`);
+      return false;
+    }
+  }
+
   const pool = getPostgresPool();
   if (!pool) return false;
 
@@ -200,6 +250,8 @@ export async function hydrateFromPostgres(db: Database): Promise<void> {
     'proctor_sessions',
     'authority_proctor_sessions',
     'proctor_events',
+    'translator_security_state',
+    'translator_security_incidents',
     'proctor_settings',
     'system_settings',
     'paper_blueprints',
@@ -1052,6 +1104,33 @@ function initializeSchema(db: Database) {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS translator_security_state (
+      user_id TEXT PRIMARY KEY,
+      current_session_id TEXT,
+      is_locked INTEGER NOT NULL DEFAULT 0,
+      lock_reason TEXT,
+      locked_session_id TEXT,
+      locked_at TEXT,
+      recovered_at TEXT,
+      recovered_by TEXT,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS translator_security_incidents (
+      session_id TEXT NOT NULL,
+      incident_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      confidence REAL,
+      warning_count INTEGER NOT NULL DEFAULT 0,
+      detection_result_json TEXT,
+      detected_at TEXT NOT NULL,
+      cleared_at TEXT,
+      event_id TEXT NOT NULL,
+      PRIMARY KEY (session_id, incident_id)
+    );
+
     -- Proctor Settings (Configurable risk weights)
     CREATE TABLE IF NOT EXISTS proctor_settings (
       id TEXT PRIMARY KEY,
@@ -1802,6 +1881,8 @@ export function convertSqliteToPostgres(sql: string): string {
       out += ` ON CONFLICT (id) DO UPDATE SET org_id = EXCLUDED.org_id, updated_at = EXCLUDED.updated_at`;
     } else if (/trusted_devices/i.test(out)) {
       out += ` ON CONFLICT (id) DO UPDATE SET user_id = EXCLUDED.user_id, status = EXCLUDED.status, last_seen_at = EXCLUDED.last_seen_at`;
+    } else if (/translator_security_incidents/i.test(out)) {
+      out += ` ON CONFLICT (session_id, incident_id) DO NOTHING`;
     } else {
       out += ` ON CONFLICT (id) DO NOTHING`;
     }
@@ -2024,6 +2105,38 @@ export function executeTransaction(db: Database, statements: Array<{ sql: string
   }
 }
 
+export function executeTransactionWithResult<T>(
+  db: Database,
+  operation: (run: (sql: string, params?: any[]) => void, query: (sql: string, params?: any[]) => any[]) => T
+): T {
+  const statements: Array<{ sql: string; params: any[] }> = [];
+  db.run('BEGIN IMMEDIATE');
+  let result: T;
+  try {
+    result = operation(
+      (sql, params = []) => {
+        db.run(sql, params);
+        statements.push({ sql, params });
+      },
+      (sql, params = []) => executeQuery(db, sql, params)
+    );
+    db.run('COMMIT');
+  } catch (error) {
+    try {
+      db.run('ROLLBACK');
+    } catch {
+      /* Preserve the original failure if rollback is not possible. */
+    }
+    throw error;
+  }
+  saveDb();
+  for (const statement of statements) {
+    writeThroughToPostgres(statement.sql, statement.params);
+    writeThroughToMongo(statement.sql, statement.params);
+  }
+  return result;
+}
+
 export async function queryPostgres(sql: string, params: any[] = []): Promise<any[]> {
   const pool = getPostgresPool();
   if (!pool) return [];
@@ -2109,4 +2222,3 @@ export async function lookupAuthorizedUserInPostgres(identifier: string): Promis
   }
   return null;
 }
-
